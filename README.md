@@ -1,5 +1,9 @@
 # Noble Deck
-
+![Status](https://img.shields.io/badge/status-em%20desenvolvimento-8C56D4)
+![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)
+---
 ## Sistema de Gerenciamento de Loja de Card Games
 
 O **Noble Deck** é um sistema de gerenciamento desenvolvido para uma loja especializada em Trading Card Games (TCG).
