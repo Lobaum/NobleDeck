@@ -16,62 +16,63 @@ clientes.append(cliente)
 
 print("\nCadastro realizado com sucesso!")
 
-print("\n========== Login ==========")
-
-email_login = input("Email: ")
-senha_login = input("Senha: ")
-
 cliente_logado = None
 
-for cliente in clientes:
-    if cliente.email == email_login and cliente.senha == senha_login:
-        cliente_logado = cliente
+while cliente_logado is None:
+    print("\n========== Login ==========")
+    email_login = input("Email: ")
+    senha_login = input("Senha: ")
 
-if cliente_logado is None:
-    print("\nEmail ou senha incorretos.")
-else:
-    print(f"\nBem-vindo, {cliente_logado.nome}!")
+    for cliente in clientes:
+        if cliente.email == email_login and cliente.senha == senha_login:
+            cliente_logado = cliente
+            break
 
-    produto1 = Produto(1, "Booster Pokémon", 29.90, 10)
-    produto2 = Produto(2, "Deck Pokémon", 149.90, 5)
-    produto3 = Produto(3, "Booster Magic", 34.90, 8)
+    if cliente_logado is None:
+        print("\nEmail ou senha incorretos. Tente novamente.")
 
-    produtos.append(produto1)
-    produtos.append(produto2)
-    produtos.append(produto3)
+print(f"\nBem-vindo, {cliente_logado.nome}!")
 
-    pedido = Pedido(1, cliente_logado)
+produto1 = Produto(1, "Booster Pokémon", 29.90, 10)
+produto2 = Produto(2, "Deck Pokémon", 149.90, 5)
+produto3 = Produto(3, "Booster Magic", 34.90, 8)
+
+produtos.append(produto1)
+produtos.append(produto2)
+produtos.append(produto3)
+
+pedido = Pedido(1, cliente_logado)
 
 
-    print("\n========== Produtos ==========")
+print("\n========== Produtos ==========")
 
-    for produto in produtos:
-        print(
-            f"{produto.id_produto} - "
-            f"{produto.nome} - "
-            f"R$ {produto.preco:.2f} - "
-            f"Estoque: {produto.estoque}"
-        )
+for produto in produtos:
+    print(
+        f"{produto.id_produto} - "
+        f"{produto.nome} - "
+        f"R$ {produto.preco:.2f} - "
+        f"Estoque: {produto.estoque}"
+    )
 
-    id_produto = int(input("\nDigite o id do produto: "))
-    quantidade = int(input("Digite a quantidade: "))
+id_produto = int(input("\nDigite o id do produto: "))
+quantidade = int(input("Digite a quantidade: "))
 
-    for produto in produtos:
-        if produto.id_produto == id_produto:
-            pedido.adicionar_item(produto, quantidade)
-            print("\nProduto adicionado ao carrinho!")
+for produto in produtos:
+    if produto.id_produto == id_produto:
+        pedido.adicionar_item(produto, quantidade)
+        print("\nProduto adicionado ao carrinho!")
 
-    pedido.exibir_carrinho()
+pedido.exibir_carrinho()
 
-    resposta = input("\nDeseja finalizar o pedido? (s/n): ")
+resposta = input("\nDeseja finalizar o pedido? (s/n): ")
 
-    if resposta == "s":
-        pedido.finalizar()
+if resposta == "s":
+    pedido.finalizar()
 
-        print("\n========== Pedido ==========")
-        print(f"Pedido: {pedido.id_pedido}")
-        print(f"Cliente: {cliente_logado.nome}")
-        print(f"Total: R$ {pedido.valor_total:.2f}")
-        print(f"Status: {pedido.status}")
-        print("============================")
-        print("Pedido finalizado com sucesso!")
+    print("\n========== Pedido ==========")
+    print(f"Pedido: {pedido.id_pedido}")
+    print(f"Cliente: {cliente_logado.nome}")
+    print(f"Total: R$ {pedido.valor_total:.2f}")
+    print(f"Status: {pedido.status}")
+    print("============================")
+    print("Pedido finalizado com sucesso!")
