@@ -245,7 +245,7 @@ export const Footer: React.FC = () => {
               color: 'var(--color-on-surface-variant)',
             }}
           >
-            © 2026 Noble Deck — Todos os direitos reservados.
+            © 2026 Noble Deck - Todos os direitos reservados.
           </p>
           <p
             style={{

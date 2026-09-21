@@ -248,7 +248,34 @@ Tecnologias:
 | Frontend              | React                    |
 | Linguagem do frontend | TypeScript               |
 | Backend               | Python                   |
-| API                   | FastAPI (Pensando sobre) |
+| API                   | FastAPI                  |
+| Banco de Dados        | SQLite (SQLAlchemy)      |
+
+---
+
+## 🚀 Como Executar o Projeto
+
+### 1. Backend (FastAPI)
+```bash
+cd backend
+
+pip install -r ../requirements.txt
+
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+```
+
+### 2. Frontend (React + Vite)
+```bash
+
+cd frontend
+
+npm install
+
+npm run dev
+```
+- Acesse a aplicação em: `http://127.0.0.1:5173`
+- As requisições para `/api` são redirecionadas automaticamente para o FastAPI na porta 8000.
 
 ---
 

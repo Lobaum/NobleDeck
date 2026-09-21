@@ -18,8 +18,8 @@ export const CartDrawer: React.FC = () => {
 
   if (!isCartOpen) return null;
 
-  const handleCheckout = () => {
-    const order = createOrder();
+  const handleCheckout = async () => {
+    const order = await createOrder();
     if (order) {
       setLastCompletedOrder(order.id_pedido);
     }

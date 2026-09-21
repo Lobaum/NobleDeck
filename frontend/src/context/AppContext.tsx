@@ -13,6 +13,7 @@ import {
   INITIAL_TOURNAMENTS,
   INITIAL_USER,
 } from '../data/mockData';
+import { api } from '../services/api';
 
 export type NavigationTab = 'home' | 'products' | 'tournaments' | 'about' | 'dashboard';
 
@@ -25,14 +26,17 @@ interface AppContextType {
   products: Product[];
   selectedProductForModal: Product | null;
   setSelectedProductForModal: (product: Product | null) => void;
-  addProduct: (product: Omit<Product, 'id'>) => void;
-  updateProductStock: (productId: number, change: number) => void;
+  addProduct: (product: Omit<Product, 'id'>) => Promise<void> | void;
+  updateProductStock: (productId: number, change: number) => Promise<void> | void;
+  setProductStockExact: (productId: number, newStock: number) => Promise<void> | void;
+  editProduct: (productId: number, updatedFields: Partial<Product>) => Promise<void> | void;
+  deleteProduct: (productId: number) => Promise<void> | void;
   
   tournaments: Tournament[];
   selectedTournamentForModal: Tournament | null;
   setSelectedTournamentForModal: (tournament: Tournament | null) => void;
-  registerInTournament: (tournamentId: number) => boolean;
-  createTournament: (tournament: Omit<Tournament, 'id' | 'vagasOcupadas' | 'inscritos' | 'status'>) => void;
+  registerInTournament: (tournamentId: number) => Promise<boolean> | boolean;
+  createTournament: (tournament: Omit<Tournament, 'id' | 'vagasOcupadas' | 'inscritos' | 'status'>) => Promise<void> | void;
   
   cart: CartItem[];
   isCartOpen: boolean;
@@ -45,8 +49,8 @@ interface AppContextType {
   cartItemsCount: number;
   
   orders: Order[];
-  createOrder: () => Order | null;
-  updateOrderStatus: (orderId: number, status: Order['status']) => void;
+  createOrder: () => Promise<Order | null>;
+  updateOrderStatus: (orderId: number, status: Order['status']) => Promise<void> | void;
   
   currentUser: UserProfile;
   switchRole: (role: UserRole) => void;
@@ -54,7 +58,7 @@ interface AppContextType {
   setIsAuthModalOpen: (open: boolean) => void;
   authModalMode: 'login' | 'register';
   setAuthModalMode: (mode: 'login' | 'register') => void;
-  loginUser: (nome: string, email: string, role: UserRole) => void;
+  loginUser: (nome: string, email: string, role: UserRole, senha?: string, telefone?: string) => Promise<boolean>;
   logoutUser: () => void;
   
   toastMessage: string | null;
@@ -175,6 +179,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('noble_user', JSON.stringify(currentUser));
   }, [currentUser]);
 
+  // Carregamento inicial da API FastAPI com suporte a banco vazio
+  useEffect(() => {
+    api
+      .obterProdutos()
+      .then((dados) => {
+        if (Array.isArray(dados)) {
+          setProducts(dados);
+        }
+      })
+      .catch((err) => console.log('FastAPI offline ou carregando, mantendo dados locais de produtos:', err.message));
+
+    api
+      .obterTorneios()
+      .then((dados) => {
+        if (Array.isArray(dados)) {
+          setTournaments(dados);
+        }
+      })
+      .catch((err) => console.log('FastAPI offline ou carregando, mantendo dados locais de torneios:', err.message));
+
+    api
+      .obterPedidos()
+      .then((dados) => {
+        if (Array.isArray(dados)) {
+          setOrders(dados);
+        }
+      })
+      .catch((err) => console.log('FastAPI offline ou carregando, mantendo dados locais de pedidos:', err.message));
+  }, []);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
@@ -248,7 +282,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const cartTotal = cart.reduce((acc, item) => acc + item.subtotal, 0);
   const cartItemsCount = cart.reduce((acc, item) => acc + item.quantidade, 0);
 
-  const createOrder = (): Order | null => {
+  const createOrder = async (): Promise<Order | null> => {
     if (cart.length === 0) {
       showToast('Seu carrinho está vazio.');
       return null;
@@ -262,41 +296,78 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    setProducts((prev) =>
-      prev.map((p) => {
-        const inCart = cart.find((item) => item.produto.id === p.id);
-        if (inCart) {
-          return { ...p, estoque: p.estoque - inCart.quantidade };
-        }
-        return p;
-      })
-    );
+    try {
+      const payload = {
+        cliente_id: currentUser.id > 0 ? currentUser.id : undefined,
+        cliente_nome: currentUser.nome || 'Visitante',
+        cliente_email: currentUser.email || 'cliente@nobledeck.com',
+        itens: cart.map((it) => ({
+          produto_id: it.produto.id,
+          quantidade: it.quantidade,
+        })),
+      };
 
-    const newOrder: Order = {
-      id_pedido: Math.floor(1000 + Math.random() * 9000),
-      cliente_nome: currentUser.nome,
-      cliente_email: currentUser.email,
-      itens: [...cart],
-      valor_total: cartTotal,
-      data: new Date().toLocaleDateString('pt-BR'),
-      status: 'Finalizado',
-    };
+      const pedidoBackend = await api.criarPedido(payload, products);
+      setOrders((prev) => [pedidoBackend, ...prev]);
 
-    setOrders((prev) => [newOrder, ...prev]);
-    clearCart();
-    setIsCartOpen(false);
-    showToast(`Pedido #${newOrder.id_pedido} realizado com sucesso!`);
-    return newOrder;
+      setProducts((prev) =>
+        prev.map((p) => {
+          const inCart = cart.find((item) => item.produto.id === p.id);
+          if (inCart) {
+            return { ...p, estoque: p.estoque - inCart.quantidade };
+          }
+          return p;
+        })
+      );
+
+      clearCart();
+      setIsCartOpen(false);
+      showToast(`Pedido #${pedidoBackend.id_pedido} realizado com sucesso!`);
+      return pedidoBackend;
+    } catch (err) {
+      console.warn('Fallback para finalização local do pedido:', err);
+      setProducts((prev) =>
+        prev.map((p) => {
+          const inCart = cart.find((item) => item.produto.id === p.id);
+          if (inCart) {
+            return { ...p, estoque: p.estoque - inCart.quantidade };
+          }
+          return p;
+        })
+      );
+
+      const newOrder: Order = {
+        id_pedido: Math.floor(1000 + Math.random() * 9000),
+        cliente_nome: currentUser.nome,
+        cliente_email: currentUser.email,
+        itens: [...cart],
+        valor_total: cartTotal,
+        data: new Date().toLocaleDateString('pt-BR'),
+        status: 'Finalizado',
+      };
+
+      setOrders((prev) => [newOrder, ...prev]);
+      clearCart();
+      setIsCartOpen(false);
+      showToast(`Pedido #${newOrder.id_pedido} realizado com sucesso!`);
+      return newOrder;
+    }
   };
 
-  const updateOrderStatus = (orderId: number, status: Order['status']) => {
+  const updateOrderStatus = async (orderId: number, status: Order['status']) => {
+    try {
+      await api.atualizarStatusPedido(orderId, status, products);
+    } catch (err) {
+      console.warn('Falha na API ao atualizar status, aplicando localmente:', err);
+    }
+
     setOrders((prev) =>
       prev.map((o) => (o.id_pedido === orderId ? { ...o, status } : o))
     );
     showToast(`Status do pedido #${orderId} atualizado para ${status}`);
   };
 
-  const registerInTournament = (tournamentId: number): boolean => {
+  const registerInTournament = async (tournamentId: number): Promise<boolean> => {
     const t = tournaments.find((item) => item.id === tournamentId);
     if (!t) return false;
 
@@ -310,20 +381,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return false;
     }
 
-    setTournaments((prev) =>
-      prev.map((item) => {
-        if (item.id === tournamentId) {
-          const nextVagas = item.vagasOcupadas + 1;
-          return {
-            ...item,
-            vagasOcupadas: nextVagas,
-            status: nextVagas >= item.vagasTotais ? 'lotado' : 'aberto',
-            inscritos: [...item.inscritos, currentUser.nome],
-          };
-        }
-        return item;
-      })
-    );
+    try {
+      const atualizado = await api.inscreverTorneio(
+        tournamentId,
+        currentUser.id,
+        currentUser.nome
+      );
+      setTournaments((prev) =>
+        prev.map((item) => (item.id === tournamentId ? atualizado : item))
+      );
+    } catch (err) {
+      console.warn('Fallback para inscrição local no torneio:', err);
+      setTournaments((prev) =>
+        prev.map((item) => {
+          if (item.id === tournamentId) {
+            const nextVagas = item.vagasOcupadas + 1;
+            return {
+              ...item,
+              vagasOcupadas: nextVagas,
+              status: nextVagas >= item.vagasTotais ? 'lotado' : 'aberto',
+              inscritos: [...item.inscritos, currentUser.nome],
+            };
+          }
+          return item;
+        })
+      );
+    }
 
     setCurrentUser((prev) => ({
       ...prev,
@@ -334,30 +417,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
-  const createTournament = (
+  const createTournament = async (
     data: Omit<Tournament, 'id' | 'vagasOcupadas' | 'inscritos' | 'status'>
   ) => {
-    const newT: Tournament = {
-      ...data,
-      id: Math.floor(100 + Math.random() * 900),
-      vagasOcupadas: 0,
-      inscritos: [],
-      status: 'aberto',
-    };
-    setTournaments((prev) => [newT, ...prev]);
-    showToast(`Torneio "${newT.titulo}" cadastrado com sucesso!`);
+    try {
+      const criado = await api.cadastrarTorneio(data);
+      setTournaments((prev) => [criado, ...prev]);
+      showToast(`Torneio "${criado.titulo}" cadastrado com sucesso!`);
+    } catch (err) {
+      console.warn('Fallback para cadastro local de torneio:', err);
+      const newT: Tournament = {
+        ...data,
+        id: Math.floor(100 + Math.random() * 900),
+        vagasOcupadas: 0,
+        inscritos: [],
+        status: 'aberto',
+      };
+      setTournaments((prev) => [newT, ...prev]);
+      showToast(`Torneio "${newT.titulo}" cadastrado com sucesso!`);
+    }
   };
 
-  const addProduct = (p: Omit<Product, 'id'>) => {
-    const newProduct: Product = {
-      ...p,
-      id: Math.floor(100 + Math.random() * 900),
-    };
-    setProducts((prev) => [newProduct, ...prev]);
-    showToast(`Produto "${newProduct.nome}" cadastrado com sucesso!`);
+  const addProduct = async (p: Omit<Product, 'id'>) => {
+    try {
+      const criado = await api.cadastrarProduto(p);
+      setProducts((prev) => [criado, ...prev]);
+      showToast(`Produto "${criado.nome}" cadastrado com sucesso!`);
+    } catch (err) {
+      console.warn('Fallback para cadastro local de produto:', err);
+      const newProduct: Product = {
+        ...p,
+        id: Math.floor(100 + Math.random() * 900),
+      };
+      setProducts((prev) => [newProduct, ...prev]);
+      showToast(`Produto "${newProduct.nome}" cadastrado com sucesso!`);
+    }
   };
 
-  const updateProductStock = (productId: number, change: number) => {
+  const updateProductStock = async (productId: number, change: number) => {
+    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+    if (!isStaffOrAdmin) {
+      showToast('Apenas funcionários ou administradores podem alterar o estoque!');
+      return;
+    }
+
+    const prod = products.find((p) => p.id === productId);
+    if (!prod) return;
+
+    try {
+      await api.atualizarEstoque(productId, change, prod.estoque);
+    } catch (err) {
+      console.warn('Falha na API ao atualizar estoque:', err);
+    }
+
     setProducts((prev) =>
       prev.map((p) => {
         if (p.id === productId) {
@@ -368,6 +480,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
     showToast('Estoque atualizado!');
+  };
+
+  const setProductStockExact = async (productId: number, newStock: number) => {
+    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+    if (!isStaffOrAdmin) {
+      showToast('Apenas funcionários ou administradores podem alterar o estoque!');
+      return;
+    }
+
+    const prod = products.find((p) => p.id === productId);
+    if (!prod) return;
+
+    const clampedStock = Math.max(0, Math.floor(newStock));
+
+    try {
+      await api.definirEstoque(productId, clampedStock);
+    } catch (err) {
+      console.warn('Falha na API ao definir estoque exato:', err);
+    }
+
+    setProducts((prev) =>
+      prev.map((p) => (p.id === productId ? { ...p, estoque: clampedStock } : p))
+    );
+    showToast(`Estoque de "${prod.nome}" atualizado para ${clampedStock} unidades!`);
+  };
+
+  const editProduct = async (productId: number, updatedFields: Partial<Product>) => {
+    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+    if (!isStaffOrAdmin) {
+      showToast('Apenas funcionários ou administradores podem editar produtos!');
+      return;
+    }
+
+    try {
+      const atualizado = await api.atualizarProduto(productId, updatedFields);
+      setProducts((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, ...atualizado, ...updatedFields } : p))
+      );
+      showToast(`Produto "${updatedFields.nome || atualizado.nome}" atualizado com sucesso!`);
+    } catch (err) {
+      console.warn('Falha na API ao atualizar produto, aplicando localmente:', err);
+      setProducts((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, ...updatedFields } : p))
+      );
+      showToast('Produto atualizado localmente!');
+    }
+  };
+
+  const deleteProduct = async (productId: number) => {
+    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+    if (!isStaffOrAdmin) {
+      showToast('Apenas funcionários ou administradores podem inativar produtos!');
+      return;
+    }
+
+    const prod = products.find((p) => p.id === productId);
+    try {
+      await api.inativarProduto(productId);
+    } catch (err) {
+      console.warn('Falha na API ao inativar produto:', err);
+    }
+
+    setProducts((prev) => prev.filter((p) => p.id !== productId));
+    showToast(`Produto "${prod?.nome || ''}" inativado com sucesso!`);
   };
 
   const switchRole = (role: UserRole) => {
@@ -384,17 +560,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Perfil alternado para: ${role.toUpperCase()}`);
   };
 
-  const loginUser = (nome: string, email: string, role: UserRole) => {
+  const loginUser = async (nome: string, email: string, role: UserRole, senha?: string, telefone?: string): Promise<boolean> => {
+    const emailLimpo = email.trim().toLowerCase();
+
+    if (authModalMode === 'register') {
+      const savedEmails: string[] = (() => {
+        try {
+          const raw = localStorage.getItem('noble_registered_emails');
+          return raw ? JSON.parse(raw) : ['admin@nobledeck.com', 'funcionario@nobledeck.com', 'pedro@nobledeck.com'];
+        } catch {
+          return ['admin@nobledeck.com', 'funcionario@nobledeck.com', 'pedro@nobledeck.com'];
+        }
+      })();
+
+      if (savedEmails.some((e) => e.toLowerCase() === emailLimpo)) {
+        showToast('Este e-mail já está cadastrado no sistema!');
+        return false;
+      }
+    }
+
+    if (senha) {
+      try {
+        if (authModalMode === 'register') {
+          const cadastrado = await api.cadastrarUsuario(nome, emailLimpo, senha, role, telefone || '');
+          setCurrentUser(cadastrado);
+          setIsAuthModalOpen(false);
+          showToast(`Cadastro realizado! Bem-vindo, ${cadastrado.nome}!`);
+
+          try {
+            const raw = localStorage.getItem('noble_registered_emails');
+            const list: string[] = raw ? JSON.parse(raw) : ['admin@nobledeck.com', 'funcionario@nobledeck.com', 'pedro@nobledeck.com'];
+            if (!list.includes(emailLimpo)) {
+              list.push(emailLimpo);
+              localStorage.setItem('noble_registered_emails', JSON.stringify(list));
+            }
+          } catch {}
+
+          return true;
+        } else {
+          const logado = await api.login(emailLimpo, senha);
+          setCurrentUser(logado);
+          setIsAuthModalOpen(false);
+          showToast(`Bem-vindo de volta, ${logado.nome}!`);
+          return true;
+        }
+      } catch (err: any) {
+        console.warn('Erro na autenticação com a API:', err);
+        showToast(err.message || 'Erro na autenticação.');
+        return false;
+      }
+    }
+
+    // Caso não tenha senha informada (ex: troca de perfil no topo)
     setCurrentUser({
       id: Math.floor(1 + Math.random() * 999),
       nome,
-      email,
+      email: emailLimpo,
       role,
       cargo: role === 'funcionario' ? 'Atendente de Loja' : role === 'admin' ? 'Administrador' : undefined,
       torneiosInscritos: [1],
     });
     setIsAuthModalOpen(false);
     showToast(`Bem-vindo, ${nome}!`);
+    return true;
   };
 
   const logoutUser = () => {
@@ -420,6 +648,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedProductForModal,
         addProduct,
         updateProductStock,
+        setProductStockExact,
+        editProduct,
+        deleteProduct,
         tournaments,
         selectedTournamentForModal,
         setSelectedTournamentForModal,

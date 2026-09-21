@@ -39,7 +39,7 @@ const AppContent: React.FC = () => {
 
       {/* Notificação */}
       {toastMessage && (
-        <div className="noble-toast">
+        <div className="noble-toast" role="alert">
           <span>{toastMessage}</span>
         </div>
       )}

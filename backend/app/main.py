@@ -1,78 +1,50 @@
-from app.modelos.usuario import Cliente
-from app.modelos.produto import Produto
-from app.modelos.pedido import Pedido
+import sys
+from pathlib import Path
 
-clientes = []
-produtos = []
-print("========== Cadastros ==========")
+_DIRETORIO_BACKEND = str(Path(__file__).resolve().parent.parent)
+if _DIRETORIO_BACKEND not in sys.path:
+    sys.path.insert(0, _DIRETORIO_BACKEND)
 
-nome = input("Nome: ")
-email = input("Email: ")
-senha = input("Senha: ")
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-cliente = Cliente(1, nome, email, senha)
-
-clientes.append(cliente)
-
-print("\nCadastro realizado com sucesso!")
-
-cliente_logado = None
-
-while cliente_logado is None:
-    print("\n========== Login ==========")
-    email_login = input("Email: ")
-    senha_login = input("Senha: ")
-
-    for cliente in clientes:
-        if cliente.email == email_login and cliente.senha == senha_login:
-            cliente_logado = cliente
-            break
-
-    if cliente_logado is None:
-        print("\nEmail ou senha incorretos. Tente novamente.")
-
-print(f"\nBem-vindo, {cliente_logado.nome}!")
-
-produto1 = Produto(1, "Booster Pokémon", 29.90, 10)
-produto2 = Produto(2, "Deck Pokémon", 149.90, 5)
-produto3 = Produto(3, "Booster Magic", 34.90, 8)
-
-produtos.append(produto1)
-produtos.append(produto2)
-produtos.append(produto3)
-
-pedido = Pedido(1, cliente_logado)
+from app.banco import inicializar_banco
+from app.rotas import auth, produtos, estoque, pedidos, torneios
 
 
-print("\n========== Produtos ==========")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    inicializar_banco()
+    yield
 
-for produto in produtos:
-    print(
-        f"{produto.id_produto} - "
-        f"{produto.nome} - "
-        f"R$ {produto.preco:.2f} - "
-        f"Estoque: {produto.estoque}"
-    )
+app = FastAPI(
+    title="API",
+    description="(FastAPI + POO)",
+    lifespan=lifespan,
+)
 
-id_produto = int(input("\nDigite o id do produto: "))
-quantidade = int(input("Digite a quantidade: "))
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "*",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-for produto in produtos:
-    if produto.id_produto == id_produto:
-        pedido.adicionar_item(produto, quantidade)
-        print("\nProduto adicionado ao carrinho!")
+app.include_router(auth.router)
+app.include_router(produtos.router)
+app.include_router(estoque.router)
+app.include_router(pedidos.router)
+app.include_router(torneios.router)
 
-pedido.exibir_carrinho()
+if __name__ == "__main__":
+    import uvicorn
 
-resposta = input("\nDeseja finalizar o pedido? (s/n): ")
-
-if resposta == "s":
-    pedido.finalizar()
-
-    print("\n========== Pedido ==========")
-    print(f"Pedido: {pedido.id_pedido}")
-    print(f"Cliente: {cliente_logado.nome}")
-    print(f"Total: R$ {pedido.valor_total:.2f}")
-    print(f"Status: {pedido.status}")
-    print("============================")
-    print("Pedido finalizado com sucesso!")
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)

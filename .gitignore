@@ -1,3 +1,33 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 *.pyo
+
+# Venv
+.venv/
+venv/
+env/
+ENV/
+
+# Bancos de dados
+*.db
+*.sqlite
+*.sqlite3
+nobledeck.db
+
+# env
+.env
+.env.*
+!.env.example
+
+# Vs Code
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
