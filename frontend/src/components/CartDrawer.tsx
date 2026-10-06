@@ -12,6 +12,10 @@ export const CartDrawer: React.FC = () => {
     cartTotal,
     createOrder,
     setCurrentTab,
+    currentUser,
+    setIsAuthModalOpen,
+    setAuthModalMode,
+    showToast,
   } = useApp();
 
   const [lastCompletedOrder, setLastCompletedOrder] = useState<number | null>(null);
@@ -19,6 +23,14 @@ export const CartDrawer: React.FC = () => {
   if (!isCartOpen) return null;
 
   const handleCheckout = async () => {
+    if (!currentUser.email || currentUser.id === 0) {
+      showToast('Faça login ou crie uma conta para finalizar seu pedido!');
+      setIsCartOpen(false);
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
     const order = await createOrder();
     if (order) {
       setLastCompletedOrder(order.id_pedido);

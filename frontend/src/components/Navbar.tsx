@@ -168,67 +168,70 @@ export const Navbar: React.FC = () => {
           >
             Sobre nós
           </button>
-          <button
-            onClick={() => handleNavClick('dashboard')}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontFamily: 'var(--font-nav)',
-              fontSize: '15px',
-              fontWeight: currentTab === 'dashboard' ? 600 : 500,
-              letterSpacing: '0.01em',
-              cursor: 'pointer',
-              color: currentTab === 'dashboard' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
-              borderBottom: currentTab === 'dashboard' ? '2px solid var(--color-primary)' : '2px solid transparent',
-              paddingBottom: '4px',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <Shield size={14} color="var(--color-secondary)" />
-            Painel {currentUser.role !== 'cliente' && `(${currentUser.role})`}
-          </button>
+          {Boolean(currentUser.email) && (
+            <button
+              onClick={() => handleNavClick('dashboard')}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontFamily: 'var(--font-nav)',
+                fontSize: '15px',
+                fontWeight: currentTab === 'dashboard' ? 600 : 500,
+                letterSpacing: '0.01em',
+                cursor: 'pointer',
+                color: currentTab === 'dashboard' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+                borderBottom: currentTab === 'dashboard' ? '2px solid var(--color-primary)' : '2px solid transparent',
+                paddingBottom: '4px',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <Shield size={14} color="var(--color-secondary)" />
+              Painel {currentUser.role !== 'cliente' && `(${currentUser.role})`}
+            </button>
+          )}
         </nav>
 
         {/* Ações */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setIsRoleMenuOpen(!isRoleMenuOpen)}
-              title="Alternar perfil de teste (Cliente, Funcionário, Admin)"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'rgba(216, 185, 255, 0.1)',
-                border: '1px solid rgba(216, 185, 255, 0.25)',
-                color: 'var(--color-primary)',
-                padding: '7px 14px',
-                borderRadius: 'var(--radius-full)',
-                fontFamily: 'var(--font-nav)',
-                fontSize: '12px',
-                fontWeight: 600,
-                textTransform: 'capitalize',
-                cursor: 'pointer',
-              }}
-            >
-              <span
+          {Boolean(currentUser.email) && (
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setIsRoleMenuOpen(!isRoleMenuOpen)}
+                title="Alternar perfil de teste (Cliente, Funcionário, Admin)"
                 style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor:
-                    currentUser.role === 'admin'
-                      ? '#FFBEFB'
-                      : currentUser.role === 'funcionario'
-                      ? '#FFF4BF'
-                      : '#8C56D4',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'rgba(216, 185, 255, 0.1)',
+                  border: '1px solid rgba(216, 185, 255, 0.25)',
+                  color: 'var(--color-primary)',
+                  padding: '7px 14px',
+                  borderRadius: 'var(--radius-full)',
+                  fontFamily: 'var(--font-nav)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  textTransform: 'capitalize',
+                  cursor: 'pointer',
                 }}
-              />
-              <span>{currentUser.role}</span>
-            </button>
+              >
+                <span
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor:
+                      currentUser.role === 'admin'
+                        ? '#FFBEFB'
+                        : currentUser.role === 'funcionario'
+                        ? '#FFF4BF'
+                        : '#8C56D4',
+                  }}
+                />
+                <span>{currentUser.role}</span>
+              </button>
 
             {isRoleMenuOpen && (
               <div
@@ -290,6 +293,7 @@ export const Navbar: React.FC = () => {
               </div>
             )}
           </div>
+        )}
 
           <CurtainThemeToggle buttonSize={42} />
 
@@ -496,20 +500,22 @@ export const Navbar: React.FC = () => {
           >
             Sobre nós
           </button>
-          <button
-            onClick={() => handleNavClick('dashboard')}
-            style={{
-              background: 'none',
-              border: 'none',
-              textAlign: 'left',
-              color: currentTab === 'dashboard' ? 'var(--color-primary)' : 'var(--color-on-surface)',
-              fontFamily: 'var(--font-nav)',
-              fontSize: '18px',
-              fontWeight: 600,
-            }}
-          >
-            Painel de Gerenciamento ({currentUser.role})
-          </button>
+          {Boolean(currentUser.email) && (
+            <button
+              onClick={() => handleNavClick('dashboard')}
+              style={{
+                background: 'none',
+                border: 'none',
+                textAlign: 'left',
+                color: currentTab === 'dashboard' ? 'var(--color-primary)' : 'var(--color-on-surface)',
+                fontFamily: 'var(--font-nav)',
+                fontSize: '18px',
+                fontWeight: 600,
+              }}
+            >
+              Painel de Gerenciamento ({currentUser.role})
+            </button>
+          )}
 
           <div
             style={{

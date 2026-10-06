@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { AlertTriangle, ChevronDown, Check, Pencil, Trash2, Plus, Minus, X, Save } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Check, Pencil, Trash2, Plus, Minus, X, Save, Shield } from 'lucide-react';
 import type { GameId, ProductCategory, UserRole, Order, Product } from '../types';
 import defaultProductImg from '../assets/products/pokemon-destinos-brilhantes.png';
 import { SystemSelect } from '../components/SystemSelect';
@@ -993,6 +993,8 @@ export const DashboardPage: React.FC = () => {
     createTournament,
     updateOrderStatus,
     setCurrentTab,
+    setIsAuthModalOpen,
+    setAuthModalMode,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'new-tournament'>('orders');
@@ -1010,6 +1012,67 @@ export const DashboardPage: React.FC = () => {
   const [newTourPrize, setNewTourPrize] = useState('R$ 1.000 em créditos na loja + Troféu');
 
   const isStaffOrAdmin = currentUser.role === 'funcionario' || currentUser.role === 'admin';
+
+  if (!currentUser.email || currentUser.id === 0) {
+    return (
+      <div style={{ paddingTop: '80px', paddingBottom: '100px' }}>
+        <div className="app-container" style={{ maxWidth: '520px' }}>
+          <div
+            className="glass-panel"
+            style={{
+              padding: '48px 36px',
+              textAlign: 'center',
+              borderRadius: 'var(--radius-xl)',
+              boxShadow: '0 20px 40px var(--shadow-color)',
+            }}
+          >
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(140, 86, 212, 0.15)',
+                border: '1px solid rgba(140, 86, 212, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 20px',
+              }}
+            >
+              <Shield size={32} color="var(--color-primary)" />
+            </div>
+            <h2 style={{ fontSize: '24px', fontWeight: 800, marginBottom: '12px', color: 'var(--color-headline)' }}>
+              Acesso Restrito ao Painel
+            </h2>
+            <p style={{ color: 'var(--color-on-surface-variant)', fontSize: '14px', lineHeight: 1.6, marginBottom: '28px' }}>
+              Você precisa estar conectado à sua conta para acessar o painel e acompanhar seus pedidos ou administrar o estoque.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthModalMode('login');
+                  setIsAuthModalOpen(true);
+                }}
+                className="btn-primary"
+                style={{ padding: '12px 28px' }}
+              >
+                Fazer Login
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentTab('home')}
+                className="btn-outline"
+                style={{ padding: '12px 24px' }}
+              >
+                Voltar ao Início
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleCreateTournament = (e: React.FormEvent) => {
     e.preventDefault();

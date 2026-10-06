@@ -11,10 +11,8 @@ import {
   EyeOff,
   ChevronLeft,
   ChevronRight,
-  Shield,
   Gamepad2,
 } from 'lucide-react';
-import type { UserRole } from '../types';
 
 import charizardImg from '../assets/cards/charizard-vmax.png';
 import blackLotusImg from '../assets/cards/black-lotus.jpg';
@@ -97,6 +95,7 @@ export const AuthModal: React.FC = () => {
     authModalMode,
     setAuthModalMode,
     loginUser,
+    showToast,
   } = useApp();
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -105,7 +104,6 @@ export const AuthModal: React.FC = () => {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [telefone, setTelefone] = useState('');
-  const [selectedRole, setSelectedRole] = useState<UserRole>('cliente');
   const [showPassword, setShowPassword] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -134,12 +132,34 @@ export const AuthModal: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (authModalMode === 'register' && !nome.trim()) {
+      showToast('Por favor, preencha o seu nome completo.');
+      return;
+    }
+
+    if (!email.trim()) {
+      showToast('Por favor, preencha o seu e-mail.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      showToast('Por favor, insira um e-mail válido.');
+      return;
+    }
+
+    if (!senha.trim()) {
+      showToast('Por favor, preencha a sua senha.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const sucesso = await loginUser(
         nome || email.split('@')[0],
         email,
-        selectedRole,
+        'cliente',
         senha,
         telefone
       );
@@ -151,21 +171,6 @@ export const AuthModal: React.FC = () => {
     }
   };
 
-  const handleQuickDemo = (role: UserRole) => {
-    setSelectedRole(role);
-    if (role === 'admin') {
-      setEmail('admin@nobledeck.com');
-      setNome('Administrador Geral');
-    } else if (role === 'funcionario') {
-      setEmail('funcionario@nobledeck.com');
-      setNome('Lucas Atendente');
-    } else {
-      setEmail('pedro@nobledeck.com');
-      setNome('Pedro Henrique');
-    }
-    setSenha('123456');
-    setTelefone('(11) 98888-7777');
-  };
 
   const nextSlide = () => {
     setCurrentSlide((prev) => (prev + 1) % SLIDES.length);
@@ -598,103 +603,8 @@ export const AuthModal: React.FC = () => {
                 : 'Cadastre-se para colecionar, duelar e comprar na Noble Deck.'}
             </p>
 
-            {/* Atalhos Rápidos para Demonstração Acadêmica */}
-            <div
-              style={{
-                backgroundColor: isLight ? 'rgba(115, 55, 189, 0.05)' : 'rgba(140, 86, 212, 0.08)',
-                border: isLight ? '1px dashed rgba(115, 55, 189, 0.3)' : '1px dashed rgba(216, 185, 255, 0.25)',
-                borderRadius: '10px',
-                padding: '10px 12px',
-                marginBottom: '18px',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '11px',
-                  fontFamily: 'var(--font-mono, monospace)',
-                  color: isLight ? '#7337bd' : 'var(--color-primary)',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  marginBottom: '6px',
-                }}
-              >
-                Demonstração Rápida (Preenchimento com 1 clique):
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
-                <button
-                  type="button"
-                  onClick={() => handleQuickDemo('cliente')}
-                  style={{
-                    padding: '5px 4px',
-                    borderRadius: '6px',
-                    border: selectedRole === 'cliente'
-                      ? (isLight ? '1px solid rgba(115, 55, 189, 0.45)' : '1px solid rgba(216, 185, 255, 0.3)')
-                      : (isLight ? '1px solid rgba(115, 55, 189, 0.16)' : '1px solid rgba(255, 255, 255, 0.1)'),
-                    backgroundColor: selectedRole === 'cliente'
-                      ? (isLight ? 'rgba(115, 55, 189, 0.14)' : 'rgba(216, 185, 255, 0.2)')
-                      : (isLight ? '#ffffff' : '#1e1a22'),
-                    color: selectedRole === 'cliente'
-                      ? (isLight ? '#7337bd' : '#ffffff')
-                      : (isLight ? '#564c64' : '#e8e0eb'),
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  👤 Cliente
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickDemo('funcionario')}
-                  style={{
-                    padding: '5px 4px',
-                    borderRadius: '6px',
-                    border: selectedRole === 'funcionario'
-                      ? (isLight ? '1px solid rgba(115, 55, 189, 0.45)' : '1px solid rgba(216, 185, 255, 0.3)')
-                      : (isLight ? '1px solid rgba(115, 55, 189, 0.16)' : '1px solid rgba(255, 255, 255, 0.1)'),
-                    backgroundColor: selectedRole === 'funcionario'
-                      ? (isLight ? 'rgba(115, 55, 189, 0.14)' : 'rgba(216, 185, 255, 0.2)')
-                      : (isLight ? '#ffffff' : '#1e1a22'),
-                    color: selectedRole === 'funcionario'
-                      ? (isLight ? '#7337bd' : '#ffffff')
-                      : (isLight ? '#564c64' : '#e8e0eb'),
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  💼 Funcionário
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickDemo('admin')}
-                  style={{
-                    padding: '5px 4px',
-                    borderRadius: '6px',
-                    border: selectedRole === 'admin'
-                      ? (isLight ? '1px solid rgba(115, 55, 189, 0.45)' : '1px solid rgba(216, 185, 255, 0.3)')
-                      : (isLight ? '1px solid rgba(115, 55, 189, 0.16)' : '1px solid rgba(255, 255, 255, 0.1)'),
-                    backgroundColor: selectedRole === 'admin'
-                      ? (isLight ? 'rgba(115, 55, 189, 0.14)' : 'rgba(216, 185, 255, 0.2)')
-                      : (isLight ? '#ffffff' : '#1e1a22'),
-                    color: selectedRole === 'admin'
-                      ? (isLight ? '#7337bd' : '#ffffff')
-                      : (isLight ? '#564c64' : '#e8e0eb'),
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  🛡️ Admin
-                </button>
-              </div>
-            </div>
-
             {/* Formulário */}
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {/* Nome (se registro) */}
               {authModalMode === 'register' && (
                 <div>
@@ -723,7 +633,6 @@ export const AuthModal: React.FC = () => {
                     />
                     <input
                       type="text"
-                      required
                       className="system-input"
                       placeholder="Ex: Pedro Henrique"
                       value={nome}
@@ -764,7 +673,6 @@ export const AuthModal: React.FC = () => {
                   />
                   <input
                     type="email"
-                    required
                     className="system-input"
                     placeholder="seu.email@exemplo.com"
                     value={email}
@@ -797,7 +705,7 @@ export const AuthModal: React.FC = () => {
                         color: 'var(--color-primary)',
                         cursor: 'pointer',
                       }}
-                      onClick={() => alert('Em caso de dúvidas, utilize as contas pré-configuradas da demonstração!')}
+                      onClick={() => alert('Entre em contato com o suporte para redefinir sua senha.')}
                     >
                       Esqueceu a senha?
                     </span>
@@ -816,7 +724,6 @@ export const AuthModal: React.FC = () => {
                   />
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    required
                     className="system-input"
                     placeholder="Digite sua senha"
                     value={senha}
@@ -888,23 +795,7 @@ export const AuthModal: React.FC = () => {
                   </div>
                 </div>
               )}
-              <div style={{ marginTop: '2px' }}>
-                <label
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    fontSize: '11px',
-                    fontFamily: 'var(--font-mono, monospace)',
-                    color: isLight ? '#564c64' : 'var(--color-outline)',
-                    textTransform: 'uppercase',
-                    marginBottom: '6px',
-                  }}
-                >
-                  <Shield size={12} />
-                  Perfil Ativo: <strong style={{ color: isLight ? '#7337bd' : '#ffffff' }}>{selectedRole.toUpperCase()}</strong>
-                </label>
-              </div>
+
               <button
                 type="submit"
                 disabled={isLoading}
