@@ -67,3 +67,14 @@ def inativar(id_produto: int):
     produto.inativar()
     atualizar_produto(produto)
     return produto
+
+
+@router.patch("/{id_produto}/ativar", response_model=ProdutoResposta)
+def ativar(id_produto: int):
+    produto = obter_produto_por_id(id_produto)
+    if not produto:
+        raise HTTPException(status_code=404, detail="Produto não encontrado.")
+
+    produto.ativar()
+    atualizar_produto(produto)
+    return produto
