@@ -14,7 +14,7 @@
   position: fixed;
   bottom: 24px;
   right: 24px;
-  z-index: 120;
+  z-index: 9999;
   background-color: #1e1a26;
   border: 1px solid rgba(216, 185, 255, 0.28);
   border-radius: var(--radius-md);
@@ -50,5 +50,360 @@ html.light .noble-toast {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Animações */
+@keyframes adminFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.admin-animate-fade {
+  animation: adminFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.admin-kpi-card {
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.admin-kpi-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px rgba(140, 86, 212, 0.25);
+  border-color: var(--color-primary-container);
+}
+
+.admin-tab-btn {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.admin-tab-btn:hover {
+  transform: translateY(-1px);
+}
+
+.admin-table-row {
+  transition: background-color 0.18s ease;
+}
+
+.admin-table-row:hover {
+  background-color: rgba(216, 185, 255, 0.05);
+}
+
+@media (max-width: 768px) {
+  .admin-header-box {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 16px !important;
+  }
+
+  .admin-actions-bar {
+    width: 100%;
+    justifyContent: flex-start;
+  }
+
+  .admin-tabs-scroller {
+    overflow-x: auto;
+    padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Modal Admin */
+.access-denied-card,
+.admin-login-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  padding: 44px 36px 36px;
+  background: rgba(22, 17, 30, 0.75);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(216, 185, 255, 0.16);
+  box-shadow: 0 30px 70px -10px rgba(0, 0, 0, 0.75), 0 0 40px -10px rgba(140, 86, 212, 0.25);
+  text-align: center;
+  transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.admin-login-card {
+  padding: 44px 38px 34px;
+}
+
+:root[data-theme="light"] .access-denied-card,
+html.light .access-denied-card,
+:root[data-theme="light"] .admin-login-card,
+html.light .admin-login-card {
+  background: #ffffff;
+  border: 1px solid rgba(115, 55, 189, 0.12);
+  box-shadow: 0 16px 36px -8px rgba(60, 20, 95, 0.08), 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+.access-denied-glow-bg {
+  position: absolute;
+  top: -110px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.22) 0%, rgba(216, 185, 255, 0.08) 45%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(28px);
+}
+
+:root[data-theme="light"] .access-denied-glow-bg,
+html.light .access-denied-glow-bg {
+  background: radial-gradient(circle, rgba(140, 86, 212, 0.12) 0%, rgba(220, 149, 255, 0.04) 50%, transparent 70%);
+}
+
+.admin-login-header-glow {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 26px;
+}
+
+.admin-icon-halo {
+  width: 68px;
+  height: 68px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, rgba(216, 185, 255, 0.14) 0%, rgba(140, 86, 212, 0.08) 100%);
+  border: 1px solid rgba(216, 185, 255, 0.25);
+  box-shadow: 0 8px 24px -4px rgba(140, 86, 212, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  position: relative;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+}
+
+.admin-icon-halo:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 12px 30px -4px rgba(140, 86, 212, 0.45);
+}
+
+:root[data-theme="light"] .admin-icon-halo,
+html.light .admin-icon-halo {
+  background: linear-gradient(135deg, rgba(243, 232, 255, 0.8) 0%, rgba(255, 255, 255, 0.95) 100%);
+  border: 1px solid rgba(115, 55, 189, 0.18);
+  box-shadow: 0 6px 18px -3px rgba(115, 55, 189, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+.admin-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-field-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-outline);
+  font-family: var(--font-mono);
+}
+
+.admin-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.admin-input-icon {
+  position: absolute;
+  left: 14px;
+  color: var(--color-outline);
+  pointer-events: none;
+  transition: color 0.2s ease;
+}
+
+.admin-modern-input {
+  width: 100%;
+  padding: 12px 14px 12px 42px;
+  background-color: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: var(--color-headline);
+  font-size: 13.5px;
+  outline: none;
+  font-family: var(--font-body);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+.admin-modern-input::placeholder {
+  color: var(--color-on-surface-variant);
+  opacity: 0.55;
+}
+
+.admin-modern-input:hover {
+  border-color: rgba(216, 185, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.admin-modern-input:focus {
+  border-color: var(--color-primary);
+  background-color: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 0 0 3px rgba(140, 86, 212, 0.22), 0 6px 18px -4px rgba(140, 86, 212, 0.2);
+  transform: translateY(-1px);
+}
+
+.admin-modern-input:focus+.admin-input-icon,
+.admin-input-wrapper:focus-within .admin-input-icon {
+  color: var(--color-primary);
+}
+
+:root[data-theme="light"] .admin-modern-input,
+html.light .admin-modern-input {
+  background-color: #faf8fc;
+  border-color: rgba(115, 55, 189, 0.16);
+  color: #1a1424;
+}
+
+:root[data-theme="light"] .admin-modern-input:hover,
+html.light .admin-modern-input:hover {
+  border-color: rgba(115, 55, 189, 0.35);
+  background-color: #ffffff;
+}
+
+:root[data-theme="light"] .admin-modern-input:focus,
+html.light .admin-modern-input:focus {
+  border-color: #7337bd;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(115, 55, 189, 0.15), 0 4px 12px rgba(115, 55, 189, 0.08);
+}
+
+.admin-toggle-eye-btn {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--color-outline);
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.admin-toggle-eye-btn:hover {
+  color: var(--color-primary);
+  background-color: rgba(216, 185, 255, 0.08);
+}
+
+.admin-submit-btn {
+  width: 100%;
+  padding: 13px 20px;
+  margin-top: 8px;
+  border-radius: 12px;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--grad-button);
+  color: #ffffff;
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 8px 22px -3px rgba(140, 86, 212, 0.45);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.admin-submit-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -2px rgba(140, 86, 212, 0.6);
+  filter: brightness(1.05);
+}
+
+.admin-submit-btn:active {
+  transform: translateY(0);
+}
+
+.admin-submit-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.access-denied-icon-box {
+  width: 72px;
+  height: 72px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  background: linear-gradient(135deg, rgba(216, 185, 255, 0.16) 0%, rgba(140, 86, 212, 0.1) 100%);
+  border: 1px solid rgba(216, 185, 255, 0.3);
+  box-shadow: 0 0 28px rgba(140, 86, 212, 0.25);
+  position: relative;
+  transition: transform 0.3s ease;
+}
+
+.access-denied-icon-box:hover {
+  transform: scale(1.05);
+}
+
+:root[data-theme="light"] .access-denied-icon-box,
+html.light .access-denied-icon-box {
+  background: linear-gradient(135deg, rgba(115, 55, 189, 0.12) 0%, rgba(140, 86, 212, 0.06) 100%);
+  border-color: rgba(115, 55, 189, 0.25);
+  box-shadow: 0 0 20px rgba(115, 55, 189, 0.15);
+}
+
+.access-denied-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  background-color: rgba(216, 185, 255, 0.08);
+  border: 1px solid rgba(216, 185, 255, 0.25);
+  padding: 5px 14px;
+  border-radius: 20px;
+  margin-bottom: 16px;
+}
+
+:root[data-theme="light"] .access-denied-pill,
+html.light .access-denied-pill {
+  color: #7337bd;
+  background-color: rgba(115, 55, 189, 0.08);
+  border-color: rgba(115, 55, 189, 0.22);
+}
+
+.access-denied-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #ffb4ab;
+  box-shadow: 0 0 6px #ffb4ab;
+  display: inline-block;
+}
+
+@media (max-width: 540px) {
+  .access-denied-card {
+    padding: 32px 20px 24px;
   }
 }

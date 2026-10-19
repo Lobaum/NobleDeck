@@ -12,6 +12,7 @@ import { ProductsPage } from './pages/ProductsPage';
 import { TournamentsPage } from './pages/TournamentsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { AboutPage } from './pages/AboutPage';
+import { AdminPage } from './pages/AdminPage';
 import { ThemeProvider } from './context/ThemeContext';
 
 const AppContent: React.FC = () => {
@@ -27,6 +28,7 @@ const AppContent: React.FC = () => {
         {currentTab === 'tournaments' && <TournamentsPage />}
         {currentTab === 'about' && <AboutPage />}
         {currentTab === 'dashboard' && <DashboardPage />}
+        {currentTab === 'admin' && <AdminPage />}
       </main>
 
       <Footer />

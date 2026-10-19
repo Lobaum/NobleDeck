@@ -13,7 +13,9 @@ const API_BASE = '/api';
 
 // Conversores de formato Backend (snake_case) <-> Frontend (camelCase)
 export function adaptarProdutoDoBackend(p: any): Product {
-  const init = INITIAL_PRODUCTS.find((ip) => ip.id === p.id_produto);
+  const init =
+    INITIAL_PRODUCTS.find((ip) => ip.nome.toLowerCase().trim() === (p.nome || '').toLowerCase().trim()) ||
+    INITIAL_PRODUCTS.find((ip) => ip.id === p.id_produto);
   return {
     id: p.id_produto,
     nome: p.nome,
@@ -24,7 +26,7 @@ export function adaptarProdutoDoBackend(p: any): Product {
     categoria: p.categoria,
     subtitulo: p.subtitulo || `${p.categoria} • ${p.jogo_nome || p.jogo}`,
     descricao: p.descricao || '',
-    imagemUrl: init?.imagemUrl || p.imagem_url || '',
+    imagemUrl: p.imagem_url?.trim() ? p.imagem_url : init?.imagemUrl || '',
     raridade: p.raridade || 'Comum',
     isNovo: p.is_novo ?? true,
     isDestaque: p.is_destaque ?? false,
@@ -362,5 +364,84 @@ export const api = {
       cargo: dados.cargo,
       torneiosInscritos: [],
     };
+  },
+
+  async obterUsuarios(): Promise<UserProfile[]> {
+    const res = await fetch(`${API_BASE}/auth/usuarios`);
+    if (!res.ok) {
+      throw new Error('Falha ao obter usuários');
+    }
+    const dados = await res.json();
+    return dados.map((u: any) => ({
+      id: u.id_usuario,
+      nome: u.nome,
+      email: u.email,
+      role: (u.tipo_usuario === 'administrador' ? 'admin' : u.tipo_usuario === 'funcionario' ? 'funcionario' : 'cliente') as UserRole,
+      cargo: u.cargo || (u.tipo_usuario === 'administrador' ? 'Administrador' : u.tipo_usuario === 'funcionario' ? 'Atendente' : 'Cliente'),
+      torneiosInscritos: [],
+    }));
+  },
+
+  async atualizarPerfilUsuario(idUsuario: number, tipoUsuario: UserRole, cargo?: string): Promise<UserProfile> {
+    const backendTipo =
+      tipoUsuario === 'admin'
+        ? 'administrador'
+        : tipoUsuario === 'funcionario'
+        ? 'funcionario'
+        : 'cliente';
+
+    const res = await fetch(`${API_BASE}/auth/usuarios/${idUsuario}/perfil`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tipo_usuario: backendTipo,
+        cargo,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Falha ao atualizar perfil' }));
+      throw new Error(err.detail || 'Falha ao atualizar perfil');
+    }
+    const dados = await res.json();
+    return {
+      id: dados.id_usuario,
+      nome: dados.nome,
+      email: dados.email,
+      role: tipoUsuario,
+      cargo: dados.cargo,
+      torneiosInscritos: [],
+    };
+  },
+
+  async alterarSenhaUsuario(idUsuario: number, novaSenha: string) {
+    const res = await fetch(`${API_BASE}/auth/usuarios/${idUsuario}/senha`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nova_senha: novaSenha,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Falha ao alterar senha' }));
+      throw new Error(err.detail || 'Falha ao alterar senha');
+    }
+    return await res.json();
+  },
+
+  async registrarPartida(idTorneio: number, jogador1: string, jogador2: string, resultado: string) {
+    const res = await fetch(`${API_BASE}/torneios/${idTorneio}/partidas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jogador1,
+        jogador2,
+        resultado,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Erro ao registrar partida' }));
+      throw new Error(err.detail || 'Erro ao registrar partida');
+    }
+    return await res.json();
   },
 };

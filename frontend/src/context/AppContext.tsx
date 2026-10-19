@@ -15,7 +15,7 @@ import {
 } from '../data/mockData';
 import { api } from '../services/api';
 
-export type NavigationTab = 'home' | 'products' | 'tournaments' | 'about' | 'dashboard';
+export type NavigationTab = 'home' | 'products' | 'tournaments' | 'about' | 'dashboard' | 'admin';
 
 interface AppContextType {
   currentTab: NavigationTab;
@@ -68,7 +68,49 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentTab, setCurrentTab] = useState<NavigationTab>('home');
+  const isAdminPath = (pathname: string) => {
+    const clean = pathname.toLowerCase().replace(/\/+$/, '');
+    return clean === '/admin';
+  };
+
+  const getInitialTab = (): NavigationTab => {
+    if (typeof window !== 'undefined') {
+      if (isAdminPath(window.location.pathname)) {
+        return 'admin';
+      }
+    }
+    return 'home';
+  };
+
+  const [currentTab, setCurrentTabState] = useState<NavigationTab>(getInitialTab);
+
+  const setCurrentTab = (tab: NavigationTab) => {
+    setCurrentTabState(tab);
+    if (typeof window !== 'undefined') {
+      if (tab === 'admin') {
+        if (!isAdminPath(window.location.pathname)) {
+          window.history.pushState(null, '', '/admin');
+        }
+      } else {
+        if (isAdminPath(window.location.pathname)) {
+          window.history.pushState(null, '', '/');
+        }
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handlePop = () => {
+      if (isAdminPath(window.location.pathname)) {
+        setCurrentTabState('admin');
+      } else {
+        setCurrentTabState('home');
+      }
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, []);
+
   const [selectedGameFilter, setSelectedGameFilter] = useState<GameId | 'all'>('all');
   
   const [products, setProducts] = useState<Product[]>(() => {
@@ -77,8 +119,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const parsed: Product[] = JSON.parse(saved);
       const updated = parsed.map((p) => {
-        const init = INITIAL_PRODUCTS.find((ip) => ip.id === p.id);
-        if (init && (p.imagemUrl !== init.imagemUrl || p.imagemUrl?.includes('lh3.googleusercontent.com') || p.id <= 7 || !p.imagemUrl)) {
+        const init =
+          INITIAL_PRODUCTS.find((ip) => ip.nome.toLowerCase().trim() === (p.nome || '').toLowerCase().trim()) ||
+          INITIAL_PRODUCTS.find((ip) => ip.id === p.id);
+        if (init && (p.imagemUrl !== init.imagemUrl || p.imagemUrl?.includes('lh3.googleusercontent.com') || !p.imagemUrl)) {
           return {
             ...p,
             imagemUrl: init.imagemUrl,
@@ -103,7 +147,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [tournaments, setTournaments] = useState<Tournament[]>(() => {
     const saved = localStorage.getItem('noble_tournaments');
-    return saved ? JSON.parse(saved) : INITIAL_TOURNAMENTS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -113,25 +157,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [orders, setOrders] = useState<Order[]>(() => {
     const saved = localStorage.getItem('noble_orders');
-    return saved
-      ? JSON.parse(saved)
-      : [
-          {
-            id_pedido: 101,
-            cliente_nome: 'Pedro Henrique',
-            cliente_email: 'pedro@nobledeck.com',
-            itens: [
-              {
-                produto: INITIAL_PRODUCTS[1],
-                quantidade: 1,
-                subtotal: 349.9,
-              },
-            ],
-            valor_total: 349.9,
-            data: '10/11/2026',
-            status: 'Finalizado',
-          },
-        ];
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
@@ -139,7 +165,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed?.email === 'pedro@nobledeck.com' && parsed?.id === 1) {
+        if (!parsed?.email || parsed?.id === 0) {
           localStorage.removeItem('noble_user');
           return INITIAL_USER;
         }
@@ -217,6 +243,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addToCart = (product: Product, quantity = 1) => {
+    if (!currentUser.email) {
+      showToast('Faça login para adicionar produtos ao carrinho!');
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
     if (product.estoque <= 0) {
       showToast('Produto sem estoque disponível no momento!');
       return;
@@ -283,6 +316,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const cartItemsCount = cart.reduce((acc, item) => acc + item.quantidade, 0);
 
   const createOrder = async (): Promise<Order | null> => {
+    if (!currentUser.email) {
+      showToast('Faça login para finalizar seu pedido!');
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+      return null;
+    }
+
     if (cart.length === 0) {
       showToast('Seu carrinho está vazio.');
       return null;
@@ -368,6 +408,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const registerInTournament = async (tournamentId: number): Promise<boolean> => {
+    if (!currentUser.email) {
+      showToast('Faça login para se inscrever no torneio!');
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+      return false;
+    }
+
     const t = tournaments.find((item) => item.id === tournamentId);
     if (!t) return false;
 
@@ -626,15 +673,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logoutUser = () => {
-    setCurrentUser({
-      id: 0,
-      nome: 'Visitante',
-      email: '',
-      role: 'cliente',
-      torneiosInscritos: [],
-    });
+    setCurrentUser(INITIAL_USER);
+    localStorage.removeItem('noble_user');
     showToast('Sessão encerrada.');
+    setCurrentTab('home');
   };
+
+  // Bloqueia acesso direto ao painel se não estiver autenticado
+  useEffect(() => {
+    if (currentTab === 'dashboard' && (!currentUser.email || currentUser.id === 0)) {
+      setCurrentTab('home');
+      showToast('Faça login para acessar o painel!');
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+    }
+  }, [currentTab, currentUser.email, currentUser.id]);
 
   return (
     <AppContext.Provider
