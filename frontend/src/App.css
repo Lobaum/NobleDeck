@@ -12,9 +12,9 @@
 /* Toast */
 .noble-toast {
   position: fixed;
-  bottom: 24px;
+  top: 24px;
   right: 24px;
-  z-index: 9999;
+  z-index: 100000;
   background-color: #1e1a26;
   border: 1px solid rgba(216, 185, 255, 0.28);
   border-radius: var(--radius-md);
@@ -23,14 +23,67 @@
   font-family: var(--font-body);
   font-size: 14px;
   font-weight: 600;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(140, 86, 212, 0.35);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), 0 0 20px rgba(140, 86, 212, 0.35);
   display: flex;
   align-items: center;
-  gap: 10px;
-  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  gap: 12px;
+  animation: slideDownToast 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  max-width: 440px;
+}
+
+.noble-toast-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+}
+
+.noble-toast-confirm-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+
+.noble-toast-btn-cancel {
+  background: transparent;
+  border: 1px solid var(--card-border);
+  color: var(--color-on-surface);
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.noble-toast-btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--color-outline);
+}
+
+.noble-toast-btn-confirm {
+  background: var(--color-primary-container);
+  border: none;
+  color: #ffffff;
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 10px rgba(140, 86, 212, 0.3);
+}
+
+.noble-toast-btn-confirm:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
 }
 
 :root[data-theme="light"] .noble-toast,
@@ -38,13 +91,13 @@ html.light .noble-toast {
   background-color: #ffffff;
   color: #1a1424;
   border: 1px solid rgba(115, 55, 189, 0.3);
-  box-shadow: 0 10px 30px rgba(50, 20, 80, 0.12), 0 0 18px rgba(115, 55, 189, 0.15);
+  box-shadow: 0 14px 34px rgba(50, 20, 80, 0.16), 0 0 18px rgba(115, 55, 189, 0.15);
 }
 
-@keyframes slideUp {
+@keyframes slideDownToast {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(-16px);
   }
 
   to {

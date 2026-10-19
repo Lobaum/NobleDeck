@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { NOBLE_LOGO } from '../data/mockData';
 import { ShoppingBag, Menu, X, Shield, User, LogOut } from 'lucide-react';
-import type { UserRole } from '../types';
 import { CurtainThemeToggle } from './CurtainThemeToggle';
 
 export const Navbar: React.FC = () => {
@@ -12,26 +11,18 @@ export const Navbar: React.FC = () => {
     cartItemsCount,
     setIsCartOpen,
     currentUser,
-    switchRole,
     setIsAuthModalOpen,
     setAuthModalMode,
     logoutUser,
   } = useApp();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isRoleMenuOpen, setIsRoleMenuOpen] = useState(false);
 
   const handleNavClick = (tab: any) => {
     setCurrentTab(tab);
     setIsMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-
-  const roles: { role: UserRole; label: string; desc: string }[] = [
-    { role: 'cliente', label: 'Cliente', desc: 'Comprar, ver pedidos e torneios' },
-    { role: 'funcionario', label: 'Funcionário', desc: 'Estoque, produtos e torneios' },
-    { role: 'admin', label: 'Administrador', desc: 'Gestão completa do sistema' },
-  ];
 
   return (
     <header
@@ -196,105 +187,6 @@ export const Navbar: React.FC = () => {
 
         {/* Ações */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          {Boolean(currentUser.email) && (
-            <div style={{ position: 'relative' }}>
-              <button
-                onClick={() => setIsRoleMenuOpen(!isRoleMenuOpen)}
-                title="Alternar perfil de teste (Cliente, Funcionário, Admin)"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: 'rgba(216, 185, 255, 0.1)',
-                  border: '1px solid rgba(216, 185, 255, 0.25)',
-                  color: 'var(--color-primary)',
-                  padding: '7px 14px',
-                  borderRadius: 'var(--radius-full)',
-                  fontFamily: 'var(--font-nav)',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  textTransform: 'capitalize',
-                  cursor: 'pointer',
-                }}
-              >
-                <span
-                  style={{
-                    width: '8px',
-                    height: '8px',
-                    borderRadius: '50%',
-                    backgroundColor:
-                      currentUser.role === 'admin'
-                        ? '#FFBEFB'
-                        : currentUser.role === 'funcionario'
-                        ? '#FFF4BF'
-                        : '#8C56D4',
-                  }}
-                />
-                <span>{currentUser.role}</span>
-              </button>
-
-            {isRoleMenuOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '120%',
-                  right: 0,
-                  width: '240px',
-                  backgroundColor: 'var(--color-surface-container-high)',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--nav-border)',
-                  boxShadow: '0 12px 30px var(--shadow-color)',
-                  padding: '8px',
-                  zIndex: 60,
-                }}
-              >
-                <div
-                  style={{
-                    padding: '6px 8px',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '11px',
-                    color: 'var(--color-on-surface-variant)',
-                    textTransform: 'uppercase',
-                    borderBottom: '1px solid var(--nav-border)',
-                    marginBottom: '6px',
-                  }}
-                >
-                  Alternar Papel (Permissões)
-                </div>
-                {roles.map((r) => (
-                  <button
-                    key={r.role}
-                    onClick={() => {
-                      switchRole(r.role);
-                      setIsRoleMenuOpen(false);
-                    }}
-                    style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      padding: '8px 10px',
-                      background: currentUser.role === r.role ? 'rgba(140, 86, 212, 0.25)' : 'transparent',
-                      border: 'none',
-                      borderRadius: 'var(--radius-sm)',
-                      cursor: 'pointer',
-                      color: currentUser.role === r.role ? 'var(--color-primary)' : 'var(--color-on-surface)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '2px',
-                    }}
-                  >
-                    <span style={{ fontWeight: 600, fontSize: '13px', textTransform: 'capitalize' }}>
-                      {r.label}
-                    </span>
-                    <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)' }}>
-                      {r.desc}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
           <CurtainThemeToggle buttonSize={42} />
 
           <button

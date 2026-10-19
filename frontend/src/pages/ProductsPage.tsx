@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Search, ShoppingBag } from 'lucide-react';
 import type { GameId, ProductCategory } from '../types';
+import { SystemSelect, type SelectOption } from '../components/SystemSelect';
 
 export const ProductsPage: React.FC = () => {
   const {
@@ -155,29 +156,21 @@ export const ProductsPage: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '13px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)' }}>
+              <span style={{ fontSize: '13px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
                 Ordenar por:
               </span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                style={{
-                  backgroundColor: 'var(--color-surface-container-high)',
-                  color: 'var(--color-on-surface)',
-                  border: '1px solid var(--card-border)',
-                  borderRadius: 'var(--radius-full)',
-                  padding: '8px 16px',
-                  fontSize: '13px',
-                  outline: 'none',
-                  fontFamily: 'var(--font-mono)',
-                  cursor: 'pointer',
-                }}
-              >
-                <option value="featured">Destaques</option>
-                <option value="price-asc">Menor Preço</option>
-                <option value="price-desc">Maior Preço</option>
-                <option value="name">Nome (A-Z)</option>
-              </select>
+              <div style={{ minWidth: '180px' }}>
+                <SystemSelect<'featured' | 'price-asc' | 'price-desc' | 'name'>
+                  value={sortBy}
+                  onChange={(val) => setSortBy(val)}
+                  options={[
+                    { value: 'featured', label: 'Destaques' },
+                    { value: 'price-asc', label: 'Menor Preço' },
+                    { value: 'price-desc', label: 'Maior Preço' },
+                    { value: 'name', label: 'Nome (A-Z)' },
+                  ]}
+                />
+              </div>
             </div>
           </div>
 

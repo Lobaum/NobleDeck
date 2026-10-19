@@ -31,6 +31,7 @@ interface AppContextType {
   setProductStockExact: (productId: number, newStock: number) => Promise<void> | void;
   editProduct: (productId: number, updatedFields: Partial<Product>) => Promise<void> | void;
   deleteProduct: (productId: number) => Promise<void> | void;
+  reactivateProduct: (productId: number) => Promise<void> | void;
   
   tournaments: Tournament[];
   selectedTournamentForModal: Tournament | null;
@@ -63,6 +64,19 @@ interface AppContextType {
   
   toastMessage: string | null;
   showToast: (msg: string) => void;
+  toastConfirm: {
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm: () => void;
+  } | null;
+  showToastConfirm: (options: {
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm: () => void;
+  }) => void;
+  closeToastConfirm: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -183,6 +197,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastConfirm, setToastConfirm] = useState<{
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Persistência
   useEffect(() => {
@@ -240,6 +260,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTimeout(() => {
       setToastMessage((prev) => (prev === msg ? null : prev));
     }, 3200);
+  };
+
+  const showToastConfirm = (options: {
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm: () => void;
+  }) => {
+    setToastConfirm(options);
+  };
+
+  const closeToastConfirm = () => {
+    setToastConfirm(null);
   };
 
   const addToCart = (product: Product, quantity = 1) => {
@@ -589,8 +622,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Falha na API ao inativar produto:', err);
     }
 
-    setProducts((prev) => prev.filter((p) => p.id !== productId));
+    setProducts((prev) =>
+      prev.map((p) => (p.id === productId ? { ...p, ativo: false } : p))
+    );
     showToast(`Produto "${prod?.nome || ''}" inativado com sucesso!`);
+  };
+
+  const reactivateProduct = async (productId: number) => {
+    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+    if (!isStaffOrAdmin) {
+      showToast('Apenas funcionários ou administradores podem reativar produtos!');
+      return;
+    }
+
+    const prod = products.find((p) => p.id === productId);
+    try {
+      await api.reativarProduto(productId);
+    } catch (err) {
+      console.warn('Falha na API ao reativar produto:', err);
+    }
+
+    setProducts((prev) =>
+      prev.map((p) => (p.id === productId ? { ...p, ativo: true } : p))
+    );
+    showToast(`Produto "${prod?.nome || ''}" reativado com sucesso!`);
   };
 
   const switchRole = (role: UserRole) => {
@@ -704,6 +759,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setProductStockExact,
         editProduct,
         deleteProduct,
+        reactivateProduct,
         tournaments,
         selectedTournamentForModal,
         setSelectedTournamentForModal,
@@ -731,6 +787,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logoutUser,
         toastMessage,
         showToast,
+        toastConfirm,
+        showToastConfirm,
+        closeToastConfirm,
       }}
     >
       {children}

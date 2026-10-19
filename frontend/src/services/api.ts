@@ -32,6 +32,7 @@ export function adaptarProdutoDoBackend(p: any): Product {
     isDestaque: p.is_destaque ?? false,
     idioma: p.idioma || 'Português',
     ano: p.ano || 2024,
+    ativo: p.ativo ?? true,
   };
 }
 
@@ -108,8 +109,9 @@ export function adaptarPedidoDoBackend(p: any, produtosCatalogo: Product[] = [])
 
 export const api = {
   // PRODUTOS
-  async obterProdutos(): Promise<Product[]> {
-    const res = await fetch(`${API_BASE}/produtos`);
+  async obterProdutos(apenasAtivos: boolean = false): Promise<Product[]> {
+    const query = apenasAtivos ? '?apenas_ativos=true' : '?apenas_ativos=false';
+    const res = await fetch(`${API_BASE}/produtos${query}`);
     if (!res.ok) throw new Error('Falha ao carregar produtos da API');
     const dados = await res.json();
     return dados.map(adaptarProdutoDoBackend);
@@ -181,6 +183,15 @@ export const api = {
       method: 'PATCH',
     });
     if (!res.ok) throw new Error('Falha ao inativar produto no backend');
+    const dados = await res.json();
+    return adaptarProdutoDoBackend(dados);
+  },
+
+  async reativarProduto(produtoId: number): Promise<Product> {
+    const res = await fetch(`${API_BASE}/produtos/${produtoId}/ativar`, {
+      method: 'PATCH',
+    });
+    if (!res.ok) throw new Error('Falha ao reativar produto no backend');
     const dados = await res.json();
     return adaptarProdutoDoBackend(dados);
   },

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { AlertTriangle, ChevronDown, Check, Pencil, Trash2, Plus, Minus, X, Save, Shield } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Check, Pencil, Trash2, Plus, Minus, X, Save, Shield, RotateCcw } from 'lucide-react';
 import type { GameId, ProductCategory, UserRole, Order, Product } from '../types';
 import defaultProductImg from '../assets/products/pokemon-destinos-brilhantes.png';
 import { SystemSelect } from '../components/SystemSelect';
@@ -242,16 +242,36 @@ const StockItemCard: React.FC<StockItemCardProps> = ({
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        border: isLowStock ? '1px solid rgba(255, 180, 171, 0.4)' : undefined,
+        border: product.ativo === false ? '1px dashed rgba(239, 68, 68, 0.45)' : isLowStock ? '1px solid rgba(255, 180, 171, 0.4)' : undefined,
         position: 'relative',
         transition: 'all 0.2s ease',
+        opacity: product.ativo === false ? 0.72 : 1,
       }}
     >
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className="badge badge-muted">{product.jogoNome}</span>
-            {isLowStock && (
+            {product.ativo === false ? (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  color: '#f87171',
+                  borderRadius: '4px',
+                  padding: '2px 7px',
+                  fontSize: '11px',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                }}
+              >
+                Inativo
+              </span>
+            ) : isLowStock ? (
               <span
                 style={{
                   display: 'inline-flex',
@@ -265,7 +285,7 @@ const StockItemCard: React.FC<StockItemCardProps> = ({
               >
                 <AlertTriangle size={12} /> Estoque Baixo!
               </span>
-            )}
+            ) : null}
           </div>
 
           {isStaffOrAdmin && (
@@ -470,17 +490,36 @@ interface EditProductModalProps {
   onClose: () => void;
   onSave: (updated: Partial<Product>) => void;
   onDelete: (productId: number) => void;
+  onReactivate?: (productId: number) => void;
 }
 
-const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, onSave, onDelete }) => {
+const formatMoneyInput = (value: string) => {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  const number = Number(digits) / 100;
+  return number.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const parseMoneyToFloat = (value: string): number => {
+  if (!value) return 0;
+  const clean = value.replace(/\./g, '').replace(',', '.');
+  return parseFloat(clean) || 0;
+};
+
+const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, onSave, onDelete, onReactivate }) => {
+  const { showToastConfirm } = useApp();
   const [nome, setNome] = useState(product.nome);
-  const [preco, setPreco] = useState(String(product.preco));
+  const [preco, setPreco] = useState(
+    product.preco ? Number(product.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''
+  );
   const [estoque, setEstoque] = useState(String(product.estoque));
   const [jogo, setJogo] = useState<GameId>(product.jogo);
   const [categoria, setCategoria] = useState<ProductCategory>(product.categoria);
   const [subtitulo, setSubtitulo] = useState(product.subtitulo || '');
   const [imagemUrl, setImagemUrl] = useState(product.imagemUrl || '');
   const [descricao, setDescricao] = useState(product.descricao || '');
+
+  const isProductActive = product.ativo !== false;
 
   const gameNames: Record<GameId, string> = {
     pokemon: 'Pokémon TCG',
@@ -494,7 +533,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
     e.preventDefault();
     onSave({
       nome: nome.trim(),
-      preco: parseFloat(preco) || 0,
+      preco: parseMoneyToFloat(preco),
       estoque: parseInt(estoque, 10) || 0,
       jogo,
       jogoNome: gameNames[jogo] || 'Geral',
@@ -506,10 +545,27 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
     onClose();
   };
 
-  const handleDelete = () => {
-    if (window.confirm(`Tem certeza que deseja inativar o produto "${product.nome}" do catálogo?`)) {
-      onDelete(product.id);
-      onClose();
+  const handleToggleStatus = () => {
+    if (isProductActive) {
+      showToastConfirm({
+        message: `Deseja realmente inativar o produto "${product.nome}" do catálogo?`,
+        confirmText: 'Inativar',
+        cancelText: 'Cancelar',
+        onConfirm: () => {
+          onDelete(product.id);
+          onClose();
+        },
+      });
+    } else {
+      showToastConfirm({
+        message: `Deseja realmente reativar o produto "${product.nome}" no catálogo?`,
+        confirmText: 'Reativar',
+        cancelText: 'Cancelar',
+        onConfirm: () => {
+          if (onReactivate) onReactivate(product.id);
+          onClose();
+        },
+      });
     }
   };
 
@@ -590,12 +646,13 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
                 Preço (R$) *
               </label>
               <input
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="numeric"
                 required
                 className="system-input"
                 value={preco}
-                onChange={(e) => setPreco(e.target.value)}
+                onChange={(e) => setPreco(formatMoneyInput(e.target.value))}
+                placeholder="0,00"
               />
             </div>
 
@@ -655,33 +712,34 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
           <div className="system-modal-actions">
             <button
               type="button"
-              onClick={handleDelete}
+              onClick={handleToggleStatus}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '11px 16px',
-                backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                border: '1px solid rgba(239, 68, 68, 0.35)',
+                padding: '11px 18px',
+                backgroundColor: isProductActive ? 'rgba(239, 68, 68, 0.12)' : 'rgba(34, 197, 94, 0.12)',
+                border: isProductActive ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(34, 197, 94, 0.35)',
                 borderRadius: 'var(--radius-sm)',
-                color: '#f87171',
+                color: isProductActive ? '#f87171' : '#4ade80',
                 fontSize: '13px',
                 fontWeight: 600,
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
-                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.55)';
+                e.currentTarget.style.backgroundColor = isProductActive ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)';
+                e.currentTarget.style.borderColor = isProductActive ? 'rgba(239, 68, 68, 0.55)' : 'rgba(34, 197, 94, 0.55)';
                 e.currentTarget.style.transform = 'translateY(-1px)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.12)';
-                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.35)';
+                e.currentTarget.style.backgroundColor = isProductActive ? 'rgba(239, 68, 68, 0.12)' : 'rgba(34, 197, 94, 0.12)';
+                e.currentTarget.style.borderColor = isProductActive ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.35)';
                 e.currentTarget.style.transform = 'translateY(0)';
               }}
             >
-              <Trash2 size={14} /> Inativar Produto
+              {isProductActive ? <Trash2 size={14} /> : <RotateCcw size={14} />}
+              {isProductActive ? 'Inativar Produto' : 'Reativar Produto'}
             </button>
 
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -743,12 +801,12 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
 }) => {
   const [nome, setNome] = useState('');
   const [subtitulo, setSubtitulo] = useState('');
-  const [preco, setPreco] = useState('49.90');
-  const [estoque, setEstoque] = useState('10');
+  const [preco, setPreco] = useState('');
+  const [estoque, setEstoque] = useState('');
   const [jogo, setJogo] = useState<GameId>('pokemon');
   const [categoria, setCategoria] = useState<ProductCategory>('Booster Pack');
   const [descricao, setDescricao] = useState('');
-  const [imagemUrl, setImagemUrl] = useState(defaultProductImg);
+  const [imagemUrl, setImagemUrl] = useState('');
 
   if (!isOpen) return null;
 
@@ -765,7 +823,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
     onCreate({
       nome: nome.trim(),
       subtitulo: subtitulo.trim() || `${categoria} • ${gameNames[jogo]}`,
-      preco: parseFloat(preco) || 0,
+      preco: parseMoneyToFloat(preco),
       estoque: parseInt(estoque, 10) || 0,
       jogo,
       jogoNome: gameNames[jogo] || 'Geral',
@@ -780,11 +838,11 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
     setNome('');
     setSubtitulo('');
     setDescricao('');
-    setPreco('49.90');
-    setEstoque('10');
+    setPreco('');
+    setEstoque('');
     setJogo('pokemon');
     setCategoria('Booster Pack');
-    setImagemUrl(defaultProductImg);
+    setImagemUrl('');
     onClose();
   };
 
@@ -866,13 +924,13 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 Preço Unitário (R$) *
               </label>
               <input
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="numeric"
                 required
                 className="system-input"
                 value={preco}
-                onChange={(e) => setPreco(e.target.value)}
-                placeholder="49.90"
+                onChange={(e) => setPreco(formatMoneyInput(e.target.value))}
+                placeholder="0,00"
               />
             </div>
 
@@ -914,6 +972,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
               className="system-input"
               value={imagemUrl}
               onChange={(e) => setImagemUrl(e.target.value)}
+              placeholder="https://exemplo.com/imagem.png (opcional)"
             />
           </div>
 
@@ -989,6 +1048,7 @@ export const DashboardPage: React.FC = () => {
     setProductStockExact,
     editProduct,
     deleteProduct,
+    reactivateProduct,
     addProduct,
     createTournament,
     updateOrderStatus,
@@ -998,6 +1058,7 @@ export const DashboardPage: React.FC = () => {
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'new-tournament'>('orders');
+  const [productStatusFilter, setProductStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isCreateProductModalOpen, setIsCreateProductModalOpen] = useState(false);
 
@@ -1156,50 +1217,6 @@ export const DashboardPage: React.FC = () => {
             <p style={{ color: 'var(--color-on-surface-variant)', fontSize: '14px', marginTop: '4px' }}>
               {currentUser.email} • {currentUser.cargo || 'Membro Colecionador'}
             </p>
-          </div>
-
-          <div
-            style={{
-              backgroundColor: 'var(--color-surface-container-low)',
-              padding: '12px 16px',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--nav-border)',
-            }}
-          >
-            <span
-              style={{
-                display: 'block',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '11px',
-                color: 'var(--color-outline)',
-                marginBottom: '8px',
-                textTransform: 'uppercase',
-              }}
-            >
-              Alternar Modo de Visualização:
-            </span>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {(['cliente', 'funcionario', 'admin'] as UserRole[]).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => switchRole(r)}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: 'var(--radius-full)',
-                    border: 'none',
-                    backgroundColor:
-                      currentUser.role === r ? 'var(--color-primary-container)' : 'transparent',
-                    color: currentUser.role === r ? '#ffffff' : 'var(--color-on-surface-variant)',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '11px',
-                    textTransform: 'uppercase',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
 
@@ -1504,40 +1521,83 @@ export const DashboardPage: React.FC = () => {
                 </p>
               </div>
 
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => setIsCreateProductModalOpen(true)}
-                style={{
-                  padding: '8px 16px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '13px',
-                }}
-              >
-                <Plus size={15} /> Cadastrar Novo Produto
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ minWidth: '190px' }}>
+                  <SystemSelect<'all' | 'active' | 'inactive'>
+                    value={productStatusFilter}
+                    onChange={(val) => setProductStatusFilter(val)}
+                    options={[
+                      { value: 'all', label: `Todos (${products.length})` },
+                      { value: 'active', label: `Ativos (${products.filter((p) => p.ativo !== false).length})` },
+                      { value: 'inactive', label: `Inativos (${products.filter((p) => p.ativo === false).length})` },
+                    ]}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setIsCreateProductModalOpen(true)}
+                  style={{
+                    padding: '8px 16px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '13px',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <Plus size={15} /> Cadastrar Novo Produto
+                </button>
+              </div>
             </div>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                gap: '20px',
-              }}
-            >
-              {products.map((p) => (
-                <StockItemCard
-                  key={p.id}
-                  product={p}
-                  isStaffOrAdmin={isStaffOrAdmin}
-                  onEdit={(prod) => setEditingProduct(prod)}
-                  onUpdateStockDelta={(id, delta) => updateProductStock(id, delta)}
-                  onSetStockExact={(id, exact) => setProductStockExact(id, exact)}
-                />
-              ))}
-            </div>
+            {(() => {
+              const displayedProducts = products.filter((p) => {
+                if (productStatusFilter === 'active') return p.ativo !== false;
+                if (productStatusFilter === 'inactive') return p.ativo === false;
+                return true;
+              });
+
+              if (displayedProducts.length === 0) {
+                return (
+                  <div
+                    className="glass-panel"
+                    style={{
+                      padding: '48px 24px',
+                      textAlign: 'center',
+                      borderRadius: 'var(--radius-lg)',
+                      color: 'var(--color-on-surface-variant)',
+                    }}
+                  >
+                    <p style={{ fontSize: '15px', margin: 0 }}>
+                      Nenhum produto encontrado para o filtro "{productStatusFilter === 'inactive' ? 'Inativos' : productStatusFilter === 'active' ? 'Ativos' : 'Todos'}".
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                    gap: '20px',
+                  }}
+                >
+                  {displayedProducts.map((p) => (
+                    <StockItemCard
+                      key={p.id}
+                      product={p}
+                      isStaffOrAdmin={isStaffOrAdmin}
+                      onEdit={(prod) => setEditingProduct(prod)}
+                      onUpdateStockDelta={(id, delta) => updateProductStock(id, delta)}
+                      onSetStockExact={(id, exact) => setProductStockExact(id, exact)}
+                    />
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -1707,6 +1767,7 @@ export const DashboardPage: React.FC = () => {
             onClose={() => setEditingProduct(null)}
             onSave={(updated) => editProduct(editingProduct.id, updated)}
             onDelete={(id) => deleteProduct(id)}
+            onReactivate={(id) => reactivateProduct(id)}
           />
         )}
       </div>

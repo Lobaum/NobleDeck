@@ -24,6 +24,7 @@ export interface Product {
   isDestaque?: boolean;
   idioma?: string;
   ano?: number;
+  ativo?: boolean;
 }
 
 export interface Tournament {

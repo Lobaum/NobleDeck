@@ -16,7 +16,7 @@ import { AdminPage } from './pages/AdminPage';
 import { ThemeProvider } from './context/ThemeContext';
 
 const AppContent: React.FC = () => {
-  const { currentTab, toastMessage } = useApp();
+  const { currentTab, toastMessage, toastConfirm, closeToastConfirm } = useApp();
 
   return (
     <>
@@ -39,10 +39,37 @@ const AppContent: React.FC = () => {
       <TournamentModal />
       <AuthModal />
 
-      {/* Notificação */}
-      {toastMessage && (
+      {/* Notificação Padrão */}
+      {toastMessage && !toastConfirm && (
         <div className="noble-toast" role="alert">
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Toast de Confirmação Interativo */}
+      {toastConfirm && (
+        <div className="noble-toast noble-toast-confirm" role="dialog" aria-modal="true">
+          <span style={{ lineHeight: '1.4' }}>{toastConfirm.message}</span>
+          <div className="noble-toast-confirm-actions">
+            <button
+              type="button"
+              className="noble-toast-btn-cancel"
+              onClick={closeToastConfirm}
+            >
+              {toastConfirm.cancelText || 'Cancelar'}
+            </button>
+            <button
+              type="button"
+              className="noble-toast-btn-confirm"
+              onClick={() => {
+                const action = toastConfirm.onConfirm;
+                closeToastConfirm();
+                action();
+              }}
+            >
+              {toastConfirm.confirmText || 'Confirmar'}
+            </button>
+          </div>
         </div>
       )}
     </>
