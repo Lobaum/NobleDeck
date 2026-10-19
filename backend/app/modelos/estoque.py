@@ -6,22 +6,12 @@ class Estoque:
         estoqueMinimo=5,
         id_estoque=None,
         produto_id=None,
-        estoque_minimo=None,
     ):
         self.id_estoque = id_estoque
         self.quantidade = int(quantidade or 0)
-        self.estoqueMinimo = int(estoqueMinimo if estoque_minimo is None else estoque_minimo)
-
+        self.estoqueMinimo = int(estoqueMinimo or 5)
         self.produto = produto
-        self.produto_id = getattr(produto, "id_produto", produto_id)
-
-    @property
-    def estoque_minimo(self):
-        return self.estoqueMinimo
-
-    @estoque_minimo.setter
-    def estoque_minimo(self, valor):
-        self.estoqueMinimo = int(valor)
+        self.produto_id = getattr(produto, "id_produto", produto_id) if produto else produto_id
 
     def registrarEntrada(self, quantidade=1):
         if quantidade > 0:
@@ -39,8 +29,7 @@ class Estoque:
         return False
 
     def consultarQuantidade(self):
-        return int(self.quantidade)
+        return self.quantidade
 
     def verificarEstoqueBaixo(self):
-        return bool(self.quantidade <= self.estoqueMinimo)
-
+        return self.quantidade <= self.estoqueMinimo

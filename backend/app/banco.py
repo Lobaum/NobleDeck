@@ -146,6 +146,35 @@ def inicializar_banco():
         """)
 
 
+
+def atualizar_usuario_perfil(id_usuario, tipo_usuario, cargo=None):
+    with obter_conexao() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE usuarios SET tipo_usuario = ?, cargo = COALESCE(?, cargo) WHERE id_usuario = ?",
+            (tipo_usuario, cargo, id_usuario),
+        )
+        cursor.execute("SELECT * FROM usuarios WHERE id_usuario = ?", (id_usuario,))
+        row = cursor.fetchone()
+        if row:
+            return instanciar_usuario_da_linha(row)
+    return None
+
+
+def atualizar_senha_usuario(id_usuario, nova_senha):
+    with obter_conexao() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE usuarios SET senha = ? WHERE id_usuario = ?",
+            (nova_senha, id_usuario),
+        )
+        cursor.execute("SELECT * FROM usuarios WHERE id_usuario = ?", (id_usuario,))
+        row = cursor.fetchone()
+        if row:
+            return instanciar_usuario_da_linha(row)
+    return None
+
+
 def instanciar_usuario_da_linha(row):
     tipo = row["tipo_usuario"]
     if tipo == "administrador":

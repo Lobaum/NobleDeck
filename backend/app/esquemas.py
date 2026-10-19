@@ -28,6 +28,17 @@ class UsuarioResposta(BaseModel):
     cargo: str | None = None
 
 
+class UsuarioAtualizacaoPerfil(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    tipo_usuario: str = Field(default="cliente", alias="tipoUsuario")
+    cargo: str | None = None
+
+
+class UsuarioAlterarSenha(BaseModel):
+    nova_senha: str
+
+
 class ProdutoRegistro(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

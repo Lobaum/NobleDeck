@@ -1,7 +1,19 @@
 from fastapi import APIRouter, HTTPException, status
-from app.banco import salvar_usuario, obter_usuario_por_email, listar_usuarios
+from app.banco import (
+    salvar_usuario,
+    obter_usuario_por_email,
+    listar_usuarios,
+    atualizar_usuario_perfil,
+    atualizar_senha_usuario,
+)
 from app.modelos.usuario import Cliente, Funcionario, Administrador
-from app.esquemas import UsuarioCadastro, UsuarioLogin, UsuarioResposta
+from app.esquemas import (
+    UsuarioCadastro,
+    UsuarioLogin,
+    UsuarioResposta,
+    UsuarioAtualizacaoPerfil,
+    UsuarioAlterarSenha,
+)
 
 router = APIRouter(prefix="/api/auth", tags=["Autenticação e Usuários"])
 
@@ -12,7 +24,7 @@ def cadastrar_usuario(dados: UsuarioCadastro):
     if existente:
         raise HTTPException(status_code=400, detail="Este e-mail já está cadastrado no sistema!")
 
-    tipo = dados.tipoUsuario or getattr(dados, "tipo_usuario", "cliente") or "cliente"
+    tipo = dados.tipoUsuario or "cliente"
     if tipo == "funcionario":
         novo_usuario = Funcionario(
             nome=dados.nome,
@@ -34,9 +46,6 @@ def cadastrar_usuario(dados: UsuarioCadastro):
             telefone=dados.telefone or "",
         )
 
-    if isinstance(novo_usuario, Cliente):
-        novo_usuario.cadastrar()
-
     salvar_usuario(novo_usuario)
     return novo_usuario
 
@@ -51,6 +60,22 @@ def login(dados: UsuarioLogin):
 
 @router.get("/usuarios", response_model=list[UsuarioResposta], tags=["Usuários"])
 def listar_todos_usuarios():
-    admin = Administrador()
-    todos = listar_usuarios()
-    return admin.gerenciarUsuarios(todos)
+    return listar_usuarios()
+
+
+@router.put("/usuarios/{id_usuario}/perfil", response_model=UsuarioResposta, tags=["Usuários"])
+def atualizar_perfil(id_usuario: int, dados: UsuarioAtualizacaoPerfil):
+    atualizado = atualizar_usuario_perfil(id_usuario, dados.tipo_usuario, dados.cargo)
+    if not atualizado:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    return atualizado
+
+
+@router.put("/usuarios/{id_usuario}/senha", response_model=UsuarioResposta, tags=["Usuários"])
+def alterar_senha(id_usuario: int, dados: UsuarioAlterarSenha):
+    if not dados.nova_senha or len(dados.nova_senha.strip()) < 4:
+        raise HTTPException(status_code=400, detail="A senha deve possuir pelo menos 4 caracteres.")
+    atualizado = atualizar_senha_usuario(id_usuario, dados.nova_senha.strip())
+    if not atualizado:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    return atualizado

@@ -8,7 +8,7 @@ from app.banco import (
     obter_usuario_por_id,
 )
 from app.modelos.torneio import Torneio, Partida
-from app.modelos.usuario import Cliente, Funcionario
+from app.modelos.usuario import Cliente
 from app.esquemas import (
     TorneioRegistro,
     TorneioResposta,
@@ -43,15 +43,12 @@ def _formatar_torneio(torneio):
 @router.get("", response_model=list[TorneioResposta])
 def listar_todos_torneios():
     torneios = listar_torneios()
-    return [_formatar_torneio(torneio) for torneio in torneios]
+    return [_formatar_torneio(torneio) for torneio in torneios if torneio]
 
 
 @router.post("", response_model=TorneioResposta, status_code=status.HTTP_201_CREATED)
 def criar_torneio(dados: TorneioRegistro):
-    funcionario = Funcionario()
     novo_torneio = Torneio(**dados.model_dump())
-    funcionario.cadastrarTorneio(novo_torneio)
-
     salvar_torneio(novo_torneio)
     return _formatar_torneio(novo_torneio)
 
@@ -97,14 +94,3 @@ def registrar_partida_torneio(id_torneio: int, dados: TorneioPartidaRegistro):
     torneio.partidas.append(nova_partida)
     salvar_partida(nova_partida)
     return nova_partida.consultarResultado()
-
-
-@router.get("/{id_torneio}/classificacao")
-def consultar_classificacao_torneio(id_torneio: int):
-    torneio = obter_torneio_por_id(id_torneio)
-    if not torneio:
-        raise HTTPException(status_code=404, detail="Torneio não encontrado.")
-    return {
-        "torneio": torneio.nome,
-        "classificacao": torneio.consultarClassificacao(),
-    }

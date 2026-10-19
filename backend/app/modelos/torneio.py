@@ -38,31 +38,20 @@ class Inscricao:
         cliente_nome="",
         id_inscricao=None,
         status="confirmada",
-        data_inscricao=None,
         dataInscricao=None,
     ):
         self.id_inscricao = id_inscricao
         self.torneio_id = torneio_id or 0
         self.cliente_id = cliente_id
         self.cliente_nome = cliente_nome
-        self.dataInscricao = dataInscricao or data_inscricao or datetime.now().strftime("%d/%m/%Y %H:%M")
+        self.dataInscricao = dataInscricao or datetime.now().strftime("%d/%m/%Y %H:%M")
         self.status = status
 
-    @property
-    def data_inscricao(self):
-        return self.dataInscricao
-
-    @data_inscricao.setter
-    def data_inscricao(self, valor):
-        self.dataInscricao = str(valor)
-
-    def realizarInscricao(self):
+    def confirmar(self):
         self.status = "confirmada"
-        return True
 
-    def cancelarInscricao(self):
+    def cancelar(self):
         self.status = "cancelada"
-        return True
 
 
 class Torneio:
@@ -82,7 +71,6 @@ class Torneio:
         taxa_inscricao=0.0,
         premiacao="",
         is_premium=False,
-        limite_participantes=None,
     ):
         self.id_torneio = id_torneio
         self.nome = nome
@@ -90,9 +78,7 @@ class Torneio:
         self.jogo_nome = jogo_nome
         self.data = data
         self.horario = horario
-        self.limiteParticipantes = int(
-            limiteParticipantes if limite_participantes is None else limite_participantes
-        )
+        self.limiteParticipantes = int(limiteParticipantes or 16)
         self.vagas_ocupadas = int(vagas_ocupadas or 0)
         self.status = status
         self.formato = formato
@@ -103,18 +89,6 @@ class Torneio:
 
         self.inscricoes = []
         self.partidas = []
-
-    @property
-    def limite_participantes(self):
-        return self.limiteParticipantes
-
-    @limite_participantes.setter
-    def limite_participantes(self, valor):
-        self.limiteParticipantes = int(valor)
-
-    def cadastrar(self):
-        self.status = "aberto"
-        return self
 
     def inscreverParticipante(self, cliente=None):
         if not cliente:
@@ -136,7 +110,6 @@ class Torneio:
             cliente_id=cliente_id,
             cliente_nome=cliente_nome,
         )
-        nova_inscricao.realizarInscricao()
         self.inscricoes.append(nova_inscricao)
         self.vagas_ocupadas = len(self.consultarClassificacao())
 
@@ -144,11 +117,6 @@ class Torneio:
             self.status = "lotado"
 
         return nova_inscricao
-
-    def registrarResultado(self, partida=None, resultado=""):
-        if partida and hasattr(partida, "registrarResultado"):
-            return partida.registrarResultado(resultado)
-        return resultado
 
     def consultarClassificacao(self):
         return [insc.cliente_nome for insc in self.inscricoes if insc.status == "confirmada"]

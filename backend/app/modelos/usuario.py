@@ -44,15 +44,7 @@ class Cliente(Usuario):
         self.telefone = telefone
         self.pedidos = []
 
-    def cadastrar(self):
-        return True
-
-    def consultarProdutos(self, lista_produtos=None):
-        if lista_produtos is None:
-            return []
-        return [p for p in lista_produtos if getattr(p, "ativo", True)]
-
-    def realizarPedido(self, pedido):
+    def adicionarPedido(self, pedido):
         if pedido:
             self.pedidos.append(pedido)
         return pedido
@@ -60,11 +52,8 @@ class Cliente(Usuario):
     def consultarPedidos(self):
         return self.pedidos
 
-    def inscreverTorneio(self, torneio):
-        if torneio and hasattr(torneio, "inscreverParticipante"):
-            resultado = torneio.inscreverParticipante(self)
-            return resultado is not None
-        return False
+    def atualizarTelefone(self, telefone=""):
+        self.telefone = telefone
 
 
 class Funcionario(Usuario):
@@ -85,38 +74,9 @@ class Funcionario(Usuario):
         )
         self.cargo = cargo
 
-    def cadastrarProduto(self, produto):
-        if produto and hasattr(produto, "cadastrar"):
-            produto.cadastrar()
-            return True
-        return True
-
-    def alterarProduto(self, produto, **dados):
-        if produto and hasattr(produto, "alterar"):
-            produto.alterar(**dados)
-            return produto
-        return None
-
-    def consultarEstoque(self, estoque):
-        if estoque and hasattr(estoque, "consultarQuantidade"):
-            return estoque.consultarQuantidade()
-        return 0
-
-    def atualizarPedido(self, pedido, novo_status="Pendente"):
-        if pedido and hasattr(pedido, "atualizarStatus"):
-            return pedido.atualizarStatus(novo_status)
-        return novo_status
-
-    def cadastrarTorneio(self, torneio):
-        if torneio and hasattr(torneio, "cadastrar"):
-            torneio.cadastrar()
-            return True
-        return True
-
-    def registrarResultado(self, partida, resultado=""):
-        if partida and hasattr(partida, "registrarResultado"):
-            return partida.registrarResultado(resultado)
-        return resultado
+    def atualizarCargo(self, novo_cargo):
+        if novo_cargo and novo_cargo.strip():
+            self.cargo = novo_cargo
 
 
 class Administrador(Funcionario):
@@ -135,18 +95,3 @@ class Administrador(Funcionario):
             cargo="Administrador Geral",
         )
         self.tipoUsuario = "administrador"
-
-    def gerenciarUsuarios(self, lista_usuarios=None):
-        return lista_usuarios or []
-
-    def gerenciarFuncionarios(self, lista_funcionarios=None):
-        return lista_funcionarios or []
-
-    def gerenciarProdutos(self, lista_produtos=None):
-        return lista_produtos or []
-
-    def gerenciarEstoque(self, lista_estoque=None):
-        return lista_estoque or []
-
-    def gerenciarTorneios(self, lista_torneios=None):
-        return lista_torneios or []

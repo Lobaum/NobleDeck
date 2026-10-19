@@ -2,7 +2,6 @@ import random
 from fastapi import APIRouter, HTTPException, status
 from app.banco import salvar_pedido, obter_pedido_por_id, listar_pedidos, atualizar_status_pedido, obter_produto_por_id
 from app.modelos.pedido import Pedido
-from app.modelos.usuario import Funcionario
 from app.esquemas import PedidoRegistro, PedidoResposta, PedidoStatusAlteracao, PedidoItemResposta
 
 router = APIRouter(prefix="/api/pedidos", tags=["Pedidos"])
@@ -38,13 +37,14 @@ def _formatar_pedido(pedido):
 @router.get("", response_model=list[PedidoResposta])
 def listar_todos_pedidos(cliente_id: int | None = None):
     pedidos = listar_pedidos(cliente_id=cliente_id)
-    return [_formatar_pedido(pedido_cadastrado) for pedido_cadastrado in pedidos]
+    return [_formatar_pedido(p) for p in pedidos if p]
 
 
 @router.post("", response_model=PedidoResposta, status_code=status.HTTP_201_CREATED)
 def criar_pedido(dados: PedidoRegistro):
     if not dados.itens:
         raise HTTPException(status_code=400, detail="O pedido deve conter ao menos um item.")
+
     produtos_por_id = {}
     for item_requisicao in dados.itens:
         produto = obter_produto_por_id(item_requisicao.produto_id)
@@ -68,7 +68,7 @@ def criar_pedido(dados: PedidoRegistro):
 
     for item_requisicao in dados.itens:
         produto = produtos_por_id[item_requisicao.produto_id]
-        novo_pedido.adicionarProduto(produto, item_requisicao.quantidade)
+        novo_pedido.adicionarItem(produto, item_requisicao.quantidade)
 
     novo_pedido.finalizar()
     salvar_pedido(novo_pedido)
@@ -85,9 +85,7 @@ def atualizar_status_pedido_rota(id_pedido: int, dados: PedidoStatusAlteracao):
     if pedido.status == "Finalizado" and dados.status not in ["Finalizado", "Cancelado"]:
         raise HTTPException(status_code=400, detail="Pedidos finalizados só podem ser alterados para Cancelado.")
 
-    funcionario = Funcionario()
-    funcionario.atualizarPedido(pedido, dados.status)
-
+    pedido.atualizarStatus(dados.status)
     pedido_atualizado = atualizar_status_pedido(id_pedido, dados.status)
     if not pedido_atualizado:
         raise HTTPException(status_code=500, detail="Erro ao atualizar o pedido no banco de dados.")

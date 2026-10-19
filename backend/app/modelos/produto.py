@@ -9,7 +9,6 @@ class Produto:
         categoria="Geral",
         jogo="outros",
         ativo=True,
-        estoque=None,
         jogo_nome="Geral",
         subtitulo="",
         imagem_url="",
@@ -18,11 +17,13 @@ class Produto:
         is_destaque=False,
         idioma="Português",
         ano=2024,
+        estoque=None,
     ):
         self.id_produto = id_produto
         self.nome = nome
         self.preco = float(preco or 0.0)
         self.quantidade = int(estoque if estoque is not None else (quantidade or 0))
+        self.estoque = self.quantidade
         self.descricao = descricao
         self.categoria = categoria
         self.jogo = jogo
@@ -37,53 +38,19 @@ class Produto:
         self.idioma = idioma
         self.ano = int(ano or 2024)
 
-    @property
-    def estoque(self):
-        return self.quantidade
+    def atualizarEstoque(self, quantidade):
+        if self.quantidade + quantidade < 0:
+            return False
+        self.quantidade += quantidade
+        self.estoque = self.quantidade
+        return True
 
-    @estoque.setter
-    def estoque(self, valor):
-        self.quantidade = int(valor)
-
-    def cadastrar(self):
-        self.ativo = True
-        return self
-
-    def alterar(self, **dados):
-        for chave, valor in dados.items():
-            if chave == "estoque" and valor is not None:
-                self.quantidade = int(valor)
-            elif hasattr(self, chave) and valor is not None:
-                setattr(self, chave, valor)
-        return self
-
-    def consultar(self):
-        return {
-            "id_produto": self.id_produto,
-            "nome": self.nome,
-            "descricao": self.descricao,
-            "categoria": self.categoria,
-            "jogo": self.jogo,
-            "preco": self.preco,
-            "quantidade": self.quantidade,
-            "estoque": self.quantidade,
-            "ativo": self.ativo,
-            "jogo_nome": self.jogo_nome,
-            "subtitulo": self.subtitulo,
-            "imagem_url": self.imagem_url,
-            "raridade": self.raridade,
-            "is_novo": self.is_novo,
-            "is_destaque": self.is_destaque,
-            "idioma": self.idioma,
-            "ano": self.ano,
-        }
+    def atualizarPreco(self, novo_preco):
+        if novo_preco is not None and novo_preco >= 0:
+            self.preco = float(novo_preco)
 
     def inativar(self):
         self.ativo = False
-        return self
 
-    def atualizar_estoque(self, diferenca):
-        if self.quantidade + diferenca < 0:
-            return False
-        self.quantidade += diferenca
-        return True
+    def ativar(self):
+        self.ativo = True
