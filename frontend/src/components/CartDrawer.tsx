@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight, CheckCircle2 } from 'lucide-react';
+import nobleLogo from '../assets/noble-logo.png';
 
 export const CartDrawer: React.FC = () => {
   const {
@@ -251,7 +252,7 @@ export const CartDrawer: React.FC = () => {
                   }}
                 >
                   <img
-                    src={item.produto.imagemUrl}
+                    src={item.produto.imagemUrl || nobleLogo}
                     alt={item.produto.nome}
                     style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                   />

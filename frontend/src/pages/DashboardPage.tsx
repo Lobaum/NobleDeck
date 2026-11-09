@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { AlertTriangle, ChevronDown, Check, Pencil, Trash2, Plus, Minus, X, Save, Shield, RotateCcw } from 'lucide-react';
-import type { GameId, ProductCategory, UserRole, Order, Product } from '../types';
-import defaultProductImg from '../assets/products/pokemon-destinos-brilhantes.png';
+import { AlertTriangle, ChevronDown, Check, Pencil, Trash2, Plus, Minus, X, Save, Shield, RotateCcw, Search } from 'lucide-react';
+import type { ActiveGameApi, ExternalCard, GameId, ProductCategory, Order, Product } from '../types';
 import { SystemSelect } from '../components/SystemSelect';
+import { searchLiveCards } from '../services/tcgApi';
 
 interface OrderStatusDropdownProps {
   currentStatus: Order['status'];
@@ -807,8 +807,46 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [categoria, setCategoria] = useState<ProductCategory>('Booster Pack');
   const [descricao, setDescricao] = useState('');
   const [imagemUrl, setImagemUrl] = useState('');
+  const [raridade, setRaridade] = useState('');
+
+  const [apiSearchTerm, setApiSearchTerm] = useState('');
+  const [apiResults, setApiResults] = useState<ExternalCard[]>([]);
+  const [isSearchingApi, setIsSearchingApi] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleSearchApiCards = async () => {
+    if (!apiSearchTerm.trim()) return;
+    setIsSearchingApi(true);
+    try {
+      const targetGame: ActiveGameApi | 'all' =
+        jogo === 'outros' ? 'all' : (jogo as ActiveGameApi);
+      const { cards } = await searchLiveCards(targetGame, apiSearchTerm.trim(), 1);
+      setApiResults(cards.slice(0, 6));
+    } catch {
+      setApiResults([]);
+    } finally {
+      setIsSearchingApi(false);
+    }
+  };
+
+  const handleSelectApiCard = (card: ExternalCard) => {
+    setNome(card.nome);
+    setJogo(card.jogo);
+    setCategoria('Carta Avulsa');
+    setSubtitulo(`${card.colecao} • ${card.codigoCarta}`);
+    setPreco(
+      card.precoMercadoBrl.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    );
+    if (!estoque) setEstoque('5');
+    setImagemUrl(card.imagemUrl);
+    setDescricao(card.descricao);
+    setRaridade(card.raridade);
+    setApiResults([]);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -829,7 +867,8 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
       jogoNome: gameNames[jogo] || 'Geral',
       categoria,
       descricao: descricao.trim() || 'Produto oficial licenciado da loja Noble Deck.',
-      imagemUrl: imagemUrl.trim() || defaultProductImg,
+      imagemUrl: imagemUrl.trim(),
+      raridade: raridade || undefined,
       isNovo: true,
       isDestaque: false,
     });
@@ -843,6 +882,9 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
     setJogo('pokemon');
     setCategoria('Booster Pack');
     setImagemUrl('');
+    setRaridade('');
+    setApiSearchTerm('');
+    setApiResults([]);
     onClose();
   };
 
@@ -880,6 +922,76 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div
+            style={{
+              padding: '12px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--color-surface-container-low)',
+              border: '1px solid var(--card-border)',
+            }}
+          >
+            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-primary)' }}>
+              Preencher com Carta Oficial da API (Scryfall / TCGdex / YGOPRODeck / OPTCG)
+            </label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                className="system-input"
+                value={apiSearchTerm}
+                onChange={(e) => setApiSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSearchApiCards();
+                  }
+                }}
+                placeholder="Digite o nome da carta (ex: Charizard, Sol Ring, Blue-Eyes)..."
+              />
+              <button
+                type="button"
+                onClick={handleSearchApiCards}
+                disabled={isSearchingApi}
+                className="btn-outline"
+                style={{ padding: '0 14px', whiteSpace: 'nowrap', fontSize: '12px' }}
+              >
+                <Search size={14} />
+                <span>{isSearchingApi ? 'Buscando...' : 'Buscar'}</span>
+              </button>
+            </div>
+            {apiResults.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px', maxHeight: '160px', overflowY: 'auto' }}>
+                {apiResults.map((c) => (
+                  <button
+                    key={c.uid}
+                    type="button"
+                    onClick={() => handleSelectApiCard(c)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px',
+                      padding: '8px 10px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--card-border)',
+                      backgroundColor: 'var(--card-bg)',
+                      color: 'var(--color-on-surface)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: '12px',
+                    }}
+                  >
+                    <span style={{ fontWeight: 600 }}>
+                      {c.nome} <span style={{ color: 'var(--color-outline)', fontWeight: 400 }}>({c.jogoNome} • {c.colecao})</span>
+                    </span>
+                    <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-primary)', whiteSpace: 'nowrap' }}>
+                      R$ {c.precoMercadoBrl.toFixed(2)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div>
             <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
               Nome do Produto *
@@ -1040,7 +1152,6 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
 export const DashboardPage: React.FC = () => {
   const {
     currentUser,
-    switchRole,
     orders,
     tournaments,
     products,
@@ -1064,15 +1175,20 @@ export const DashboardPage: React.FC = () => {
 
   const [newTourTitle, setNewTourTitle] = useState('');
   const [newTourGame, setNewTourGame] = useState<GameId>('magic');
-  const [newTourFormat, setNewTourFormat] = useState('Standard Suíço');
-  const [newTourDate, setNewTourDate] = useState('Sáb, 15 Dez');
-  const [newTourTime, setNewTourTime] = useState('14:00');
-  const [newTourLocal, setNewTourLocal] = useState('Noble Deck Arena - Sala Principal');
-  const [newTourSlots, setNewTourSlots] = useState('32');
-  const [newTourFee, setNewTourFee] = useState('50.00');
-  const [newTourPrize, setNewTourPrize] = useState('R$ 1.000 em créditos na loja + Troféu');
+  const [newTourFormat, setNewTourFormat] = useState('');
+  const [newTourDate, setNewTourDate] = useState('');
+  const [newTourTime, setNewTourTime] = useState('');
+  const [newTourLocal, setNewTourLocal] = useState('');
+  const [newTourSlots, setNewTourSlots] = useState('');
+  const [newTourFee, setNewTourFee] = useState('');
+  const [newTourPrize, setNewTourPrize] = useState('');
 
   const isStaffOrAdmin = currentUser.role === 'funcionario' || currentUser.role === 'admin';
+  const visibleOrders = isStaffOrAdmin
+    ? orders
+    : orders.filter(
+        (o) => o.cliente_email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()
+      );
 
   if (!currentUser.email || currentUser.id === 0) {
     return (
@@ -1247,7 +1363,7 @@ export const DashboardPage: React.FC = () => {
               cursor: 'pointer',
             }}
           >
-            {isStaffOrAdmin ? 'Todos os Pedidos' : 'Meus Pedidos'} ({orders.length})
+            {isStaffOrAdmin ? 'Todos os Pedidos' : 'Meus Pedidos'} ({visibleOrders.length})
           </button>
 
           {isStaffOrAdmin && (
@@ -1298,7 +1414,7 @@ export const DashboardPage: React.FC = () => {
         {/* Pedidos */}
         {activeTab === 'orders' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {orders.length === 0 ? (
+            {visibleOrders.length === 0 ? (
               <div
                 style={{
                   padding: '40px',
@@ -1312,7 +1428,7 @@ export const DashboardPage: React.FC = () => {
                 </p>
               </div>
             ) : (
-              orders.map((order) => (
+              visibleOrders.map((order) => (
                 <div
                   key={order.id_pedido}
                   className="glass-panel"
@@ -1656,6 +1772,7 @@ export const DashboardPage: React.FC = () => {
                   <input
                     type="text"
                     required
+                    placeholder="Ex: Standard Suíço"
                     className="system-input"
                     value={newTourFormat}
                     onChange={(e) => setNewTourFormat(e.target.value)}
@@ -1666,11 +1783,12 @@ export const DashboardPage: React.FC = () => {
               <div className="system-form-grid">
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px' }}>
-                    Data (Ex: Sáb, 15 Dez)
+                    Data
                   </label>
                   <input
                     type="text"
                     required
+                    placeholder="Ex: Sáb, 15 Dez"
                     className="system-input"
                     value={newTourDate}
                     onChange={(e) => setNewTourDate(e.target.value)}
@@ -1679,11 +1797,12 @@ export const DashboardPage: React.FC = () => {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px' }}>
-                    Horário (Ex: 14:00)
+                    Horário
                   </label>
                   <input
                     type="text"
                     required
+                    placeholder="Ex: 14:00"
                     className="system-input"
                     value={newTourTime}
                     onChange={(e) => setNewTourTime(e.target.value)}
@@ -1693,11 +1812,12 @@ export const DashboardPage: React.FC = () => {
 
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px' }}>
-                  Local da Partida (Ex: Noble Deck Arena - Mesa Central)
+                  Local da Partida
                 </label>
                 <input
                   type="text"
                   required
+                  placeholder="Ex: Noble Deck Arena - Sala Principal"
                   className="system-input"
                   value={newTourLocal}
                   onChange={(e) => setNewTourLocal(e.target.value)}
@@ -1711,7 +1831,9 @@ export const DashboardPage: React.FC = () => {
                   </label>
                   <input
                     type="number"
+                    min="2"
                     required
+                    placeholder="Ex: 32"
                     className="system-input"
                     value={newTourSlots}
                     onChange={(e) => setNewTourSlots(e.target.value)}
@@ -1724,8 +1846,10 @@ export const DashboardPage: React.FC = () => {
                   </label>
                   <input
                     type="number"
+                    min="0"
                     step="0.01"
                     required
+                    placeholder="Ex: 50.00"
                     className="system-input"
                     value={newTourFee}
                     onChange={(e) => setNewTourFee(e.target.value)}
@@ -1740,6 +1864,7 @@ export const DashboardPage: React.FC = () => {
                 <input
                   type="text"
                   required
+                  placeholder="Ex: Créditos na loja + Boosters"
                   className="system-input"
                   value={newTourPrize}
                   onChange={(e) => setNewTourPrize(e.target.value)}

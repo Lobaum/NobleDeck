@@ -1,13 +1,21 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { X, ShoppingBag } from 'lucide-react';
+import { X, ShoppingBag, PackagePlus } from 'lucide-react';
+import nobleLogo from '../assets/noble-logo.png';
 
 export const ProductModal: React.FC = () => {
-  const { selectedProductForModal, setSelectedProductForModal, addToCart } = useApp();
+  const {
+    selectedProductForModal,
+    setSelectedProductForModal,
+    addToCart,
+    currentUser,
+    importExternalCard,
+  } = useApp();
 
   if (!selectedProductForModal) return null;
 
   const product = selectedProductForModal;
+  const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
 
   return (
     <div
@@ -107,7 +115,7 @@ export const ProductModal: React.FC = () => {
             }}
           >
             <img
-              src={product.imagemUrl}
+              src={product.imagemUrl || nobleLogo}
               alt={product.nome}
               style={{
                 width: '100%',
@@ -231,13 +239,42 @@ export const ProductModal: React.FC = () => {
                 <span style={{ fontWeight: 600 }}>{product.idioma || 'Original'}</span>
               </div>
               <div>
-                <span style={{ color: 'var(--color-outline)', display: 'block' }}>Garantia</span>
-                <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>100% Autêntico</span>
+                <span style={{ color: 'var(--color-outline)', display: 'block' }}>
+                  {product.externalCard ? 'Fonte Oficial' : 'Garantia'}
+                </span>
+                <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>
+                  {product.externalCard
+                    ? `${product.externalCard.fonteApi}${
+                        product.externalCard.precoOriginalUsd
+                          ? ` (US$ ${product.externalCard.precoOriginalUsd.toFixed(2)})`
+                          : ''
+                      }`
+                    : '100% Autêntico'}
+                </span>
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            {product.externalCard && isStaffOrAdmin && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const imported = await importExternalCard(product.externalCard!);
+                  if (imported) {
+                    setSelectedProductForModal(imported);
+                  }
+                }}
+                className="btn-outline"
+                style={{
+                  padding: '14px 18px',
+                  fontSize: '13px',
+                }}
+              >
+                <PackagePlus size={16} />
+                <span>Importar p/ Estoque</span>
+              </button>
+            )}
             <button
               onClick={() => {
                 addToCart(product);

@@ -1,5 +1,7 @@
 export type GameId = 'pokemon' | 'magic' | 'yugioh' | 'onepiece' | 'outros';
 
+export type ActiveGameApi = 'pokemon' | 'magic' | 'yugioh' | 'onepiece';
+
 export type ProductCategory =
   | 'Booster Box'
   | 'Deck Commander'
@@ -7,6 +9,25 @@ export type ProductCategory =
   | 'Starter Deck'
   | 'Acessórios'
   | 'Carta Avulsa';
+
+export interface ExternalCard {
+  uid: string;
+  externalId: string;
+  nome: string;
+  jogo: ActiveGameApi;
+  jogoNome: string;
+  colecao: string;
+  codigoCarta: string;
+  raridade: string;
+  descricao: string;
+  imagemUrl: string;
+  glImageUrl: string;
+  precoMercadoBrl: number;
+  precoOriginalUsd: number | null;
+  fonteApi: 'Scryfall' | 'TCGdex' | 'YGOPRODeck' | 'OPTCG';
+  ano?: number;
+  atributos?: string;
+}
 
 export interface Product {
   id: number;
@@ -25,6 +46,7 @@ export interface Product {
   idioma?: string;
   ano?: number;
   ativo?: boolean;
+  externalCard?: ExternalCard;
 }
 
 export interface Tournament {

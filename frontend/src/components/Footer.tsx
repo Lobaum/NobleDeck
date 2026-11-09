@@ -1,5 +1,5 @@
 import React from 'react';
-import { NOBLE_LOGO } from '../data/mockData';
+import nobleLogo from '../assets/noble-logo.png';
 import { useApp } from '../context/AppContext';
 
 export const Footer: React.FC = () => {
@@ -34,7 +34,7 @@ export const Footer: React.FC = () => {
               }}
             >
               <img
-                src={NOBLE_LOGO}
+                src={nobleLogo}
                 alt="Noble Deck Logo"
                 style={{ width: '32px', height: '32px', opacity: 0.9 }}
               />

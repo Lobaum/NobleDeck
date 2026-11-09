@@ -1,6 +1,6 @@
 import React from 'react';
 import { ShieldCheck, Trophy, Star, MapPin, Clock, Phone, Mail, HelpCircle } from 'lucide-react';
-import { NOBLE_LOGO } from '../data/mockData';
+import nobleLogo from '../assets/noble-logo.png';
 
 export const AboutPage: React.FC = () => {
   const faqs = [
@@ -28,7 +28,7 @@ export const AboutPage: React.FC = () => {
         {/* Hero */}
         <div style={{ maxWidth: '720px', marginBottom: '60px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-            <img src={NOBLE_LOGO} alt="Noble Deck" style={{ width: '38px', height: '38px' }} />
+            <img src={nobleLogo} alt="Noble Deck" style={{ width: '38px', height: '38px' }} />
             <span
               style={{
                 fontFamily: 'var(--font-mono)',

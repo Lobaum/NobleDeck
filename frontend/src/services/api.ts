@@ -5,17 +5,46 @@ import type {
   CartItem,
   UserProfile,
   UserRole,
+  ExternalCard,
 } from '../types';
-
-import { INITIAL_PRODUCTS } from '../data/mockData';
 
 const API_BASE = '/api';
 
+function hashCardUidToNegativeId(uid: string): number {
+  let hash = 0;
+  for (let i = 0; i < uid.length; i++) {
+    hash = (hash * 31 + uid.charCodeAt(i)) | 0;
+  }
+  const positive = Math.abs(hash) || 1;
+  return -positive;
+}
+
+export function externalCardToProduct(card: ExternalCard, estoquePadrao = 5): Product {
+  return {
+    id: hashCardUidToNegativeId(card.uid),
+    nome: card.nome,
+    preco: card.precoMercadoBrl,
+    estoque: estoquePadrao,
+    jogo: card.jogo,
+    jogoNome: card.jogoNome,
+    categoria: 'Carta Avulsa',
+    subtitulo: `${card.colecao} • ${card.codigoCarta}`,
+    descricao:
+      card.descricao ||
+      `Carta oficial ${card.nome} (${card.colecao}) consultada via ${card.fonteApi}.`,
+    imagemUrl: card.imagemUrl,
+    raridade: card.raridade,
+    isNovo: false,
+    isDestaque: false,
+    idioma: 'Inglês / Oficial',
+    ano: card.ano || new Date().getFullYear(),
+    ativo: true,
+    externalCard: card,
+  };
+}
+
 // Conversores de formato Backend (snake_case) <-> Frontend (camelCase)
 export function adaptarProdutoDoBackend(p: any): Product {
-  const init =
-    INITIAL_PRODUCTS.find((ip) => ip.nome.toLowerCase().trim() === (p.nome || '').toLowerCase().trim()) ||
-    INITIAL_PRODUCTS.find((ip) => ip.id === p.id_produto);
   return {
     id: p.id_produto,
     nome: p.nome,
@@ -26,12 +55,12 @@ export function adaptarProdutoDoBackend(p: any): Product {
     categoria: p.categoria,
     subtitulo: p.subtitulo || `${p.categoria} • ${p.jogo_nome || p.jogo}`,
     descricao: p.descricao || '',
-    imagemUrl: p.imagem_url?.trim() ? p.imagem_url : init?.imagemUrl || '',
+    imagemUrl: p.imagem_url?.trim() || '',
     raridade: p.raridade || 'Comum',
     isNovo: p.is_novo ?? true,
     isDestaque: p.is_destaque ?? false,
     idioma: p.idioma || 'Português',
-    ano: p.ano || 2024,
+    ano: p.ano || new Date().getFullYear(),
     ativo: p.ativo ?? true,
   };
 }

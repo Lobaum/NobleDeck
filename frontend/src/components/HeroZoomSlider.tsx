@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { ChevronLeft, ChevronRight, Eye } from 'lucide-react';
-import type { Product } from '../types';
+import type { Product, ExternalCard } from '../types';
+import { externalCardToProduct } from '../services/api';
 
 export interface ZoomCardItem {
-  id: number;
+  id: number | string;
   number: string;
   name: string;
   rarity: string;
@@ -13,7 +14,10 @@ export interface ZoomCardItem {
   image: string;
   description: string;
   badge?: string;
+  price?: number;
   productId?: number;
+  product?: Product;
+  externalCard?: ExternalCard;
 }
 
 interface HeroZoomSliderProps {
@@ -31,11 +35,19 @@ export const HeroZoomSlider: React.FC<HeroZoomSliderProps> = ({ cards }) => {
 
   const totalCards = cards.length;
 
+  useEffect(() => {
+    if (activeIndex >= totalCards && totalCards > 0) {
+      setActiveIndex(0);
+    }
+  }, [totalCards, activeIndex]);
+
   const goToNext = useCallback(() => {
+    if (totalCards <= 0) return;
     setActiveIndex((prev) => (prev + 1) % totalCards);
   }, [totalCards]);
 
   const goToPrev = useCallback(() => {
+    if (totalCards <= 0) return;
     setActiveIndex((prev) => (prev - 1 + totalCards) % totalCards);
   }, [totalCards]);
 
@@ -44,18 +56,18 @@ export const HeroZoomSlider: React.FC<HeroZoomSliderProps> = ({ cards }) => {
   };
 
   useEffect(() => {
-    if (isHovered) return;
+    if (isHovered || totalCards <= 1) return;
 
     const timer = setInterval(() => {
       goToNext();
     }, 2000);
 
     return () => clearInterval(timer);
-  }, [isHovered, goToNext]);
+  }, [isHovered, totalCards, goToNext]);
 
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el || totalCards <= 1) return;
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -84,7 +96,7 @@ export const HeroZoomSlider: React.FC<HeroZoomSliderProps> = ({ cards }) => {
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchStartX.current === null || touchStartY.current === null) return;
+    if (touchStartX.current === null || touchStartY.current === null || totalCards <= 1) return;
     const diffX = touchStartX.current - e.touches[0].clientX;
     const diffY = touchStartY.current - e.touches[0].clientY;
 
@@ -107,57 +119,71 @@ export const HeroZoomSlider: React.FC<HeroZoomSliderProps> = ({ cards }) => {
   };
 
   const handleCardClick = (card: ZoomCardItem) => {
-    const matchedProduct =
-      products.find((p) => p.id === card.productId || p.nome.toLowerCase().includes(card.name.toLowerCase())) ||
-      products.find((p) => p.id === card.id);
+    if (card.product) {
+      setSelectedProductForModal(card.product);
+      return;
+    }
 
-    const gameCategory: 'pokemon' | 'magic' | 'yugioh' | 'onepiece' =
-      card.game.toLowerCase().includes('pok')
-        ? 'pokemon'
-        : card.game.toLowerCase().includes('magic')
-        ? 'magic'
-        : card.game.toLowerCase().includes('yu-gi')
-        ? 'yugioh'
-        : 'onepiece';
+    const matchedProduct = products.find(
+      (p) =>
+        p.ativo !== false &&
+        (p.id === card.productId || p.nome.toLowerCase().trim() === card.name.toLowerCase().trim())
+    );
 
-    const estimatedPrice =
-      matchedProduct?.preco ||
-      (card.name.includes('Lotus')
-        ? 125000.0
-        : card.name.includes('Luffy')
-        ? 8900.0
-        : card.name.includes('Shanks')
-        ? 7500.0
-        : card.name.includes('Moonbreon') || card.name.includes('Umbreon')
-        ? 4800.0
-        : card.name.includes('Dragão Branco')
-        ? 4200.0
-        : card.name.includes('Mago Negro')
-        ? 2400.0
-        : card.name.includes('The One Ring')
-        ? 15000.0
-        : 1850.0);
+    if (matchedProduct) {
+      setSelectedProductForModal(matchedProduct);
+      return;
+    }
 
-    const fullProduct: Product = {
-      id: card.productId || card.id,
-      nome: card.name,
-      subtitulo: `${card.game} • ${card.badge || 'Edição de Colecionador'}`,
-      preco: estimatedPrice,
-      estoque: matchedProduct?.estoque || 2,
-      jogo: gameCategory,
-      jogoNome: card.game,
-      categoria: 'Carta Avulsa',
-      descricao: `${card.description} Exemplar autêntico em estado impecável de conservação (Near Mint), perfeitamente preservado com sleeve e toploader. Ideal para colecionadores exigentes e jogadores competitivos.`,
-      imagemUrl: card.image,
-      raridade: card.rarity,
-      isNovo: true,
-      isDestaque: true,
-      idioma: card.game.toLowerCase().includes('yu-gi') ? 'Português' : 'Inglês',
-      ano: 2024,
-    };
-
-    setSelectedProductForModal(fullProduct);
+    if (card.externalCard) {
+      setSelectedProductForModal(externalCardToProduct(card.externalCard));
+      return;
+    }
   };
+
+  if (totalCards === 0) {
+    return (
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: '560px',
+          height: '540px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          margin: '0 auto',
+        }}
+      >
+        <div
+          className="tcg-card shimmer-effect"
+          style={{
+            width: '280px',
+            height: '392px',
+            borderRadius: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+            textAlign: 'center',
+            backgroundColor: 'var(--card-bg)',
+            border: '1px solid var(--card-border)',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '12px',
+              color: 'var(--color-on-surface-variant)',
+            }}
+          >
+            Carregando cartas oficiais...
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

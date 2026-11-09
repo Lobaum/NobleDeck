@@ -7,38 +7,43 @@ import type {
   UserProfile,
   UserRole,
   GameId,
+  ExternalCard,
 } from '../types';
-import {
-  INITIAL_PRODUCTS,
-  INITIAL_TOURNAMENTS,
-  INITIAL_USER,
-} from '../data/mockData';
-import { api } from '../services/api';
+import { api, externalCardToProduct } from '../services/api';
 
 export type NavigationTab = 'home' | 'products' | 'tournaments' | 'about' | 'dashboard' | 'admin';
+
+const GUEST_USER: UserProfile = {
+  id: 0,
+  nome: '',
+  email: '',
+  role: 'cliente',
+  torneiosInscritos: [],
+};
 
 interface AppContextType {
   currentTab: NavigationTab;
   setCurrentTab: (tab: NavigationTab) => void;
   selectedGameFilter: GameId | 'all';
   setSelectedGameFilter: (game: GameId | 'all') => void;
-  
+
   products: Product[];
   selectedProductForModal: Product | null;
   setSelectedProductForModal: (product: Product | null) => void;
   addProduct: (product: Omit<Product, 'id'>) => Promise<void> | void;
+  importExternalCard: (card: ExternalCard, estoque?: number, preco?: number) => Promise<Product | null>;
   updateProductStock: (productId: number, change: number) => Promise<void> | void;
   setProductStockExact: (productId: number, newStock: number) => Promise<void> | void;
   editProduct: (productId: number, updatedFields: Partial<Product>) => Promise<void> | void;
   deleteProduct: (productId: number) => Promise<void> | void;
   reactivateProduct: (productId: number) => Promise<void> | void;
-  
+
   tournaments: Tournament[];
   selectedTournamentForModal: Tournament | null;
   setSelectedTournamentForModal: (tournament: Tournament | null) => void;
   registerInTournament: (tournamentId: number) => Promise<boolean> | boolean;
   createTournament: (tournament: Omit<Tournament, 'id' | 'vagasOcupadas' | 'inscritos' | 'status'>) => Promise<void> | void;
-  
+
   cart: CartItem[];
   isCartOpen: boolean;
   setIsCartOpen: (open: boolean) => void;
@@ -48,11 +53,11 @@ interface AppContextType {
   clearCart: () => void;
   cartTotal: number;
   cartItemsCount: number;
-  
+
   orders: Order[];
   createOrder: () => Promise<Order | null>;
   updateOrderStatus: (orderId: number, status: Order['status']) => Promise<void> | void;
-  
+
   currentUser: UserProfile;
   switchRole: (role: UserRole) => void;
   isAuthModalOpen: boolean;
@@ -61,7 +66,7 @@ interface AppContextType {
   setAuthModalMode: (mode: 'login' | 'register') => void;
   loginUser: (nome: string, email: string, role: UserRole, senha?: string, telefone?: string) => Promise<boolean>;
   logoutUser: () => void;
-  
+
   toastMessage: string | null;
   showToast: (msg: string) => void;
   toastConfirm: {
@@ -125,53 +130,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => window.removeEventListener('popstate', handlePop);
   }, []);
 
-  const [selectedGameFilter, setSelectedGameFilter] = useState<GameId | 'all'>('all');
-  
-  const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('noble_products');
-    if (!saved) return INITIAL_PRODUCTS;
-    try {
-      const parsed: Product[] = JSON.parse(saved);
-      const updated = parsed.map((p) => {
-        const init =
-          INITIAL_PRODUCTS.find((ip) => ip.nome.toLowerCase().trim() === (p.nome || '').toLowerCase().trim()) ||
-          INITIAL_PRODUCTS.find((ip) => ip.id === p.id);
-        if (init && (p.imagemUrl !== init.imagemUrl || p.imagemUrl?.includes('lh3.googleusercontent.com') || !p.imagemUrl)) {
-          return {
-            ...p,
-            imagemUrl: init.imagemUrl,
-            nome: init.nome,
-            subtitulo: init.subtitulo,
-            descricao: init.descricao,
-            raridade: init.raridade,
-            jogo: init.jogo,
-            jogoNome: init.jogoNome,
-            categoria: init.categoria,
-          };
-        }
-        return p;
-      });
-      const existingIds = new Set(updated.map((p) => p.id));
-      const missingInitial = INITIAL_PRODUCTS.filter((p) => !existingIds.has(p.id));
-      return [...updated, ...missingInitial];
-    } catch {
-      return INITIAL_PRODUCTS;
-    }
-  });
+  // Remove caches antigos de dados mock que pudessem existir no localStorage
+  useEffect(() => {
+    localStorage.removeItem('noble_products');
+    localStorage.removeItem('noble_tournaments');
+    localStorage.removeItem('noble_orders');
+    localStorage.removeItem('noble_registered_emails');
+  }, []);
 
-  const [tournaments, setTournaments] = useState<Tournament[]>(() => {
-    const saved = localStorage.getItem('noble_tournaments');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [selectedGameFilter, setSelectedGameFilter] = useState<GameId | 'all'>('all');
+
+  const [products, setProducts] = useState<Product[]>([]);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
 
   const [cart, setCart] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem('noble_cart');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('noble_orders');
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
   });
 
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
@@ -179,16 +160,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (!parsed?.email || parsed?.id === 0) {
+        if (!parsed?.email || !parsed?.id || parsed.id <= 0) {
           localStorage.removeItem('noble_user');
-          return INITIAL_USER;
+          return GUEST_USER;
         }
-        return parsed;
+        return {
+          ...parsed,
+          torneiosInscritos: Array.isArray(parsed.torneiosInscritos) ? parsed.torneiosInscritos : [],
+        };
       } catch {
-        return INITIAL_USER;
+        return GUEST_USER;
       }
     }
-    return INITIAL_USER;
+    return GUEST_USER;
   });
 
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -204,56 +188,81 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     onConfirm: () => void;
   } | null>(null);
 
-  // Persistência
-  useEffect(() => {
-    localStorage.setItem('noble_products', JSON.stringify(products));
-  }, [products]);
-
-  useEffect(() => {
-    localStorage.setItem('noble_tournaments', JSON.stringify(tournaments));
-  }, [tournaments]);
-
   useEffect(() => {
     localStorage.setItem('noble_cart', JSON.stringify(cart));
   }, [cart]);
 
   useEffect(() => {
-    localStorage.setItem('noble_orders', JSON.stringify(orders));
-  }, [orders]);
-
-  useEffect(() => {
-    localStorage.setItem('noble_user', JSON.stringify(currentUser));
+    if (currentUser.email && currentUser.id > 0) {
+      localStorage.setItem('noble_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('noble_user');
+    }
   }, [currentUser]);
 
-  // Carregamento inicial da API FastAPI com suporte a banco vazio
+  // Carregamento inicial exclusivo do backend FastAPI
   useEffect(() => {
-    api
-      .obterProdutos()
-      .then((dados) => {
-        if (Array.isArray(dados)) {
-          setProducts(dados);
-        }
-      })
-      .catch((err) => console.log('FastAPI offline ou carregando, mantendo dados locais de produtos:', err.message));
+    let active = true;
 
-    api
-      .obterTorneios()
-      .then((dados) => {
-        if (Array.isArray(dados)) {
-          setTournaments(dados);
+    async function loadFromBackend() {
+      let loadedProducts: Product[] = [];
+      try {
+        const dadosProdutos = await api.obterProdutos(false);
+        if (active && Array.isArray(dadosProdutos)) {
+          loadedProducts = dadosProdutos;
+          setProducts(dadosProdutos);
+          // Filtra itens antigos do carrinho que eram mocks locais (ID > 0 inexistente no banco)
+          setCart((prev) =>
+            prev.filter(
+              (item) =>
+                item.produto.id < 0 ||
+                Boolean(item.produto.externalCard) ||
+                dadosProdutos.some((dp) => dp.id === item.produto.id && dp.ativo !== false)
+            )
+          );
         }
-      })
-      .catch((err) => console.log('FastAPI offline ou carregando, mantendo dados locais de torneios:', err.message));
+      } catch (err: any) {
+        console.warn('Não foi possível carregar produtos do backend:', err?.message);
+      }
 
-    api
-      .obterPedidos()
-      .then((dados) => {
-        if (Array.isArray(dados)) {
-          setOrders(dados);
+      try {
+        const dadosTorneios = await api.obterTorneios();
+        if (active && Array.isArray(dadosTorneios)) {
+          setTournaments(dadosTorneios);
         }
-      })
-      .catch((err) => console.log('FastAPI offline ou carregando, mantendo dados locais de pedidos:', err.message));
+      } catch (err: any) {
+        console.warn('Não foi possível carregar torneios do backend:', err?.message);
+      }
+
+      try {
+        const dadosPedidos = await api.obterPedidos(loadedProducts);
+        if (active && Array.isArray(dadosPedidos)) {
+          setOrders(dadosPedidos);
+        }
+      } catch (err: any) {
+        console.warn('Não foi possível carregar pedidos do backend:', err?.message);
+      }
+    }
+
+    loadFromBackend();
+    return () => {
+      active = false;
+    };
   }, []);
+
+  // Sincroniza inscrições em torneios do usuário autenticado a partir dos dados reais do backend
+  useEffect(() => {
+    if (!currentUser.email || !currentUser.nome || tournaments.length === 0) return;
+    const inscritosIds = tournaments
+      .filter((t) => t.inscritos.some((nome) => nome.toLowerCase() === currentUser.nome.toLowerCase()))
+      .map((t) => t.id);
+
+    setCurrentUser((prev) => {
+      const merged = Array.from(new Set([...prev.torneiosInscritos, ...inscritosIds]));
+      if (merged.length === prev.torneiosInscritos.length) return prev;
+      return { ...prev, torneiosInscritos: merged };
+    });
+  }, [tournaments, currentUser.email, currentUser.nome]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -276,7 +285,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addToCart = (product: Product, quantity = 1) => {
-    if (!currentUser.email) {
+    if (!currentUser.email || currentUser.id <= 0) {
       showToast('Faça login para adicionar produtos ao carrinho!');
       setAuthModalMode('login');
       setIsAuthModalOpen(true);
@@ -349,7 +358,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const cartItemsCount = cart.reduce((acc, item) => acc + item.quantidade, 0);
 
   const createOrder = async (): Promise<Order | null> => {
-    if (!currentUser.email) {
+    if (!currentUser.email || currentUser.id <= 0) {
       showToast('Faça login para finalizar seu pedido!');
       setAuthModalMode('login');
       setIsAuthModalOpen(true);
@@ -361,87 +370,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return null;
     }
 
-    for (const item of cart) {
-      const p = products.find((prod) => prod.id === item.produto.id);
-      if (!p || p.estoque < item.quantidade) {
-        showToast(`Estoque insuficiente para ${item.produto.nome}`);
-        return null;
-      }
-    }
-
     try {
+      let currentCatalog = [...products];
+      const resolvedItems: { produto_id: number; quantidade: number }[] = [];
+
+      for (const item of cart) {
+        // Caso o item venha diretamente de uma API pública de cartas (id < 0),
+        // vincula ao produto equivalente no banco ou cadastra automaticamente antes de fechar o pedido
+        if (item.produto.id < 0 || item.produto.externalCard) {
+          const existingInStore = currentCatalog.find(
+            (p) =>
+              p.ativo !== false &&
+              p.nome.toLowerCase().trim() === item.produto.nome.toLowerCase().trim() &&
+              p.jogo === item.produto.jogo
+          );
+
+          if (existingInStore) {
+            if (existingInStore.estoque < item.quantidade) {
+              showToast(`Estoque insuficiente na loja para ${existingInStore.nome}`);
+              return null;
+            }
+            resolvedItems.push({
+              produto_id: existingInStore.id,
+              quantidade: item.quantidade,
+            });
+          } else {
+            const { id: _ignoreId, externalCard: _ignoreExt, ...prodData } = item.produto;
+            const criado = await api.cadastrarProduto({
+              ...prodData,
+              estoque: Math.max(item.produto.estoque, item.quantidade),
+            });
+            currentCatalog = [criado, ...currentCatalog];
+            resolvedItems.push({
+              produto_id: criado.id,
+              quantidade: item.quantidade,
+            });
+          }
+        } else {
+          const p = currentCatalog.find((prod) => prod.id === item.produto.id && prod.ativo !== false);
+          if (!p || p.estoque < item.quantidade) {
+            showToast(`Estoque insuficiente para ${item.produto.nome}`);
+            return null;
+          }
+          resolvedItems.push({
+            produto_id: p.id,
+            quantidade: item.quantidade,
+          });
+        }
+      }
+
       const payload = {
         cliente_id: currentUser.id > 0 ? currentUser.id : undefined,
-        cliente_nome: currentUser.nome || 'Visitante',
-        cliente_email: currentUser.email || 'cliente@nobledeck.com',
-        itens: cart.map((it) => ({
-          produto_id: it.produto.id,
-          quantidade: it.quantidade,
-        })),
+        cliente_nome: currentUser.nome,
+        cliente_email: currentUser.email,
+        itens: resolvedItems,
       };
 
-      const pedidoBackend = await api.criarPedido(payload, products);
+      const pedidoBackend = await api.criarPedido(payload, currentCatalog);
       setOrders((prev) => [pedidoBackend, ...prev]);
 
-      setProducts((prev) =>
-        prev.map((p) => {
-          const inCart = cart.find((item) => item.produto.id === p.id);
-          if (inCart) {
-            return { ...p, estoque: p.estoque - inCart.quantidade };
-          }
-          return p;
-        })
-      );
+      // Recarrega o estoque real do banco após o pedido
+      const produtosAtualizados = await api.obterProdutos(false).catch(() => null);
+      if (produtosAtualizados) {
+        setProducts(produtosAtualizados);
+      } else {
+        setProducts(currentCatalog);
+      }
 
       clearCart();
       setIsCartOpen(false);
       showToast(`Pedido #${pedidoBackend.id_pedido} realizado com sucesso!`);
       return pedidoBackend;
-    } catch (err) {
-      console.warn('Fallback para finalização local do pedido:', err);
-      setProducts((prev) =>
-        prev.map((p) => {
-          const inCart = cart.find((item) => item.produto.id === p.id);
-          if (inCart) {
-            return { ...p, estoque: p.estoque - inCart.quantidade };
-          }
-          return p;
-        })
-      );
-
-      const newOrder: Order = {
-        id_pedido: Math.floor(1000 + Math.random() * 9000),
-        cliente_nome: currentUser.nome,
-        cliente_email: currentUser.email,
-        itens: [...cart],
-        valor_total: cartTotal,
-        data: new Date().toLocaleDateString('pt-BR'),
-        status: 'Finalizado',
-      };
-
-      setOrders((prev) => [newOrder, ...prev]);
-      clearCart();
-      setIsCartOpen(false);
-      showToast(`Pedido #${newOrder.id_pedido} realizado com sucesso!`);
-      return newOrder;
+    } catch (err: any) {
+      showToast(err?.message || 'Não foi possível finalizar o pedido no servidor.');
+      return null;
     }
   };
 
   const updateOrderStatus = async (orderId: number, status: Order['status']) => {
     try {
-      await api.atualizarStatusPedido(orderId, status, products);
-    } catch (err) {
-      console.warn('Falha na API ao atualizar status, aplicando localmente:', err);
+      const atualizado = await api.atualizarStatusPedido(orderId, status, products);
+      setOrders((prev) =>
+        prev.map((o) => (o.id_pedido === orderId ? atualizado : o))
+      );
+      showToast(`Status do pedido #${orderId} atualizado para ${status}`);
+    } catch (err: any) {
+      showToast(err?.message || 'Erro ao atualizar status do pedido no servidor.');
     }
-
-    setOrders((prev) =>
-      prev.map((o) => (o.id_pedido === orderId ? { ...o, status } : o))
-    );
-    showToast(`Status do pedido #${orderId} atualizado para ${status}`);
   };
 
   const registerInTournament = async (tournamentId: number): Promise<boolean> => {
-    if (!currentUser.email) {
+    if (!currentUser.email || currentUser.id <= 0) {
       showToast('Faça login para se inscrever no torneio!');
       setAuthModalMode('login');
       setIsAuthModalOpen(true);
@@ -470,31 +489,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTournaments((prev) =>
         prev.map((item) => (item.id === tournamentId ? atualizado : item))
       );
-    } catch (err) {
-      console.warn('Fallback para inscrição local no torneio:', err);
-      setTournaments((prev) =>
-        prev.map((item) => {
-          if (item.id === tournamentId) {
-            const nextVagas = item.vagasOcupadas + 1;
-            return {
-              ...item,
-              vagasOcupadas: nextVagas,
-              status: nextVagas >= item.vagasTotais ? 'lotado' : 'aberto',
-              inscritos: [...item.inscritos, currentUser.nome],
-            };
-          }
-          return item;
-        })
-      );
+      setCurrentUser((prev) => ({
+        ...prev,
+        torneiosInscritos: [...prev.torneiosInscritos, tournamentId],
+      }));
+      showToast(`Inscrição confirmada no torneio: ${t.titulo}!`);
+      return true;
+    } catch (err: any) {
+      showToast(err?.message || 'Erro ao realizar inscrição no torneio.');
+      return false;
     }
-
-    setCurrentUser((prev) => ({
-      ...prev,
-      torneiosInscritos: [...prev.torneiosInscritos, tournamentId],
-    }));
-
-    showToast(`Inscrição confirmada no torneio: ${t.titulo}!`);
-    return true;
   };
 
   const createTournament = async (
@@ -504,17 +508,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const criado = await api.cadastrarTorneio(data);
       setTournaments((prev) => [criado, ...prev]);
       showToast(`Torneio "${criado.titulo}" cadastrado com sucesso!`);
-    } catch (err) {
-      console.warn('Fallback para cadastro local de torneio:', err);
-      const newT: Tournament = {
-        ...data,
-        id: Math.floor(100 + Math.random() * 900),
-        vagasOcupadas: 0,
-        inscritos: [],
-        status: 'aberto',
-      };
-      setTournaments((prev) => [newT, ...prev]);
-      showToast(`Torneio "${newT.titulo}" cadastrado com sucesso!`);
+    } catch (err: any) {
+      showToast(err?.message || 'Erro ao cadastrar torneio no servidor.');
     }
   };
 
@@ -523,14 +518,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const criado = await api.cadastrarProduto(p);
       setProducts((prev) => [criado, ...prev]);
       showToast(`Produto "${criado.nome}" cadastrado com sucesso!`);
-    } catch (err) {
-      console.warn('Fallback para cadastro local de produto:', err);
-      const newProduct: Product = {
-        ...p,
-        id: Math.floor(100 + Math.random() * 900),
-      };
-      setProducts((prev) => [newProduct, ...prev]);
-      showToast(`Produto "${newProduct.nome}" cadastrado com sucesso!`);
+    } catch (err: any) {
+      showToast(err?.message || 'Erro ao cadastrar produto no servidor.');
+    }
+  };
+
+  const importExternalCard = async (
+    card: ExternalCard,
+    estoque = 5,
+    preco?: number
+  ): Promise<Product | null> => {
+    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+    if (!isStaffOrAdmin) {
+      showToast('Apenas funcionários ou administradores podem importar cartas para o estoque!');
+      return null;
+    }
+
+    const existing = products.find(
+      (p) => p.nome.toLowerCase().trim() === card.nome.toLowerCase().trim() && p.jogo === card.jogo
+    );
+    if (existing) {
+      showToast(`"${card.nome}" já está cadastrado no estoque da loja!`);
+      return existing;
+    }
+
+    try {
+      const mapped = externalCardToProduct(card, estoque);
+      const { id: _ignoreId, externalCard: _ignoreExt, ...payload } = mapped;
+      if (preco !== undefined && preco > 0) {
+        payload.preco = preco;
+      }
+      const criado = await api.cadastrarProduto(payload);
+      setProducts((prev) => [criado, ...prev]);
+      showToast(`Carta "${criado.nome}" importada da ${card.fonteApi} para o estoque!`);
+      return criado;
+    } catch (err: any) {
+      showToast(err?.message || 'Erro ao importar carta para o estoque.');
+      return null;
     }
   };
 
@@ -545,21 +569,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!prod) return;
 
     try {
-      await api.atualizarEstoque(productId, change, prod.estoque);
-    } catch (err) {
-      console.warn('Falha na API ao atualizar estoque:', err);
+      const atualizado = await api.atualizarEstoque(productId, change, prod.estoque);
+      setProducts((prev) => prev.map((p) => (p.id === productId ? atualizado : p)));
+      showToast('Estoque atualizado!');
+    } catch (err: any) {
+      showToast(err?.message || 'Falha ao atualizar estoque no servidor.');
     }
-
-    setProducts((prev) =>
-      prev.map((p) => {
-        if (p.id === productId) {
-          const nextEstoque = Math.max(0, p.estoque + change);
-          return { ...p, estoque: nextEstoque };
-        }
-        return p;
-      })
-    );
-    showToast('Estoque atualizado!');
   };
 
   const setProductStockExact = async (productId: number, newStock: number) => {
@@ -575,15 +590,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const clampedStock = Math.max(0, Math.floor(newStock));
 
     try {
-      await api.definirEstoque(productId, clampedStock);
-    } catch (err) {
-      console.warn('Falha na API ao definir estoque exato:', err);
+      const atualizado = await api.definirEstoque(productId, clampedStock);
+      setProducts((prev) => prev.map((p) => (p.id === productId ? atualizado : p)));
+      showToast(`Estoque de "${prod.nome}" atualizado para ${clampedStock} unidades!`);
+    } catch (err: any) {
+      showToast(err?.message || 'Falha ao definir estoque no servidor.');
     }
-
-    setProducts((prev) =>
-      prev.map((p) => (p.id === productId ? { ...p, estoque: clampedStock } : p))
-    );
-    showToast(`Estoque de "${prod.nome}" atualizado para ${clampedStock} unidades!`);
   };
 
   const editProduct = async (productId: number, updatedFields: Partial<Product>) => {
@@ -596,15 +608,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const atualizado = await api.atualizarProduto(productId, updatedFields);
       setProducts((prev) =>
-        prev.map((p) => (p.id === productId ? { ...p, ...atualizado, ...updatedFields } : p))
+        prev.map((p) => (p.id === productId ? atualizado : p))
       );
-      showToast(`Produto "${updatedFields.nome || atualizado.nome}" atualizado com sucesso!`);
-    } catch (err) {
-      console.warn('Falha na API ao atualizar produto, aplicando localmente:', err);
-      setProducts((prev) =>
-        prev.map((p) => (p.id === productId ? { ...p, ...updatedFields } : p))
-      );
-      showToast('Produto atualizado localmente!');
+      showToast(`Produto "${atualizado.nome}" atualizado com sucesso!`);
+    } catch (err: any) {
+      showToast(err?.message || 'Falha ao atualizar produto no servidor.');
     }
   };
 
@@ -617,15 +625,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const prod = products.find((p) => p.id === productId);
     try {
-      await api.inativarProduto(productId);
-    } catch (err) {
-      console.warn('Falha na API ao inativar produto:', err);
+      const inativado = await api.inativarProduto(productId);
+      setProducts((prev) =>
+        prev.map((p) => (p.id === productId ? inativado : p))
+      );
+      showToast(`Produto "${prod?.nome || ''}" inativado com sucesso!`);
+    } catch (err: any) {
+      showToast(err?.message || 'Falha ao inativar produto no servidor.');
     }
-
-    setProducts((prev) =>
-      prev.map((p) => (p.id === productId ? { ...p, ativo: false } : p))
-    );
-    showToast(`Produto "${prod?.nome || ''}" inativado com sucesso!`);
   };
 
   const reactivateProduct = async (productId: number) => {
@@ -637,15 +644,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const prod = products.find((p) => p.id === productId);
     try {
-      await api.reativarProduto(productId);
-    } catch (err) {
-      console.warn('Falha na API ao reativar produto:', err);
+      const reativado = await api.reativarProduto(productId);
+      setProducts((prev) =>
+        prev.map((p) => (p.id === productId ? reativado : p))
+      );
+      showToast(`Produto "${prod?.nome || ''}" reativado com sucesso!`);
+    } catch (err: any) {
+      showToast(err?.message || 'Falha ao reativar produto no servidor.');
     }
-
-    setProducts((prev) =>
-      prev.map((p) => (p.id === productId ? { ...p, ativo: true } : p))
-    );
-    showToast(`Produto "${prod?.nome || ''}" reativado com sucesso!`);
   };
 
   const switchRole = (role: UserRole) => {
@@ -662,73 +668,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Perfil alternado para: ${role.toUpperCase()}`);
   };
 
-  const loginUser = async (nome: string, email: string, role: UserRole, senha?: string, telefone?: string): Promise<boolean> => {
+  const loginUser = async (
+    nome: string,
+    email: string,
+    role: UserRole,
+    senha?: string,
+    telefone?: string
+  ): Promise<boolean> => {
     const emailLimpo = email.trim().toLowerCase();
 
-    if (authModalMode === 'register') {
-      const savedEmails: string[] = (() => {
-        try {
-          const raw = localStorage.getItem('noble_registered_emails');
-          return raw ? JSON.parse(raw) : ['admin@nobledeck.com', 'funcionario@nobledeck.com', 'pedro@nobledeck.com'];
-        } catch {
-          return ['admin@nobledeck.com', 'funcionario@nobledeck.com', 'pedro@nobledeck.com'];
-        }
-      })();
-
-      if (savedEmails.some((e) => e.toLowerCase() === emailLimpo)) {
-        showToast('Este e-mail já está cadastrado no sistema!');
-        return false;
-      }
+    if (!senha) {
+      showToast('Informe sua senha para autenticar.');
+      return false;
     }
 
-    if (senha) {
-      try {
-        if (authModalMode === 'register') {
-          const cadastrado = await api.cadastrarUsuario(nome, emailLimpo, senha, role, telefone || '');
-          setCurrentUser(cadastrado);
-          setIsAuthModalOpen(false);
-          showToast(`Cadastro realizado! Bem-vindo, ${cadastrado.nome}!`);
-
-          try {
-            const raw = localStorage.getItem('noble_registered_emails');
-            const list: string[] = raw ? JSON.parse(raw) : ['admin@nobledeck.com', 'funcionario@nobledeck.com', 'pedro@nobledeck.com'];
-            if (!list.includes(emailLimpo)) {
-              list.push(emailLimpo);
-              localStorage.setItem('noble_registered_emails', JSON.stringify(list));
-            }
-          } catch {}
-
-          return true;
-        } else {
-          const logado = await api.login(emailLimpo, senha);
-          setCurrentUser(logado);
-          setIsAuthModalOpen(false);
-          showToast(`Bem-vindo de volta, ${logado.nome}!`);
-          return true;
-        }
-      } catch (err: any) {
-        console.warn('Erro na autenticação com a API:', err);
-        showToast(err.message || 'Erro na autenticação.');
-        return false;
+    try {
+      if (authModalMode === 'register') {
+        const cadastrado = await api.cadastrarUsuario(nome, emailLimpo, senha, role, telefone || '');
+        setCurrentUser(cadastrado);
+        setIsAuthModalOpen(false);
+        showToast(`Cadastro realizado! Bem-vindo, ${cadastrado.nome}!`);
+        return true;
+      } else {
+        const logado = await api.login(emailLimpo, senha);
+        setCurrentUser(logado);
+        setIsAuthModalOpen(false);
+        showToast(`Bem-vindo de volta, ${logado.nome}!`);
+        return true;
       }
+    } catch (err: any) {
+      showToast(err?.message || 'Erro na autenticação.');
+      return false;
     }
-
-    // Caso não tenha senha informada (ex: troca de perfil no topo)
-    setCurrentUser({
-      id: Math.floor(1 + Math.random() * 999),
-      nome,
-      email: emailLimpo,
-      role,
-      cargo: role === 'funcionario' ? 'Atendente de Loja' : role === 'admin' ? 'Administrador' : undefined,
-      torneiosInscritos: [1],
-    });
-    setIsAuthModalOpen(false);
-    showToast(`Bem-vindo, ${nome}!`);
-    return true;
   };
 
   const logoutUser = () => {
-    setCurrentUser(INITIAL_USER);
+    setCurrentUser(GUEST_USER);
     localStorage.removeItem('noble_user');
     showToast('Sessão encerrada.');
     setCurrentTab('home');
@@ -755,6 +730,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         selectedProductForModal,
         setSelectedProductForModal,
         addProduct,
+        importExternalCard,
         updateProductStock,
         setProductStockExact,
         editProduct,
@@ -798,9 +774,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 };
 
 export const useApp = () => {
-  const context = useContext(AppContext);
-  if (!context) {
-    throw new Error('useApp must be used within an AppProvider');
-  }
-  return context;
+  const ctx = useContext(AppContext);
+  if (!ctx) throw new Error('useApp deve ser usado dentro de um AppProvider');
+  return ctx;
 };

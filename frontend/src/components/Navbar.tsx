@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { NOBLE_LOGO } from '../data/mockData';
+import nobleLogo from '../assets/noble-logo.png';
 import { ShoppingBag, Menu, X, Shield, User, LogOut } from 'lucide-react';
 import { CurtainThemeToggle } from './CurtainThemeToggle';
 
@@ -61,7 +61,7 @@ export const Navbar: React.FC = () => {
           }}
         >
           <img
-            src={NOBLE_LOGO}
+            src={nobleLogo}
             alt="Noble Deck Logo"
             style={{ width: '42px', height: '42px', objectFit: 'contain' }}
           />

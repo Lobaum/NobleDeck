@@ -1,8 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Search, ShoppingBag } from 'lucide-react';
-import type { GameId, ProductCategory } from '../types';
-import { SystemSelect, type SelectOption } from '../components/SystemSelect';
+import { Search, ShoppingBag, ChevronLeft, ChevronRight, Globe } from 'lucide-react';
+import type { ActiveGameApi, ExternalCard, GameId, ProductCategory } from '../types';
+import { SystemSelect } from '../components/SystemSelect';
+import { searchLiveCards } from '../services/tcgApi';
+import { externalCardToProduct } from '../services/api';
+import nobleLogo from '../assets/noble-logo.png';
 
 export const ProductsPage: React.FC = () => {
   const {
@@ -14,8 +17,66 @@ export const ProductsPage: React.FC = () => {
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [catalogSource, setCatalogSource] = useState<'all' | 'store' | 'api'>('all');
   const [sortBy, setSortBy] = useState<'featured' | 'price-asc' | 'price-desc' | 'name'>('featured');
+
+  const [apiCards, setApiCards] = useState<ExternalCard[]>([]);
+  const [isLoadingApi, setIsLoadingApi] = useState(false);
+  const [apiPage, setApiPage] = useState(1);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery.trim());
+      setApiPage(1);
+    }, 380);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setApiPage(1);
+  }, [selectedGameFilter, catalogSource]);
+
+  const shouldFetchApi =
+    catalogSource !== 'store' &&
+    selectedGameFilter !== 'outros' &&
+    (selectedCategory === 'all' || selectedCategory === 'Carta Avulsa');
+
+  useEffect(() => {
+    if (!shouldFetchApi) {
+      setApiCards([]);
+      setIsLoadingApi(false);
+      return;
+    }
+
+    let active = true;
+    setIsLoadingApi(true);
+
+    const targetGame: ActiveGameApi | 'all' =
+      selectedGameFilter === 'all' ? 'all' : (selectedGameFilter as ActiveGameApi);
+
+    searchLiveCards(targetGame, debouncedQuery, apiPage)
+      .then(({ cards }) => {
+        if (active) {
+          setApiCards(cards);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setApiCards([]);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setIsLoadingApi(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [shouldFetchApi, selectedGameFilter, debouncedQuery, apiPage]);
 
   const categories: ProductCategory[] = [
     'Booster Box',
@@ -35,26 +96,60 @@ export const ProductsPage: React.FC = () => {
     { id: 'outros', label: 'Acessórios' },
   ];
 
+  const activeStoreProducts = useMemo(
+    () => products.filter((p) => p.ativo !== false),
+    [products]
+  );
+
   const filteredProducts = useMemo(() => {
-    return products
-      .filter((p) => {
-        const matchesGame =
-          selectedGameFilter === 'all' ? true : p.jogo === selectedGameFilter;
-        const matchesCategory =
-          selectedCategory === 'all' ? true : p.categoria === selectedCategory;
-        const matchesSearch =
-          p.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.descricao.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.subtitulo.toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesGame && matchesCategory && matchesSearch;
-      })
-      .sort((a, b) => {
-        if (sortBy === 'price-asc') return a.preco - b.preco;
-        if (sortBy === 'price-desc') return b.preco - a.preco;
-        if (sortBy === 'name') return a.nome.localeCompare(b.nome);
-        return (b.isDestaque ? 1 : 0) - (a.isDestaque ? 1 : 0);
-      });
-  }, [products, selectedGameFilter, selectedCategory, searchQuery, sortBy]);
+    const storeMatches =
+      catalogSource === 'api'
+        ? []
+        : activeStoreProducts.filter((p) => {
+            const matchesGame =
+              selectedGameFilter === 'all' ? true : p.jogo === selectedGameFilter;
+            const matchesCategory =
+              selectedCategory === 'all' ? true : p.categoria === selectedCategory;
+            const q = searchQuery.toLowerCase();
+            const matchesSearch =
+              !q ||
+              p.nome.toLowerCase().includes(q) ||
+              p.descricao.toLowerCase().includes(q) ||
+              p.subtitulo.toLowerCase().includes(q);
+            return matchesGame && matchesCategory && matchesSearch;
+          });
+
+    const storeKeys = new Set(
+      activeStoreProducts.map((p) => `${p.jogo}:${p.nome.toLowerCase().trim()}`)
+    );
+
+    const mappedApiProducts = shouldFetchApi
+      ? apiCards
+          .filter((c) => !storeKeys.has(`${c.jogo}:${c.nome.toLowerCase().trim()}`))
+          .map((c) => externalCardToProduct(c))
+      : [];
+
+    const combined = [...storeMatches, ...mappedApiProducts];
+
+    return combined.sort((a, b) => {
+      if (sortBy === 'price-asc') return a.preco - b.preco;
+      if (sortBy === 'price-desc') return b.preco - a.preco;
+      if (sortBy === 'name') return a.nome.localeCompare(b.nome);
+      const aStore = a.id > 0 ? 1 : 0;
+      const bStore = b.id > 0 ? 1 : 0;
+      if (bStore !== aStore) return bStore - aStore;
+      return (b.isDestaque ? 1 : 0) - (a.isDestaque ? 1 : 0);
+    });
+  }, [
+    activeStoreProducts,
+    apiCards,
+    catalogSource,
+    shouldFetchApi,
+    selectedGameFilter,
+    selectedCategory,
+    searchQuery,
+    sortBy,
+  ]);
 
   return (
     <div style={{ paddingTop: '40px', paddingBottom: '80px' }}>
@@ -84,8 +179,8 @@ export const ProductsPage: React.FC = () => {
             Explore o Universo dos Card Games
           </h1>
           <p style={{ color: 'var(--color-on-surface-variant)', fontSize: '16px', maxWidth: '600px' }}>
-            Encontre produtos selados, boosters, decks estruturados e cartas colecionáveis
-            certificadas com estoque em tempo real.
+            Encontre produtos do estoque da loja e pesquise cartas reais em tempo real nas bases
+            oficiais de Pokémon TCG, Magic: The Gathering, Yu-Gi-Oh! e One Piece.
           </p>
         </div>
 
@@ -155,21 +250,61 @@ export const ProductsPage: React.FC = () => {
               )}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '13px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
-                Ordenar por:
-              </span>
-              <div style={{ minWidth: '180px' }}>
-                <SystemSelect<'featured' | 'price-asc' | 'price-desc' | 'name'>
-                  value={sortBy}
-                  onChange={(val) => setSortBy(val)}
-                  options={[
-                    { value: 'featured', label: 'Destaques' },
-                    { value: 'price-asc', label: 'Menor Preço' },
-                    { value: 'price-desc', label: 'Maior Preço' },
-                    { value: 'name', label: 'Nome (A-Z)' },
-                  ]}
-                />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {(
+                  [
+                    { id: 'all', label: 'Todos (Loja + API)' },
+                    { id: 'store', label: `Estoque (${activeStoreProducts.length})` },
+                    { id: 'api', label: 'APIs de Cartas' },
+                  ] as const
+                ).map((src) => (
+                  <button
+                    key={src.id}
+                    type="button"
+                    onClick={() => setCatalogSource(src.id)}
+                    style={{
+                      padding: '7px 12px',
+                      borderRadius: 'var(--radius-full)',
+                      border:
+                        catalogSource === src.id
+                          ? '1px solid var(--color-primary)'
+                          : '1px solid var(--nav-border)',
+                      backgroundColor:
+                        catalogSource === src.id
+                          ? 'rgba(140, 86, 212, 0.22)'
+                          : 'var(--color-surface-container-low)',
+                      color:
+                        catalogSource === src.id
+                          ? 'var(--color-primary)'
+                          : 'var(--color-on-surface-variant)',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    {src.label}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '13px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
+                  Ordenar por:
+                </span>
+                <div style={{ minWidth: '180px' }}>
+                  <SystemSelect<'featured' | 'price-asc' | 'price-desc' | 'name'>
+                    value={sortBy}
+                    onChange={(val) => setSortBy(val)}
+                    options={[
+                      { value: 'featured', label: 'Destaques' },
+                      { value: 'price-asc', label: 'Menor Preço' },
+                      { value: 'price-desc', label: 'Maior Preço' },
+                      { value: 'name', label: 'Nome (A-Z)' },
+                    ]}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -264,20 +399,30 @@ export const ProductsPage: React.FC = () => {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
             marginBottom: '24px',
             fontSize: '13px',
             color: 'var(--color-outline)',
             fontFamily: 'var(--font-mono)',
           }}
         >
-          <span>
-            Mostrando {filteredProducts.length} de {products.length} itens
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            {isLoadingApi ? (
+              <>
+                <Globe size={14} color="var(--color-primary)" />
+                <span>Buscando cartas nas APIs oficiais...</span>
+              </>
+            ) : (
+              <span>Mostrando {filteredProducts.length} itens encontrados</span>
+            )}
           </span>
-          {(selectedGameFilter !== 'all' || selectedCategory !== 'all' || searchQuery) && (
+          {(selectedGameFilter !== 'all' || selectedCategory !== 'all' || searchQuery || catalogSource !== 'all') && (
             <button
               onClick={() => {
                 setSelectedGameFilter('all');
                 setSelectedCategory('all');
+                setCatalogSource('all');
                 setSearchQuery('');
               }}
               style={{
@@ -295,7 +440,7 @@ export const ProductsPage: React.FC = () => {
         </div>
 
         {/* Produtos */}
-        {filteredProducts.length === 0 ? (
+        {filteredProducts.length === 0 && !isLoadingApi ? (
           <div
             style={{
               padding: '60px 20px',
@@ -305,12 +450,13 @@ export const ProductsPage: React.FC = () => {
             }}
           >
             <p style={{ fontSize: '18px', color: 'var(--color-on-surface-variant)', marginBottom: '16px' }}>
-              Nenhum produto encontrado com os filtros selecionados.
+              Nenhum produto ou carta encontrado com os filtros selecionados.
             </p>
             <button
               onClick={() => {
                 setSelectedGameFilter('all');
                 setSelectedCategory('all');
+                setCatalogSource('all');
                 setSearchQuery('');
               }}
               className="btn-primary"
@@ -319,179 +465,267 @@ export const ProductsPage: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-              gap: '28px',
-            }}
-          >
-            {filteredProducts.map((p) => (
-              <div
-                key={p.id}
-                className="tcg-card"
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  height: '100%',
-                }}
-              >
+          <>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                gap: '28px',
+              }}
+            >
+              {filteredProducts.map((p) => (
                 <div
+                  key={p.id}
+                  className="tcg-card"
                   style={{
-                    height: '220px',
-                    width: '100%',
-                    padding: '16px',
-                    position: 'relative',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: 'var(--color-surface-container)',
-                  }}
-                >
-                  <img
-                    src={p.imagemUrl}
-                    alt={p.nome}
-                    style={{
-                      maxHeight: '100%',
-                      maxWidth: '100%',
-                      objectFit: 'contain',
-                      zIndex: 2,
-                      filter: 'drop-shadow(0 10px 18px rgba(0, 0, 0, 0.4))',
-                      transition: 'transform 0.3s ease',
-                    }}
-                  />
-
-                  {p.isNovo && (
-                    <span
-                      style={{
-                        position: 'absolute',
-                        top: '12px',
-                        right: '12px',
-                        backgroundColor: 'var(--color-primary-container)',
-                        color: '#ffffff',
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '10px',
-                        textTransform: 'uppercase',
-                        padding: '3px 8px',
-                        borderRadius: 'var(--radius-sm)',
-                        zIndex: 5,
-                      }}
-                    >
-                      Novo
-                    </span>
-                  )}
-
-                  {p.raridade && (
-                    <span
-                      style={{
-                        position: 'absolute',
-                        top: '12px',
-                        left: '12px',
-                        backgroundColor: 'var(--color-surface-container)',
-                        border: '1px solid var(--card-border)',
-                        color: 'var(--color-secondary)',
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '10px',
-                        padding: '2px 6px',
-                        borderRadius: 'var(--radius-sm)',
-                        zIndex: 5,
-                      }}
-                    >
-                      {p.raridade}
-                    </span>
-                  )}
-                </div>
-
-                <div
-                  style={{
-                    padding: '20px',
-                    flex: 1,
                     display: 'flex',
                     flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    borderTop: '1px solid var(--card-border)',
-                    backgroundColor: 'var(--card-bg)',
+                    height: '100%',
                   }}
                 >
-                  <div>
-                    <span
+                  <div
+                    style={{
+                      height: '220px',
+                      width: '100%',
+                      padding: '16px',
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: 'var(--color-surface-container)',
+                    }}
+                  >
+                    <img
+                      src={p.imagemUrl || nobleLogo}
+                      alt={p.nome}
+                      loading="lazy"
                       style={{
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '11px',
-                        color: 'var(--color-on-surface-variant)',
-                        display: 'block',
-                        marginBottom: '4px',
+                        maxHeight: '100%',
+                        maxWidth: '100%',
+                        objectFit: 'contain',
+                        zIndex: 2,
+                        filter: 'drop-shadow(0 10px 18px rgba(0, 0, 0, 0.4))',
+                        transition: 'transform 0.3s ease',
                       }}
-                    >
-                      {p.subtitulo}
-                    </span>
-                    <h3
-                      style={{
-                        fontSize: '17px',
-                        marginBottom: '8px',
-                        fontFamily: 'var(--font-headline)',
-                        fontWeight: 600,
-                        lineHeight: 1.3,
-                      }}
-                    >
-                      {p.nome}
-                    </h3>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'baseline',
-                        marginBottom: '16px',
-                      }}
-                    >
-                      <p
-                        style={{
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: '19px',
-                          fontWeight: 700,
-                          color: 'var(--color-primary)',
-                        }}
-                      >
-                        R$ {p.preco.toFixed(2)}
-                      </p>
+                    />
+
+                    {p.externalCard ? (
                       <span
                         style={{
-                          fontSize: '11px',
+                          position: 'absolute',
+                          top: '12px',
+                          right: '12px',
+                          backgroundColor: 'var(--color-surface-container-high)',
+                          border: '1px solid var(--card-border)',
+                          color: 'var(--color-primary)',
                           fontFamily: 'var(--font-mono)',
-                          color: p.estoque > 0 ? 'var(--color-outline)' : 'var(--color-error)',
+                          fontSize: '10px',
+                          textTransform: 'uppercase',
+                          padding: '3px 8px',
+                          borderRadius: 'var(--radius-sm)',
+                          zIndex: 5,
                         }}
                       >
-                        {p.estoque > 0 ? `${p.estoque} em estoque` : 'Esgotado'}
+                        {p.externalCard.fonteApi}
                       </span>
-                    </div>
+                    ) : (
+                      p.isNovo && (
+                        <span
+                          style={{
+                            position: 'absolute',
+                            top: '12px',
+                            right: '12px',
+                            backgroundColor: 'var(--color-primary-container)',
+                            color: '#ffffff',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '10px',
+                            textTransform: 'uppercase',
+                            padding: '3px 8px',
+                            borderRadius: 'var(--radius-sm)',
+                            zIndex: 5,
+                          }}
+                        >
+                          Novo
+                        </span>
+                      )
+                    )}
+
+                    {p.raridade && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: '12px',
+                          left: '12px',
+                          backgroundColor: 'var(--color-surface-container)',
+                          border: '1px solid var(--card-border)',
+                          color: 'var(--color-secondary)',
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '10px',
+                          padding: '2px 6px',
+                          borderRadius: 'var(--radius-sm)',
+                          zIndex: 5,
+                          maxWidth: '140px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {p.raridade}
+                      </span>
+                    )}
                   </div>
 
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      onClick={() => setSelectedProductForModal(p)}
-                      className="btn-outline"
-                      style={{ flex: 1, padding: '10px 0' }}
-                    >
-                      Ver detalhes
-                    </button>
-                    <button
-                      onClick={() => addToCart(p)}
-                      disabled={p.estoque <= 0}
-                      className="btn-primary"
-                      style={{
-                        padding: '10px 14px',
-                        opacity: p.estoque <= 0 ? 0.3 : 1,
-                        cursor: p.estoque <= 0 ? 'not-allowed' : 'pointer',
-                      }}
-                      title={p.estoque > 0 ? 'Adicionar ao carrinho' : 'Sem estoque'}
-                    >
-                      <ShoppingBag size={16} />
-                    </button>
+                  <div
+                    style={{
+                      padding: '20px',
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      borderTop: '1px solid var(--card-border)',
+                      backgroundColor: 'var(--card-bg)',
+                    }}
+                  >
+                    <div>
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '11px',
+                          color: 'var(--color-on-surface-variant)',
+                          display: 'block',
+                          marginBottom: '4px',
+                        }}
+                      >
+                        {p.subtitulo}
+                      </span>
+                      <h3
+                        style={{
+                          fontSize: '17px',
+                          marginBottom: '8px',
+                          fontFamily: 'var(--font-headline)',
+                          fontWeight: 600,
+                          lineHeight: 1.3,
+                        }}
+                      >
+                        {p.nome}
+                      </h3>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'baseline',
+                          marginBottom: '16px',
+                        }}
+                      >
+                        <p
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '19px',
+                            fontWeight: 700,
+                            color: 'var(--color-primary)',
+                          }}
+                        >
+                          R$ {p.preco.toFixed(2)}
+                        </p>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontFamily: 'var(--font-mono)',
+                            color: p.estoque > 0 ? 'var(--color-outline)' : 'var(--color-error)',
+                          }}
+                        >
+                          {p.externalCard
+                            ? 'Sob encomenda / API'
+                            : p.estoque > 0
+                            ? `${p.estoque} em estoque`
+                            : 'Esgotado'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => setSelectedProductForModal(p)}
+                        className="btn-outline"
+                        style={{ flex: 1, padding: '10px 0' }}
+                      >
+                        Ver detalhes
+                      </button>
+                      <button
+                        onClick={() => addToCart(p)}
+                        disabled={p.estoque <= 0}
+                        className="btn-primary"
+                        style={{
+                          padding: '10px 14px',
+                          opacity: p.estoque <= 0 ? 0.3 : 1,
+                          cursor: p.estoque <= 0 ? 'not-allowed' : 'pointer',
+                        }}
+                        title={p.estoque > 0 ? 'Adicionar ao carrinho' : 'Sem estoque'}
+                      >
+                        <ShoppingBag size={16} />
+                      </button>
+                    </div>
                   </div>
                 </div>
+              ))}
+            </div>
+
+            {shouldFetchApi && apiCards.length > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '16px',
+                  marginTop: '40px',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setApiPage((prev) => Math.max(1, prev - 1));
+                    window.scrollTo({ top: 200, behavior: 'smooth' });
+                  }}
+                  disabled={apiPage <= 1 || isLoadingApi}
+                  className="btn-outline"
+                  style={{
+                    padding: '10px 18px',
+                    opacity: apiPage <= 1 || isLoadingApi ? 0.4 : 1,
+                    cursor: apiPage <= 1 || isLoadingApi ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <ChevronLeft size={16} />
+                  <span>Página Anterior</span>
+                </button>
+                <span
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '13px',
+                    color: 'var(--color-on-surface-variant)',
+                  }}
+                >
+                  Página {apiPage}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setApiPage((prev) => prev + 1);
+                    window.scrollTo({ top: 200, behavior: 'smooth' });
+                  }}
+                  disabled={isLoadingApi || apiCards.length < 6}
+                  className="btn-outline"
+                  style={{
+                    padding: '10px 18px',
+                    opacity: isLoadingApi || apiCards.length < 6 ? 0.4 : 1,
+                    cursor: isLoadingApi || apiCards.length < 6 ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <span>Próxima Página</span>
+                  <ChevronRight size={16} />
+                </button>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
     </div>

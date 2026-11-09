@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { HeroZoomSlider, type ZoomCardItem } from '../components/HeroZoomSlider';
 import {
@@ -8,128 +8,15 @@ import {
   Calendar,
   Star,
 } from 'lucide-react';
-import type { GameId } from '../types';
-
-import charizardImg from '../assets/cards/charizard-vmax.png';
-import blackLotusImg from '../assets/cards/black-lotus.jpg';
-import blueEyesImg from '../assets/cards/blue-eyes.jpg';
-import luffyImg from '../assets/cards/luffy-op05-119.png';
-import moonbreonImg from '../assets/cards/moonbreon.png';
-import theOneRingImg from '../assets/cards/the-one-ring.jpg';
-import darkMagicianImg from '../assets/cards/dark-magician.jpg';
-import shanksImg from '../assets/cards/shanks-op01-120.png';
+import type { ExternalCard, GameId, Product } from '../types';
+import { searchLiveCards } from '../services/tcgApi';
+import { externalCardToProduct } from '../services/api';
+import nobleLogo from '../assets/noble-logo.png';
 
 import pokemonLogo from '../assets/games/pokemon.png';
 import magicLogo from '../assets/games/magic.png';
 import yugiohLogo from '../assets/games/yugioh.png';
 import onepieceLogo from '../assets/games/onepiece.png';
-
-const HERO_SLIDER_CARDS: ZoomCardItem[] = [
-  {
-    id: 1,
-    number: '01',
-    name: 'Charizard VMAX Shiny',
-    rarity: 'Shiny Vault • SV107/SV122',
-    rarityColor: '#F59E0B',
-    game: 'Pokémon TCG',
-    image: charizardImg,
-    description:
-      'O cobiçado Charizard VMAX Gigantamax Shiny em chamas negras da coleção Destinos Brilhantes (Shining Fates).',
-    badge: 'Shiny Vault',
-    productId: 1,
-  },
-  {
-    id: 2,
-    number: '02',
-    name: 'Black Lotus',
-    rarity: 'Power Nine • Limited Edition Alpha',
-    rarityColor: '#DC95FF',
-    game: 'Magic: The Gathering',
-    image: blackLotusImg,
-    description:
-      'O artefato mais lendário e valioso de toda a história dos TCGs, peça central do sagrado Power Nine.',
-    badge: 'Alpha 1993',
-    productId: 5,
-  },
-  {
-    id: 3,
-    number: '03',
-    name: 'Dragão Branco de Olhos Azuis',
-    rarity: 'Ultra Rare • LOB-001',
-    rarityColor: '#60A5FA',
-    game: 'Yu-Gi-Oh!',
-    image: blueEyesImg,
-    description:
-      'O lendário dragão de 3000 ATK de Seto Kaiba, o monstro mais emblemático da história de Yu-Gi-Oh!.',
-    badge: 'Lendário LOB',
-    productId: 3,
-  },
-  {
-    id: 4,
-    number: '04',
-    name: 'Monkey D. Luffy (Gear 5)',
-    rarity: 'Manga Secret Rare • OP-05',
-    rarityColor: '#EF4444',
-    game: 'One Piece TCG',
-    image: luffyImg,
-    description:
-      'Luffy no auge do Gear 5 com arte original de mangá desenhada por Eiichiro Oda. O Santo Graal de One Piece.',
-    badge: 'Manga Secret',
-    productId: 4,
-  },
-  {
-    id: 5,
-    number: '05',
-    name: 'Umbreon VMAX (Moonbreon)',
-    rarity: 'Alternate Art Secret • 215/203',
-    rarityColor: '#A78BFA',
-    game: 'Pokémon TCG',
-    image: moonbreonImg,
-    description:
-      'A icônica "Moonbreon" sob a lua cheia da coleção Céus Evolutivos (Evolving Skies), um dos maiores troféus modernos.',
-    badge: 'Grail Alt Art',
-    productId: 1,
-  },
-  {
-    id: 6,
-    number: '06',
-    name: 'The One Ring (O Um Anel)',
-    rarity: 'Mythic Rare • The Lord of the Rings',
-    rarityColor: '#FBBF24',
-    game: 'Magic: The Gathering',
-    image: theOneRingImg,
-    description:
-      'O Um Anel forjado nas chamas de Mordor. A lendária carta de Senhor dos Anéis que chocou o mercado mundial.',
-    badge: 'Anel de Poder',
-    productId: 2,
-  },
-  {
-    id: 7,
-    number: '07',
-    name: 'Mago Negro (Dark Magician)',
-    rarity: 'Ultra Rare • Yugi Mágico',
-    rarityColor: '#818CF8',
-    game: 'Yu-Gi-Oh!',
-    image: darkMagicianImg,
-    description:
-      'O fiel guardião e carta assinatura de Yugi Muto, o supremo conjurador de feitiços de Yu-Gi-Oh!.',
-    badge: 'Assinatura Yugi',
-    productId: 3,
-  },
-  {
-    id: 8,
-    number: '08',
-    name: 'Shanks (Manga Rare)',
-    rarity: 'Manga Secret • Romance Dawn OP-01',
-    rarityColor: '#F43F5E',
-    game: 'One Piece TCG',
-    image: shanksImg,
-    description:
-      'O Yonkou Shanks entregando o chapéu de palha com fundo de mangá em acabamento holográfico premium.',
-    badge: 'Yonkou Shanks',
-    productId: 4,
-  },
-];
 
 export const HomePage: React.FC = () => {
   const {
@@ -144,13 +31,73 @@ export const HomePage: React.FC = () => {
     setAuthModalMode,
   } = useApp();
 
+  const [liveApiCards, setLiveApiCards] = useState<ExternalCard[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    searchLiveCards('all', '', 1)
+      .then(({ cards }) => {
+        if (active && cards.length > 0) {
+          setLiveApiCards(cards);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const handleGameSelect = (game: GameId) => {
     setSelectedGameFilter(game);
     setCurrentTab('products');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const featuredProducts = products.filter((p) => p.isDestaque).slice(0, 4);
+  const activeProducts = useMemo(
+    () => products.filter((p) => p.ativo !== false),
+    [products]
+  );
+
+  const heroSliderCards: ZoomCardItem[] = useMemo(() => {
+    if (liveApiCards.length > 0) {
+      return liveApiCards.slice(0, 8).map((c, idx) => ({
+        id: c.uid,
+        number: String(idx + 1).padStart(2, '0'),
+        name: c.nome,
+        rarity: `${c.raridade} • ${c.codigoCarta}`,
+        game: c.jogoNome,
+        image: c.imagemUrl,
+        description: c.descricao,
+        badge: c.fonteApi,
+        price: c.precoMercadoBrl,
+        externalCard: c,
+      }));
+    }
+
+    return activeProducts
+      .filter((p) => Boolean(p.imagemUrl))
+      .slice(0, 8)
+      .map((p, idx) => ({
+        id: p.id,
+        number: String(idx + 1).padStart(2, '0'),
+        name: p.nome,
+        rarity: p.raridade || p.categoria,
+        game: p.jogoNome,
+        image: p.imagemUrl,
+        description: p.descricao,
+        badge: p.categoria,
+        price: p.preco,
+        productId: p.id,
+        product: p,
+      }));
+  }, [liveApiCards, activeProducts]);
+
+  const featuredProducts: Product[] = useMemo(() => {
+    const storeFeatured = activeProducts.filter((p) => p.isDestaque);
+    if (storeFeatured.length > 0) return storeFeatured.slice(0, 4);
+    if (activeProducts.length > 0) return activeProducts.slice(0, 4);
+    return liveApiCards.slice(0, 4).map((c) => externalCardToProduct(c));
+  }, [activeProducts, liveApiCards]);
 
   return (
     <div style={{ position: 'relative', overflow: 'hidden' }}>
@@ -267,7 +214,7 @@ export const HomePage: React.FC = () => {
               justifyContent: 'center',
             }}
           >
-            <HeroZoomSlider cards={HERO_SLIDER_CARDS} />
+            <HeroZoomSlider cards={heroSliderCards} />
           </div>
         </div>
       </section>
@@ -514,6 +461,19 @@ export const HomePage: React.FC = () => {
             </button>
           </div>
 
+          {featuredProducts.length === 0 ? (
+            <div
+              className="glass-panel"
+              style={{
+                padding: '48px 24px',
+                borderRadius: 'var(--radius-lg)',
+                textAlign: 'center',
+                color: 'var(--color-on-surface-variant)',
+              }}
+            >
+              Nenhum produto em destaque disponível no momento.
+            </div>
+          ) : (
           <div
             style={{
               display: 'grid',
@@ -544,7 +504,7 @@ export const HomePage: React.FC = () => {
                   }}
                 >
                   <img
-                    src={p.imagemUrl}
+                    src={p.imagemUrl || nobleLogo}
                     alt={p.nome}
                     style={{
                       maxHeight: '100%',
@@ -666,6 +626,7 @@ export const HomePage: React.FC = () => {
               </div>
             ))}
           </div>
+          )}
         </div>
       </section>
 
@@ -696,7 +657,19 @@ export const HomePage: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {tournaments.slice(0, 3).map((t) => {
+            {tournaments.length === 0 ? (
+              <div
+                className="glass-panel"
+                style={{
+                  padding: '40px 24px',
+                  borderRadius: 'var(--radius-lg)',
+                  textAlign: 'center',
+                  color: 'var(--color-on-surface-variant)',
+                }}
+              >
+                Nenhum torneio agendado no momento.
+              </div>
+            ) : tournaments.slice(0, 3).map((t) => {
               const isFull = t.vagasOcupadas >= t.vagasTotais;
               return (
                 <div
