@@ -206,6 +206,7 @@ interface StockItemCardProps {
   onUpdateStockDelta: (productId: number, change: number) => void;
   onSetStockExact: (productId: number, exact: number) => void;
   isStaffOrAdmin: boolean;
+  onPermanentDelete?: (product: Product) => void;
 }
 
 const StockItemCard: React.FC<StockItemCardProps> = ({
@@ -214,9 +215,12 @@ const StockItemCard: React.FC<StockItemCardProps> = ({
   onUpdateStockDelta,
   onSetStockExact,
   isStaffOrAdmin,
+  onPermanentDelete,
 }) => {
   const [stockInput, setStockInput] = useState<string>(String(product.estoque));
-  const isLowStock = product.estoque <= 4;
+  const minStockLimit = product.estoqueMinimo ?? 3;
+  const isOutOfStock = product.estoque === 0;
+  const isLowStock = !isOutOfStock && product.estoque <= minStockLimit;
   const isDirty = stockInput.trim() !== '' && Number(stockInput) !== product.estoque;
 
   useEffect(() => {
@@ -242,7 +246,7 @@ const StockItemCard: React.FC<StockItemCardProps> = ({
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        border: product.ativo === false ? '1px dashed rgba(239, 68, 68, 0.45)' : isLowStock ? '1px solid rgba(255, 180, 171, 0.4)' : undefined,
+        border: product.ativo === false ? '1px dashed rgba(239, 68, 68, 0.45)' : isOutOfStock ? '1px solid rgba(239, 68, 68, 0.5)' : isLowStock ? '1px solid rgba(251, 191, 36, 0.45)' : undefined,
         position: 'relative',
         transition: 'all 0.2s ease',
         opacity: product.ativo === false ? 0.72 : 1,
@@ -271,49 +275,101 @@ const StockItemCard: React.FC<StockItemCardProps> = ({
               >
                 Inativo
               </span>
+            ) : isOutOfStock ? (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.18)',
+                  border: '1px solid rgba(239, 68, 68, 0.45)',
+                  color: '#f87171',
+                  borderRadius: '4px',
+                  padding: '2px 7px',
+                  fontSize: '11px',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                }}
+              >
+                Esgotado!
+              </span>
             ) : isLowStock ? (
               <span
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '4px',
-                  color: 'var(--color-error)',
+                  color: '#fbbf24',
+                  backgroundColor: 'rgba(251, 191, 36, 0.12)',
+                  border: '1px solid rgba(251, 191, 36, 0.35)',
+                  borderRadius: '4px',
+                  padding: '2px 7px',
                   fontSize: '11px',
                   fontFamily: 'var(--font-mono)',
                   fontWeight: 600,
                 }}
               >
-                <AlertTriangle size={12} /> Estoque Baixo!
+                <AlertTriangle size={12} /> Estoque Baixo ({product.estoque} ≤ {minStockLimit})
               </span>
             ) : null}
           </div>
 
           {isStaffOrAdmin && (
-            <button
-              type="button"
-              onClick={() => onEdit(product)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '4px 9px',
-                backgroundColor: 'rgba(140, 86, 212, 0.12)',
-                border: '1px solid rgba(140, 86, 212, 0.35)',
-                borderRadius: '6px',
-                color: 'var(--color-primary)',
-                fontSize: '11px',
-                fontFamily: 'var(--font-mono)',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(140, 86, 212, 0.22)')}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(140, 86, 212, 0.12)')}
-              title="Editar dados deste produto"
-            >
-              <Pencil size={12} />
-              Editar
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={() => onEdit(product)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '4px 9px',
+                  backgroundColor: 'rgba(140, 86, 212, 0.12)',
+                  border: '1px solid rgba(140, 86, 212, 0.35)',
+                  borderRadius: '6px',
+                  color: 'var(--color-primary)',
+                  fontSize: '11px',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(140, 86, 212, 0.22)')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(140, 86, 212, 0.12)')}
+                title="Editar dados deste produto"
+              >
+                <Pencil size={12} />
+                Editar
+              </button>
+              {product.ativo === false && onPermanentDelete && (
+                <button
+                  type="button"
+                  onClick={() => onPermanentDelete(product)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '4px 9px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    borderRadius: '6px',
+                    color: '#f87171',
+                    fontSize: '11px',
+                    fontFamily: 'var(--font-mono)',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.22)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.12)')}
+                  title="Excluir produto inativo definitivamente"
+                >
+                  <Trash2 size={12} />
+                  Excluir
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -334,15 +390,20 @@ const StockItemCard: React.FC<StockItemCardProps> = ({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '11px', color: 'var(--color-outline)', display: 'block' }}>
-            Disponível em Estoque
-          </span>
+          <div>
+            <span style={{ fontSize: '11px', color: 'var(--color-outline)', display: 'block' }}>
+              Disponível em Estoque
+            </span>
+            <span style={{ fontSize: '10px', color: 'var(--color-on-surface-variant)', fontFamily: 'var(--font-mono)' }}>
+              Mínimo: {minStockLimit} un.
+            </span>
+          </div>
           <span
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: '15px',
               fontWeight: 700,
-              color: product.estoque > 0 ? 'var(--color-headline)' : 'var(--color-error)',
+              color: isOutOfStock ? 'var(--color-error)' : isLowStock ? '#fbbf24' : 'var(--color-headline)',
             }}
           >
             {product.estoque} unidades
@@ -491,6 +552,7 @@ interface EditProductModalProps {
   onSave: (updated: Partial<Product>) => void;
   onDelete: (productId: number) => void;
   onReactivate?: (productId: number) => void;
+  onPermanentDelete?: (productId: number) => void;
 }
 
 const formatMoneyInput = (value: string) => {
@@ -506,13 +568,21 @@ const parseMoneyToFloat = (value: string): number => {
   return parseFloat(clean) || 0;
 };
 
-const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, onSave, onDelete, onReactivate }) => {
+const EditProductModal: React.FC<EditProductModalProps> = ({
+  product,
+  onClose,
+  onSave,
+  onDelete,
+  onReactivate,
+  onPermanentDelete,
+}) => {
   const { showToastConfirm } = useApp();
   const [nome, setNome] = useState(product.nome);
   const [preco, setPreco] = useState(
     product.preco ? Number(product.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''
   );
   const [estoque, setEstoque] = useState(String(product.estoque));
+  const [estoqueMinimo, setEstoqueMinimo] = useState(String(product.estoqueMinimo ?? 3));
   const [jogo, setJogo] = useState<GameId>(product.jogo);
   const [categoria, setCategoria] = useState<ProductCategory>(product.categoria);
   const [subtitulo, setSubtitulo] = useState(product.subtitulo || '');
@@ -535,6 +605,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
       nome: nome.trim(),
       preco: parseMoneyToFloat(preco),
       estoque: parseInt(estoque, 10) || 0,
+      estoqueMinimo: Math.max(0, parseInt(estoqueMinimo, 10) || 0),
       jogo,
       jogoNome: gameNames[jogo] || 'Geral',
       categoria,
@@ -640,7 +711,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
             </div>
           </div>
 
-          <div className="system-form-grid">
+          <div className="system-form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
             <div>
               <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
                 Preço (R$) *
@@ -658,7 +729,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
 
             <div>
               <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-                Quantidade em Estoque *
+                Qtd. em Estoque *
               </label>
               <input
                 type="number"
@@ -667,6 +738,22 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
                 className="system-input"
                 value={estoque}
                 onChange={(e) => setEstoque(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
+                Estoque Mínimo *
+              </label>
+              <input
+                type="number"
+                min="0"
+                required
+                className="system-input"
+                value={estoqueMinimo}
+                onChange={(e) => setEstoqueMinimo(e.target.value)}
+                placeholder="3"
+                title="Limite para alerta de reposição"
               />
             </div>
           </div>
@@ -710,37 +797,84 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
           </div>
 
           <div className="system-modal-actions">
-            <button
-              type="button"
-              onClick={handleToggleStatus}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '11px 18px',
-                backgroundColor: isProductActive ? 'rgba(239, 68, 68, 0.12)' : 'rgba(34, 197, 94, 0.12)',
-                border: isProductActive ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(34, 197, 94, 0.35)',
-                borderRadius: 'var(--radius-sm)',
-                color: isProductActive ? '#f87171' : '#4ade80',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = isProductActive ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)';
-                e.currentTarget.style.borderColor = isProductActive ? 'rgba(239, 68, 68, 0.55)' : 'rgba(34, 197, 94, 0.55)';
-                e.currentTarget.style.transform = 'translateY(-1px)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = isProductActive ? 'rgba(239, 68, 68, 0.12)' : 'rgba(34, 197, 94, 0.12)';
-                e.currentTarget.style.borderColor = isProductActive ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.35)';
-                e.currentTarget.style.transform = 'translateY(0)';
-              }}
-            >
-              {isProductActive ? <Trash2 size={14} /> : <RotateCcw size={14} />}
-              {isProductActive ? 'Inativar Produto' : 'Reativar Produto'}
-            </button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleToggleStatus}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '11px 18px',
+                  backgroundColor: isProductActive ? 'rgba(239, 68, 68, 0.12)' : 'rgba(34, 197, 94, 0.12)',
+                  border: isProductActive ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(34, 197, 94, 0.35)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: isProductActive ? '#f87171' : '#4ade80',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = isProductActive ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)';
+                  e.currentTarget.style.borderColor = isProductActive ? 'rgba(239, 68, 68, 0.55)' : 'rgba(34, 197, 94, 0.55)';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = isProductActive ? 'rgba(239, 68, 68, 0.12)' : 'rgba(34, 197, 94, 0.12)';
+                  e.currentTarget.style.borderColor = isProductActive ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.35)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                {isProductActive ? <Trash2 size={14} /> : <RotateCcw size={14} />}
+                {isProductActive ? 'Inativar Produto' : 'Reativar Produto'}
+              </button>
+
+              {!isProductActive && onPermanentDelete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    showToastConfirm({
+                      message: `Deseja realmente excluir permanentemente o produto "${product.nome}"? Esta ação removerá o produto do catálogo e não poderá ser desfeita.`,
+                      confirmText: 'Excluir definitivamente',
+                      cancelText: 'Cancelar',
+                      onConfirm: () => {
+                        onPermanentDelete(product.id);
+                        onClose();
+                      },
+                    });
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '11px 18px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.16)',
+                    border: '1px solid rgba(239, 68, 68, 0.45)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: '#f87171',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.28)';
+                    e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.65)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.16)';
+                    e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.45)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                  title="Excluir produto inativo definitivamente"
+                >
+                  <Trash2 size={14} />
+                  Excluir Definitivamente
+                </button>
+              )}
+            </div>
 
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
               <button
@@ -803,6 +937,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [subtitulo, setSubtitulo] = useState('');
   const [preco, setPreco] = useState('');
   const [estoque, setEstoque] = useState('');
+  const [estoqueMinimo, setEstoqueMinimo] = useState('3');
   const [jogo, setJogo] = useState<GameId>('pokemon');
   const [categoria, setCategoria] = useState<ProductCategory>('Booster Pack');
   const [descricao, setDescricao] = useState('');
@@ -863,6 +998,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
       subtitulo: subtitulo.trim() || `${categoria} • ${gameNames[jogo]}`,
       preco: parseMoneyToFloat(preco),
       estoque: parseInt(estoque, 10) || 0,
+      estoqueMinimo: Math.max(0, parseInt(estoqueMinimo, 10) || 3),
       jogo,
       jogoNome: gameNames[jogo] || 'Geral',
       categoria,
@@ -879,6 +1015,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
     setDescricao('');
     setPreco('');
     setEstoque('');
+    setEstoqueMinimo('3');
     setJogo('pokemon');
     setCategoria('Booster Pack');
     setImagemUrl('');
@@ -1030,7 +1167,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
             </div>
           </div>
 
-          <div className="system-form-grid">
+          <div className="system-form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
             <div>
               <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
                 Preço Unitário (R$) *
@@ -1058,6 +1195,22 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 value={estoque}
                 onChange={(e) => setEstoque(e.target.value)}
                 placeholder="10"
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
+                Estoque Mínimo *
+              </label>
+              <input
+                type="number"
+                min="0"
+                required
+                className="system-input"
+                value={estoqueMinimo}
+                onChange={(e) => setEstoqueMinimo(e.target.value)}
+                placeholder="3"
+                title="Limite para alerta de estoque baixo"
               />
             </div>
           </div>
@@ -1160,6 +1313,8 @@ export const DashboardPage: React.FC = () => {
     editProduct,
     deleteProduct,
     reactivateProduct,
+    removeProductPermanently,
+    showToastConfirm,
     addProduct,
     createTournament,
     updateOrderStatus,
@@ -1189,6 +1344,28 @@ export const DashboardPage: React.FC = () => {
     : orders.filter(
         (o) => o.cliente_email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()
       );
+
+  // Redireciona diretamente para o Portal /admin quando o usuário for administrador
+  useEffect(() => {
+    if (currentUser.role === 'admin') {
+      setCurrentTab('admin');
+    }
+  }, [currentUser.role, setCurrentTab]);
+
+  if (currentUser.role === 'admin') {
+    return null;
+  }
+
+  const handlePermanentDelete = (prod: Product) => {
+    showToastConfirm({
+      message: `Deseja realmente excluir permanentemente o produto "${prod.nome}"? Esta ação removerá o produto do catálogo e não poderá ser desfeita.`,
+      confirmText: 'Excluir definitivamente',
+      cancelText: 'Cancelar',
+      onConfirm: () => {
+        removeProductPermanently(prod.id);
+      },
+    });
+  };
 
   if (!currentUser.email || currentUser.id === 0) {
     return (
@@ -1308,11 +1485,9 @@ export const DashboardPage: React.FC = () => {
                   height: '10px',
                   borderRadius: '50%',
                   backgroundColor:
-                    currentUser.role === 'admin'
-                      ? '#FFBEFB'
-                      : currentUser.role === 'funcionario'
-                        ? '#FFF4BF'
-                        : '#8C56D4',
+                    currentUser.role === 'funcionario'
+                      ? '#FFF4BF'
+                      : '#8C56D4',
                 }}
               />
               <span
@@ -1709,6 +1884,7 @@ export const DashboardPage: React.FC = () => {
                       onEdit={(prod) => setEditingProduct(prod)}
                       onUpdateStockDelta={(id, delta) => updateProductStock(id, delta)}
                       onSetStockExact={(id, exact) => setProductStockExact(id, exact)}
+                      onPermanentDelete={handlePermanentDelete}
                     />
                   ))}
                 </div>
@@ -1893,6 +2069,7 @@ export const DashboardPage: React.FC = () => {
             onSave={(updated) => editProduct(editingProduct.id, updated)}
             onDelete={(id) => deleteProduct(id)}
             onReactivate={(id) => reactivateProduct(id)}
+            onPermanentDelete={(id) => removeProductPermanently(id)}
           />
         )}
       </div>

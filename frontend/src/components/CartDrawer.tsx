@@ -158,7 +158,7 @@ export const CartDrawer: React.FC = () => {
               onClick={() => {
                 setIsCartOpen(false);
                 setLastCompletedOrder(null);
-                setCurrentTab('dashboard');
+                setCurrentTab(currentUser.role === 'admin' ? 'admin' : 'dashboard');
               }}
               className="btn-primary"
               style={{ width: '100%' }}

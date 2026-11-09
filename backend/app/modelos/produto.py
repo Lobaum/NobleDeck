@@ -18,12 +18,14 @@ class Produto:
         idioma="Português",
         ano=2024,
         estoque=None,
+        estoque_minimo=3,
     ):
         self.id_produto = id_produto
         self.nome = nome
         self.preco = float(preco or 0.0)
         self.quantidade = int(estoque if estoque is not None else (quantidade or 0))
         self.estoque = self.quantidade
+        self.estoque_minimo = int(estoque_minimo if estoque_minimo is not None else 3)
         self.descricao = descricao
         self.categoria = categoria
         self.jogo = jogo

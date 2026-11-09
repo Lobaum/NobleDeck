@@ -5,11 +5,10 @@ import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { CartDrawer } from './components/CartDrawer';
 import { ProductModal } from './components/ProductModal';
-import { TournamentModal } from './components/TournamentModal';
 import { AuthModal } from './components/AuthModal';
 import { HomePage } from './pages/HomePage';
 import { ProductsPage } from './pages/ProductsPage';
-import { TournamentsPage } from './pages/TournamentsPage';
+import { DashboardPage } from './pages/DashboardPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { AboutPage } from './pages/AboutPage';
 import { AdminPage } from './pages/AdminPage';
@@ -25,7 +24,6 @@ const AppContent: React.FC = () => {
       <main className="main-content">
         {currentTab === 'home' && <HomePage />}
         {currentTab === 'products' && <ProductsPage />}
-        {currentTab === 'tournaments' && <TournamentsPage />}
         {currentTab === 'about' && <AboutPage />}
         {currentTab === 'dashboard' && <DashboardPage />}
         {currentTab === 'admin' && <AdminPage />}
@@ -36,7 +34,6 @@ const AppContent: React.FC = () => {
       {/* Modais */}
       <CartDrawer />
       <ProductModal />
-      <TournamentModal />
       <AuthModal />
 
       {/* Notificação Padrão */}

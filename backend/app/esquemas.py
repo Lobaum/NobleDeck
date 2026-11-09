@@ -48,6 +48,7 @@ class ProdutoRegistro(BaseModel):
     jogo: str = "outros"
     preco: float
     quantidade: int = Field(default=0, alias="estoque")
+    estoque_minimo: int = 3
     jogo_nome: str = "Geral"
     subtitulo: str = ""
     imagem_url: str = ""
@@ -67,6 +68,7 @@ class ProdutoAlteracao(BaseModel):
     jogo: str | None = None
     preco: float | None = None
     quantidade: int | None = Field(default=None, alias="estoque")
+    estoque_minimo: int | None = None
     ativo: bool | None = None
     jogo_nome: str | None = None
     subtitulo: str | None = None
@@ -88,6 +90,7 @@ class ProdutoResposta(BaseModel):
     jogo: str = "outros"
     preco: float
     quantidade: int
+    estoque_minimo: int = 3
     ativo: bool = True
     jogo_nome: str = "Geral"
     subtitulo: str = ""
@@ -102,11 +105,32 @@ class ProdutoResposta(BaseModel):
 class EstoqueEntrada(BaseModel):
     produto_id: int
     quantidade: int
+    motivo: str = "Reposição de Estoque"
+    responsavel: str = "Administrador"
 
 
 class EstoqueSaida(BaseModel):
     produto_id: int
     quantidade: int
+    motivo: str = "Baixa Operacional"
+    responsavel: str = "Administrador"
+
+
+class EstoqueMinimoAtualizacao(BaseModel):
+    estoque_minimo: int
+
+
+class MovimentacaoEstoqueResposta(BaseModel):
+    id_movimentacao: int
+    produto_id: int
+    produto_nome: str
+    tipo: str
+    quantidade: int
+    saldo_anterior: int
+    saldo_posterior: int
+    motivo: str = ""
+    responsavel: str = "Sistema"
+    data_hora: str
 
 
 class EstoqueResposta(BaseModel):
@@ -167,86 +191,3 @@ class PedidoResposta(BaseModel):
     cliente_nome: str
     cliente_email: str
     itens: list[ItemPedidoResposta] = []
-
-
-class TorneioRegistro(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    nome: str
-    jogo: str
-    data: str
-    horario: str
-    limiteParticipantes: int = Field(default=16, alias="limite_participantes")
-    status: str = "aberto"
-    jogo_nome: str = "Geral"
-    formato: str = "Suíço"
-    local: str = "Noble Deck Arena"
-    taxa_inscricao: float = 0.0
-    premiacao: str = ""
-    is_premium: bool = False
-
-
-class TorneioResposta(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-    id_torneio: int
-    nome: str
-    jogo: str
-    jogo_nome: str
-    data: str
-    horario: str
-    limiteParticipantes: int = Field(alias="limite_participantes")
-    vagas_ocupadas: int
-    status: str
-    formato: str
-    local: str
-    taxa_inscricao: float
-    premiacao: str
-    is_premium: bool
-    inscritos: list[str] = []
-
-
-class InscricaoRegistro(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    cliente_id: int | None = None
-    cliente_nome: str
-    dataInscricao: str | None = Field(default=None, alias="data_inscricao")
-    status: str = "confirmada"
-
-
-class InscricaoResposta(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-    id_inscricao: int
-    torneio_id: int
-    cliente_id: int | None = None
-    cliente_nome: str
-    dataInscricao: str | None = Field(default=None, alias="data_inscricao")
-    status: str
-
-
-TorneioInscricaoRegistro = InscricaoRegistro
-TorneioInscricaoResposta = InscricaoResposta
-
-
-class PartidaRegistro(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    jogador1: str
-    jogador2: str
-    resultado: str = "Pendente"
-
-
-class PartidaResposta(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
-
-    id_partida: int
-    torneio_id: int
-    jogador1: str
-    jogador2: str
-    resultado: str
-
-
-TorneioPartidaRegistro = PartidaRegistro
-TorneioPartidaResposta = PartidaResposta

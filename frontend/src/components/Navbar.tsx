@@ -124,24 +124,6 @@ export const Navbar: React.FC = () => {
             Produtos
           </button>
           <button
-            onClick={() => handleNavClick('tournaments')}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontFamily: 'var(--font-nav)',
-              fontSize: '15px',
-              fontWeight: currentTab === 'tournaments' ? 600 : 500,
-              letterSpacing: '0.01em',
-              cursor: 'pointer',
-              color: currentTab === 'tournaments' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
-              borderBottom: currentTab === 'tournaments' ? '2px solid var(--color-primary)' : '2px solid transparent',
-              paddingBottom: '4px',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            Torneios
-          </button>
-          <button
             onClick={() => handleNavClick('about')}
             style={{
               background: 'none',
@@ -161,17 +143,17 @@ export const Navbar: React.FC = () => {
           </button>
           {Boolean(currentUser.email) && (
             <button
-              onClick={() => handleNavClick('dashboard')}
+              onClick={() => handleNavClick(currentUser.role === 'admin' ? 'admin' : 'dashboard')}
               style={{
                 background: 'none',
                 border: 'none',
                 fontFamily: 'var(--font-nav)',
                 fontSize: '15px',
-                fontWeight: currentTab === 'dashboard' ? 600 : 500,
+                fontWeight: (currentUser.role === 'admin' ? currentTab === 'admin' : currentTab === 'dashboard') ? 600 : 500,
                 letterSpacing: '0.01em',
                 cursor: 'pointer',
-                color: currentTab === 'dashboard' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
-                borderBottom: currentTab === 'dashboard' ? '2px solid var(--color-primary)' : '2px solid transparent',
+                color: (currentUser.role === 'admin' ? currentTab === 'admin' : currentTab === 'dashboard') ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+                borderBottom: (currentUser.role === 'admin' ? currentTab === 'admin' : currentTab === 'dashboard') ? '2px solid var(--color-primary)' : '2px solid transparent',
                 paddingBottom: '4px',
                 transition: 'all 0.2s ease',
                 display: 'flex',
@@ -236,7 +218,7 @@ export const Navbar: React.FC = () => {
           {currentUser.email ? (
             <div style={{ display: 'none', alignItems: 'center', gap: '8px' }} className="desktop-nav">
               <button
-                onClick={() => handleNavClick('dashboard')}
+                onClick={() => handleNavClick(currentUser.role === 'admin' ? 'admin' : 'dashboard')}
                 className="btn-outline"
                 style={{
                   padding: '8px 16px',
@@ -365,20 +347,6 @@ export const Navbar: React.FC = () => {
             Produtos
           </button>
           <button
-            onClick={() => handleNavClick('tournaments')}
-            style={{
-              background: 'none',
-              border: 'none',
-              textAlign: 'left',
-              color: currentTab === 'tournaments' ? 'var(--color-primary)' : 'var(--color-on-surface)',
-              fontFamily: 'var(--font-nav)',
-              fontSize: '18px',
-              fontWeight: 600,
-            }}
-          >
-            Torneios
-          </button>
-          <button
             onClick={() => handleNavClick('about')}
             style={{
               background: 'none',
@@ -394,18 +362,18 @@ export const Navbar: React.FC = () => {
           </button>
           {Boolean(currentUser.email) && (
             <button
-              onClick={() => handleNavClick('dashboard')}
+              onClick={() => handleNavClick(currentUser.role === 'admin' ? 'admin' : 'dashboard')}
               style={{
                 background: 'none',
                 border: 'none',
                 textAlign: 'left',
-                color: currentTab === 'dashboard' ? 'var(--color-primary)' : 'var(--color-on-surface)',
+                color: (currentUser.role === 'admin' ? currentTab === 'admin' : currentTab === 'dashboard') ? 'var(--color-primary)' : 'var(--color-on-surface)',
                 fontFamily: 'var(--font-nav)',
                 fontSize: '18px',
                 fontWeight: 600,
               }}
             >
-              Painel de Gerenciamento ({currentUser.role})
+              Painel {currentUser.role !== 'cliente' ? `(${currentUser.role})` : ''}
             </button>
           )}
 

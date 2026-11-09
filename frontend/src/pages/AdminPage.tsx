@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   ShieldAlert,
@@ -18,12 +18,21 @@ import {
   Mail,
   Eye,
   EyeOff,
-  Sliders,
   DollarSign,
   Key,
   X,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  History,
+  Trash2,
+  Search,
+  Layers,
+  Boxes,
+  AlertCircle,
+  RotateCcw,
+  Settings,
 } from 'lucide-react';
-import type { UserProfile, UserRole, Order } from '../types';
+import type { UserProfile, UserRole, Order, Product, GameId } from '../types';
 import { api } from '../services/api';
 
 export const AdminPage: React.FC = () => {
@@ -34,11 +43,20 @@ export const AdminPage: React.FC = () => {
     logoutUser,
     switchRole,
     products,
-    updateProductStock,
+    reactivateProduct,
+    removeProductPermanently,
+    stockMovements,
+    refreshStockMovements,
+    registerStockEntry,
+    registerStockExit,
+    updateProductMinStock,
     tournaments,
+    deleteTournament,
+    registerTournamentMatch,
     orders,
     updateOrderStatus,
     showToast,
+    showToastConfirm,
   } = useApp();
 
   // Autenticação Admin
@@ -47,10 +65,26 @@ export const AdminPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // Painel Admin
-  const [activeAdminTab, setActiveAdminTab] = useState<'users' | 'inventory' | 'tournaments' | 'orders'>('users');
+  // Painel Admin Abas Principais
+  const [activeAdminTab, setActiveAdminTab] = useState<'users' | 'inventory' | 'tournaments' | 'orders'>('inventory');
   const [userList, setUserList] = useState<UserProfile[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+
+  // Sub-abas e Filtros de Estoque
+  const [inventorySubTab, setInventorySubTab] = useState<'all' | 'critical' | 'movements' | 'inactive'>('all');
+  const [inventorySearch, setInventorySearch] = useState('');
+  const [inventoryGameFilter, setInventoryGameFilter] = useState<GameId | 'all'>('all');
+  const [movementTypeFilter, setMovementTypeFilter] = useState<'all' | 'entrada' | 'saida'>('all');
+
+  // Modais de Gestão de Estoque
+  const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
+  const [isExitModalOpen, setIsExitModalOpen] = useState(false);
+  const [isMinStockModalOpen, setIsMinStockModalOpen] = useState(false);
+  const [selectedStockProduct, setSelectedStockProduct] = useState<Product | null>(null);
+  const [stockAmountInput, setStockAmountInput] = useState('5');
+  const [stockReasonInput, setStockReasonInput] = useState('');
+  const [minStockValueInput, setMinStockValueInput] = useState('3');
+  const [isSubmittingStock, setIsSubmittingStock] = useState(false);
 
   // Modal Equipe
   const [isNewUserModalOpen, setIsNewUserModalOpen] = useState(false);
@@ -60,13 +94,13 @@ export const AdminPage: React.FC = () => {
   const [newUserRole, setNewUserRole] = useState<UserRole>('funcionario');
   const [newUserCargo, setNewUserCargo] = useState('Atendente de Loja');
 
-  // Modal senha admin
+  // Modal Senha Admin
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [confirmAdminPassword, setConfirmAdminPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
-  // Registro de Partidas
+  // Torneios & Registro de Partidas
   const [selectedTournamentId, setSelectedTournamentId] = useState<number | null>(null);
   const [matchPlayer1, setMatchPlayer1] = useState('');
   const [matchPlayer2, setMatchPlayer2] = useState('');
@@ -96,8 +130,86 @@ export const AdminPage: React.FC = () => {
   useEffect(() => {
     if (isAdmin) {
       carregarUsuarios();
+      refreshStockMovements();
     }
   }, [isAdmin]);
+
+  // Cálculos de Métricas
+  const faturamentoTotal = useMemo(() => {
+    return orders
+      .filter((o) => o.status !== 'Cancelado')
+      .reduce((acc, o) => acc + (o.valor_total || 0), 0);
+  }, [orders]);
+
+  const activeProducts = useMemo(() => products.filter((p) => p.ativo !== false), [products]);
+  const inactiveProducts = useMemo(() => products.filter((p) => p.ativo === false), [products]);
+
+  const valorTotalEstoque = useMemo(() => {
+    return activeProducts.reduce((sum, p) => sum + (p.preco || 0) * (p.estoque || 0), 0);
+  }, [activeProducts]);
+
+  const totalUnidadesEstoque = useMemo(() => {
+    return activeProducts.reduce((sum, p) => sum + (p.estoque || 0), 0);
+  }, [activeProducts]);
+
+  const produtosCriticos = useMemo(() => {
+    return activeProducts.filter((p) => p.estoque <= (p.estoqueMinimo ?? 3));
+  }, [activeProducts]);
+
+  // Filtragem de Produtos
+  const filteredProducts = useMemo(() => {
+    let list = inventorySubTab === 'critical' ? produtosCriticos : activeProducts;
+    if (inventoryGameFilter !== 'all') {
+      list = list.filter((p) => p.jogo === inventoryGameFilter);
+    }
+    if (inventorySearch.trim()) {
+      const q = inventorySearch.toLowerCase().trim();
+      list = list.filter(
+        (p) =>
+          p.nome.toLowerCase().includes(q) ||
+          p.id.toString().includes(q) ||
+          (p.categoria && p.categoria.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [inventorySubTab, produtosCriticos, activeProducts, inventoryGameFilter, inventorySearch]);
+
+  // Filtragem de Inativos
+  const filteredInactive = useMemo(() => {
+    let list = inactiveProducts;
+    if (inventoryGameFilter !== 'all') {
+      list = list.filter((p) => p.jogo === inventoryGameFilter);
+    }
+    if (inventorySearch.trim()) {
+      const q = inventorySearch.toLowerCase().trim();
+      list = list.filter(
+        (p) =>
+          p.nome.toLowerCase().includes(q) ||
+          p.id.toString().includes(q) ||
+          (p.categoria && p.categoria.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [inactiveProducts, inventoryGameFilter, inventorySearch]);
+
+  // Filtragem de Movimentações
+  const filteredMovements = useMemo(() => {
+    let list = stockMovements;
+    if (movementTypeFilter !== 'all') {
+      list = list.filter((m) => m.tipo === movementTypeFilter);
+    }
+    if (inventorySearch.trim()) {
+      const q = inventorySearch.toLowerCase().trim();
+      list = list.filter(
+        (m) =>
+          m.produto_nome.toLowerCase().includes(q) ||
+          m.produto_id.toString().includes(q) ||
+          m.motivo.toLowerCase().includes(q) ||
+          m.responsavel.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [stockMovements, movementTypeFilter, inventorySearch]);
 
   // Login de Administrador
   const handleAdminLogin = async (e: React.FormEvent) => {
@@ -121,7 +233,6 @@ export const AdminPage: React.FC = () => {
       );
 
       if (sucesso) {
-        // Garantir que a role ativa seja admin
         switchRole('admin');
         showToast('Autenticação autorizada! Bem-vindo ao Painel Administrativo.');
       }
@@ -166,6 +277,28 @@ export const AdminPage: React.FC = () => {
     }
   };
 
+  // Excluir Usuário
+  const handleDeleteUser = (user: UserProfile) => {
+    if (user.id === currentUser.id) {
+      showToast('Você não pode excluir sua própria conta de administrador conectada.');
+      return;
+    }
+    showToastConfirm({
+      message: `Tem certeza que deseja excluir o cadastro de "${user.nome}" (${user.email})? Esta operação é irreversível.`,
+      confirmText: 'Excluir Usuário',
+      cancelText: 'Cancelar',
+      onConfirm: async () => {
+        try {
+          await api.excluirUsuario(user.id);
+          setUserList((prev) => prev.filter((u) => u.id !== user.id));
+          showToast(`Usuário "${user.nome}" removido do sistema.`);
+        } catch (err: any) {
+          showToast(err.message || 'Erro ao excluir usuário.');
+        }
+      },
+    });
+  };
+
   // Alterar Senha do Administrador
   const handleAlterarSenha = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,6 +329,105 @@ export const AdminPage: React.FC = () => {
     }
   };
 
+  // Abertura dos Modais de Estoque
+  const openEntryModal = (product?: Product) => {
+    setSelectedStockProduct(product || (activeProducts.length > 0 ? activeProducts[0] : null));
+    setStockAmountInput('5');
+    setStockReasonInput('Reposição de Estoque / Compra Distribuidor');
+    setIsEntryModalOpen(true);
+  };
+
+  const openExitModal = (product?: Product) => {
+    setSelectedStockProduct(product || (activeProducts.length > 0 ? activeProducts[0] : null));
+    setStockAmountInput('1');
+    setStockReasonInput('Baixa Operacional / Avaria');
+    setIsExitModalOpen(true);
+  };
+
+  const openMinStockModal = (product: Product) => {
+    setSelectedStockProduct(product);
+    setMinStockValueInput(String(product.estoqueMinimo ?? 3));
+    setIsMinStockModalOpen(true);
+  };
+
+  // Submissão Entrada de Estoque
+  const handleConfirmEntry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStockProduct) return;
+    const qtd = parseInt(stockAmountInput, 10);
+    if (isNaN(qtd) || qtd <= 0) {
+      showToast('Por favor, informe uma quantidade válida maior que zero.');
+      return;
+    }
+    setIsSubmittingStock(true);
+    try {
+      await registerStockEntry(
+        selectedStockProduct.id,
+        qtd,
+        stockReasonInput.trim() || 'Entrada manual registrada pelo Administrador'
+      );
+      setIsEntryModalOpen(false);
+    } finally {
+      setIsSubmittingStock(false);
+    }
+  };
+
+  // Submissão Saída de Estoque
+  const handleConfirmExit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStockProduct) return;
+    const qtd = parseInt(stockAmountInput, 10);
+    if (isNaN(qtd) || qtd <= 0) {
+      showToast('Por favor, informe uma quantidade válida maior que zero.');
+      return;
+    }
+    if (qtd > selectedStockProduct.estoque) {
+      showToast(`Estoque insuficiente! Saldo atual é de apenas ${selectedStockProduct.estoque} unidades.`);
+      return;
+    }
+    setIsSubmittingStock(true);
+    try {
+      await registerStockExit(
+        selectedStockProduct.id,
+        qtd,
+        stockReasonInput.trim() || 'Baixa operacional / Retirada do estoque'
+      );
+      setIsExitModalOpen(false);
+    } finally {
+      setIsSubmittingStock(false);
+    }
+  };
+
+  // Submissão Estoque Mínimo
+  const handleConfirmMinStock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStockProduct) return;
+    const minVal = parseInt(minStockValueInput, 10);
+    if (isNaN(minVal) || minVal < 0) {
+      showToast('Por favor, informe um valor de estoque mínimo válido.');
+      return;
+    }
+    setIsSubmittingStock(true);
+    try {
+      await updateProductMinStock(selectedStockProduct.id, minVal);
+      setIsMinStockModalOpen(false);
+    } finally {
+      setIsSubmittingStock(false);
+    }
+  };
+
+  // Excluir Torneio
+  const handleDeleteTournament = (tournamentId: number, tournamentTitle: string) => {
+    showToastConfirm({
+      message: `Tem certeza que deseja excluir o torneio "${tournamentTitle}"? Todas as inscrições associadas serão removidas.`,
+      confirmText: 'Excluir Torneio',
+      cancelText: 'Cancelar',
+      onConfirm: async () => {
+        await deleteTournament(tournamentId);
+      },
+    });
+  };
+
   // Registrar Resultado de Partida de Torneio
   const handleRegisterMatch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,10 +441,9 @@ export const AdminPage: React.FC = () => {
     }
 
     try {
-      await api.registrarPartida(selectedTournamentId, matchPlayer1.trim(), matchPlayer2.trim(), matchResult.trim());
-      showToast('Resultado de partida registrado oficialmente!');
+      await registerTournamentMatch(selectedTournamentId, matchPlayer1.trim(), matchPlayer2.trim(), matchResult.trim());
     } catch {
-      showToast('Resultado de partida salvo localmente!');
+      showToast('Resultado de partida registrado localmente!');
     }
 
     const novaPartida = {
@@ -230,22 +461,13 @@ export const AdminPage: React.FC = () => {
     setMatchResult('');
   };
 
-  // Métricas
-  const faturamentoTotal = orders
-    .filter((o) => o.status !== 'Cancelado')
-    .reduce((acc, o) => acc + o.valor_total, 0);
-  const produtosCriticos = products.filter((p) => p.estoque <= 4);
-
   // 1. CASO NÃO AUTENTICADO: Tela de Login Administrativo
   if (!isAuthenticated) {
     return (
       <div style={{ paddingTop: '60px', paddingBottom: '100px' }} className="admin-animate-fade">
         <div className="app-container" style={{ maxWidth: '480px' }}>
           <div className="admin-login-card">
-            {/* Brilho de fundo radial suave */}
             <div className="access-denied-glow-bg" />
-
-            {/* Cabeçalho elegante com badge e ícone halo */}
             <div className="admin-login-header-glow">
               <div className="admin-icon-halo">
                 <Lock size={28} color="var(--color-primary)" />
@@ -359,21 +581,17 @@ export const AdminPage: React.FC = () => {
     );
   }
 
-  // 2. CASO AUTENTICADO MAS NÃO É ADMIN (ex: Cliente ou Funcionário) -> 403 Forbidden
+  // 2. CASO AUTENTICADO MAS NÃO É ADMIN -> 403 Forbidden
   if (!isAdmin) {
     return (
       <div style={{ minHeight: 'calc(100vh - 120px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 16px' }} className="admin-animate-fade">
         <div style={{ width: '100%', maxWidth: '480px' }}>
           <div className="access-denied-card">
-            {/* Brilho de fundo radial suave */}
             <div className="access-denied-glow-bg" />
-
-            {/* Ícone de escudo em badge elegante */}
             <div className="access-denied-icon-box">
               <ShieldAlert size={36} color="var(--color-primary)" />
             </div>
 
-            {/* Pill tag estilizada */}
             <div>
               <span className="access-denied-pill">
                 <span className="access-denied-status-dot" />
@@ -381,7 +599,6 @@ export const AdminPage: React.FC = () => {
               </span>
             </div>
 
-            {/* Título de destaque com tipografia do sistema */}
             <h1
               style={{
                 fontSize: '25px',
@@ -395,7 +612,6 @@ export const AdminPage: React.FC = () => {
               Privilégios Insuficientes
             </h1>
 
-            {/* Texto informativo com destaque sutil */}
             <p
               style={{
                 color: 'var(--color-on-surface-variant)',
@@ -427,7 +643,6 @@ export const AdminPage: React.FC = () => {
               . A aba <strong>/admin</strong> é restrita exclusivamente a administradores gerais.
             </p>
 
-            {/* Ações primárias e secundárias */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '360px', margin: '0 auto' }}>
               <button
                 type="button"
@@ -574,15 +789,6 @@ export const AdminPage: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setCurrentTab('dashboard')}
-              className="btn-outline"
-              style={{ padding: '9px 16px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              <Sliders size={14} /> Ver Painel Pessoal
-            </button>
-
-            <button
-              type="button"
               onClick={() => setCurrentTab('home')}
               className="btn-outline"
               style={{ padding: '9px 16px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
@@ -616,7 +822,7 @@ export const AdminPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Métricas Principais (KPIs) */}
+        {/* Métricas Principais (KPIs Gerais) */}
         <div
           style={{
             display: 'grid',
@@ -655,27 +861,37 @@ export const AdminPage: React.FC = () => {
             <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)' }}>Cadastrados no sistema</span>
           </div>
 
-          <div className="glass-panel admin-kpi-card" style={{ padding: '20px', borderRadius: 'var(--radius-lg)' }}>
+          <div
+            className="glass-panel admin-kpi-card"
+            style={{ padding: '20px', borderRadius: 'var(--radius-lg)', cursor: 'pointer' }}
+            onClick={() => setActiveAdminTab('inventory')}
+            title="Ir para Gestão de Estoque"
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <span style={{ fontSize: '11px', color: 'var(--color-outline)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>
-                Produtos
+                Produtos em Catálogo
               </span>
               <div style={{ padding: '6px', borderRadius: '8px', backgroundColor: 'rgba(232, 179, 255, 0.1)' }}>
                 <Package size={16} color="var(--color-secondary)" />
               </div>
             </div>
             <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-headline)', fontFamily: 'var(--font-mono)' }}>
-              {products.length}
+              {activeProducts.length}
             </div>
             <span style={{ fontSize: '11px', color: produtosCriticos.length > 0 ? '#f87171' : 'var(--color-on-surface-variant)' }}>
-              {produtosCriticos.length > 0 ? `${produtosCriticos.length} com estoque baixo!` : 'Estoque regular'}
+              {produtosCriticos.length > 0 ? `${produtosCriticos.length} com estoque crítico!` : 'Estoque 100% regular'}
             </span>
           </div>
 
-          <div className="glass-panel admin-kpi-card" style={{ padding: '20px', borderRadius: 'var(--radius-lg)' }}>
+          <div
+            className="glass-panel admin-kpi-card"
+            style={{ padding: '20px', borderRadius: 'var(--radius-lg)', cursor: 'pointer' }}
+            onClick={() => setActiveAdminTab('tournaments')}
+            title="Ir para Torneios"
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <span style={{ fontSize: '11px', color: 'var(--color-outline)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>
-                Torneios
+                Torneios Ativos
               </span>
               <div style={{ padding: '6px', borderRadius: '8px', backgroundColor: 'rgba(255, 244, 191, 0.1)' }}>
                 <Trophy size={16} color="var(--color-accent-yellow)" />
@@ -684,13 +900,18 @@ export const AdminPage: React.FC = () => {
             <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-headline)', fontFamily: 'var(--font-mono)' }}>
               {tournaments.length}
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)' }}>Arenas e eventos ativos</span>
+            <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)' }}>Arenas e eventos cadastrados</span>
           </div>
 
-          <div className="glass-panel admin-kpi-card" style={{ padding: '20px', borderRadius: 'var(--radius-lg)' }}>
+          <div
+            className="glass-panel admin-kpi-card"
+            style={{ padding: '20px', borderRadius: 'var(--radius-lg)', cursor: 'pointer' }}
+            onClick={() => setActiveAdminTab('users')}
+            title="Ir para Usuários"
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <span style={{ fontSize: '11px', color: 'var(--color-outline)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>
-                Usuários
+                Equipe & Membros
               </span>
               <div style={{ padding: '6px', borderRadius: '8px', backgroundColor: 'rgba(216, 185, 255, 0.1)' }}>
                 <Users size={16} color="var(--color-primary)" />
@@ -699,7 +920,7 @@ export const AdminPage: React.FC = () => {
             <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-headline)', fontFamily: 'var(--font-mono)' }}>
               {userList.length}
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)' }}>Membros registrados</span>
+            <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)' }}>Colaboradores registrados</span>
           </div>
         </div>
 
@@ -714,28 +935,6 @@ export const AdminPage: React.FC = () => {
             paddingBottom: '12px',
           }}
         >
-          <button
-            onClick={() => setActiveAdminTab('users')}
-            className="admin-tab-btn"
-            style={{
-              padding: '10px 18px',
-              borderRadius: 'var(--radius-md)',
-              border: activeAdminTab === 'users' ? '1px solid rgba(216, 185, 255, 0.35)' : '1px solid transparent',
-              backgroundColor: activeAdminTab === 'users' ? 'rgba(216, 185, 255, 0.14)' : 'transparent',
-              color: activeAdminTab === 'users' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '13px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              boxShadow: activeAdminTab === 'users' ? '0 0 15px var(--glow-color)' : 'none',
-            }}
-          >
-            <Users size={15} /> Gestão de Usuários & Equipe
-          </button>
-
           <button
             onClick={() => setActiveAdminTab('inventory')}
             className="admin-tab-btn"
@@ -755,7 +954,29 @@ export const AdminPage: React.FC = () => {
               boxShadow: activeAdminTab === 'inventory' ? '0 0 15px var(--glow-color)' : 'none',
             }}
           >
-            <Package size={15} /> Produtos & Estoque Crítico
+            <Package size={15} /> Controle de Estoque & Kardex
+          </button>
+
+          <button
+            onClick={() => setActiveAdminTab('users')}
+            className="admin-tab-btn"
+            style={{
+              padding: '10px 18px',
+              borderRadius: 'var(--radius-md)',
+              border: activeAdminTab === 'users' ? '1px solid rgba(216, 185, 255, 0.35)' : '1px solid transparent',
+              backgroundColor: activeAdminTab === 'users' ? 'rgba(216, 185, 255, 0.14)' : 'transparent',
+              color: activeAdminTab === 'users' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '13px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: activeAdminTab === 'users' ? '0 0 15px var(--glow-color)' : 'none',
+            }}
+          >
+            <Users size={15} /> Gestão de Usuários & Equipe ({userList.length})
           </button>
 
           <button
@@ -777,7 +998,7 @@ export const AdminPage: React.FC = () => {
               boxShadow: activeAdminTab === 'tournaments' ? '0 0 15px var(--glow-color)' : 'none',
             }}
           >
-            <Trophy size={15} /> Torneios & Partidas
+            <Trophy size={15} /> Torneios & Confrontos ({tournaments.length})
           </button>
 
           <button
@@ -799,11 +1020,891 @@ export const AdminPage: React.FC = () => {
               boxShadow: activeAdminTab === 'orders' ? '0 0 15px var(--glow-color)' : 'none',
             }}
           >
-            <ShoppingBag size={15} /> Todos os Pedidos ({orders.length})
+            <ShoppingBag size={15} /> Pedidos ({orders.length})
           </button>
         </div>
 
-        {/* CONTEÚDO DA ABA: USUÁRIOS E EQUIPE */}
+        {/* =========================================================================
+            ABA 1: REFORMULAÇÃO 100% COMPLETA DE ESTOQUE & KARDEX
+           ========================================================================= */}
+        {activeAdminTab === 'inventory' && (
+          <div className="admin-animate-fade">
+            {/* Header com Ações Rápidas */}
+            <div
+              className="glass-panel"
+              style={{
+                padding: '24px',
+                borderRadius: 'var(--radius-xl)',
+                marginBottom: '20px',
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '16px',
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Package size={22} color="var(--color-primary)" />
+                  <h3 style={{ fontSize: '20px', color: 'var(--color-headline)', margin: 0, fontWeight: 800 }}>
+                    Central de Gestão de Estoque & Auditoria Kardex
+                  </h3>
+                </div>
+                <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', margin: '4px 0 0' }}>
+                  Controle de movimentações de entrada e saída, gatilhos de segurança e histórico auditável de mercadorias.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => openEntryModal()}
+                  className="btn-primary"
+                  style={{
+                    padding: '10px 18px',
+                    fontSize: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    boxShadow: '0 4px 15px rgba(16, 185, 129, 0.35)',
+                    fontWeight: 700,
+                  }}
+                >
+                  <ArrowUpCircle size={16} /> + Registrar Entrada
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openExitModal()}
+                  className="btn-outline"
+                  style={{
+                    padding: '10px 18px',
+                    fontSize: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    borderColor: 'rgba(239, 68, 68, 0.4)',
+                    color: '#f87171',
+                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                    fontWeight: 700,
+                  }}
+                >
+                  <ArrowDownCircle size={16} /> - Baixa Operacional
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    refreshStockMovements();
+                    showToast('Histórico de estoque atualizado!');
+                  }}
+                  className="btn-outline"
+                  style={{ padding: '10px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  title="Recarregar movimentações"
+                >
+                  <RefreshCw size={14} /> Atualizar
+                </button>
+              </div>
+            </div>
+
+            {/* 4 Cards de Métricas de Estoque */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: '16px',
+                marginBottom: '24px',
+              }}
+            >
+              <div
+                className="glass-panel"
+                style={{
+                  padding: '18px 20px',
+                  borderRadius: 'var(--radius-lg)',
+                  border: '1px solid rgba(216, 185, 255, 0.25)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Capital Imobilizado
+                  </span>
+                  <DollarSign size={16} color="var(--color-primary)" />
+                </div>
+                <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--color-primary)', fontFamily: 'var(--font-mono)' }}>
+                  R$ {valorTotalEstoque.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)' }}>
+                  Valor total em inventário ativo
+                </span>
+              </div>
+
+              <div
+                className="glass-panel"
+                style={{
+                  padding: '18px 20px',
+                  borderRadius: 'var(--radius-lg)',
+                  border: '1px solid var(--card-border)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Total Físico em Prateleira
+                  </span>
+                  <Boxes size={16} color="var(--color-headline)" />
+                </div>
+                <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--color-headline)', fontFamily: 'var(--font-mono)' }}>
+                  {totalUnidadesEstoque} unidades
+                </div>
+                <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)' }}>
+                  Distribuídas em {activeProducts.length} itens ativos
+                </span>
+              </div>
+
+              <div
+                className="glass-panel"
+                style={{
+                  padding: '18px 20px',
+                  borderRadius: 'var(--radius-lg)',
+                  border: produtosCriticos.length > 0 ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid var(--card-border)',
+                  backgroundColor: produtosCriticos.length > 0 ? 'rgba(239, 68, 68, 0.08)' : 'transparent',
+                  cursor: 'pointer',
+                }}
+                onClick={() => setInventorySubTab('critical')}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '11px', color: produtosCriticos.length > 0 ? '#f87171' : 'var(--color-outline)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Nível de Reposição Crítico
+                  </span>
+                  <AlertTriangle size={16} color={produtosCriticos.length > 0 ? '#f87171' : '#4ade80'} />
+                </div>
+                <div style={{ fontSize: '22px', fontWeight: 800, color: produtosCriticos.length > 0 ? '#f87171' : '#4ade80', fontFamily: 'var(--font-mono)' }}>
+                  {produtosCriticos.length} produto{produtosCriticos.length === 1 ? '' : 's'}
+                </div>
+                <span style={{ fontSize: '11px', color: produtosCriticos.length > 0 ? '#fca5a5' : 'var(--color-on-surface-variant)' }}>
+                  {produtosCriticos.length > 0 ? 'Abaixo do limite de segurança' : 'Nenhum item com estoque crítico'}
+                </span>
+              </div>
+
+              <div
+                className="glass-panel"
+                style={{
+                  padding: '18px 20px',
+                  borderRadius: 'var(--radius-lg)',
+                  border: '1px solid var(--card-border)',
+                  cursor: 'pointer',
+                }}
+                onClick={() => setInventorySubTab('movements')}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Auditorias no Kardex
+                  </span>
+                  <History size={16} color="var(--color-secondary)" />
+                </div>
+                <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--color-secondary)', fontFamily: 'var(--font-mono)' }}>
+                  {stockMovements.length} registros
+                </div>
+                <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)' }}>
+                  Rastreabilidade com responsável e motivo
+                </span>
+              </div>
+            </div>
+
+            {/* Sub-abas de Visualização e Filtros */}
+            <div
+              className="glass-panel"
+              style={{
+                padding: '20px',
+                borderRadius: 'var(--radius-xl)',
+                marginBottom: '20px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '14px',
+                  borderBottom: '1px solid var(--card-border)',
+                  paddingBottom: '16px',
+                  marginBottom: '16px',
+                }}
+              >
+                {/* Sub-abas Pills */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setInventorySubTab('all')}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: inventorySubTab === 'all' ? '1px solid var(--color-primary)' : '1px solid var(--card-border)',
+                      backgroundColor: inventorySubTab === 'all' ? 'rgba(216, 185, 255, 0.15)' : 'transparent',
+                      color: inventorySubTab === 'all' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Layers size={14} /> Inventário Completo ({activeProducts.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setInventorySubTab('critical')}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: inventorySubTab === 'critical' ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid var(--card-border)',
+                      backgroundColor: inventorySubTab === 'critical' ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
+                      color: inventorySubTab === 'critical' ? '#f87171' : 'var(--color-on-surface-variant)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <AlertTriangle size={14} /> Itens Críticos ({produtosCriticos.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setInventorySubTab('movements')}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: inventorySubTab === 'movements' ? '1px solid var(--color-secondary)' : '1px solid var(--card-border)',
+                      backgroundColor: inventorySubTab === 'movements' ? 'rgba(232, 179, 255, 0.15)' : 'transparent',
+                      color: inventorySubTab === 'movements' ? 'var(--color-secondary)' : 'var(--color-on-surface-variant)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <History size={14} /> Kardex / Movimentações ({stockMovements.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setInventorySubTab('inactive')}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: inventorySubTab === 'inactive' ? '1px solid rgba(148, 163, 184, 0.5)' : '1px solid var(--card-border)',
+                      backgroundColor: inventorySubTab === 'inactive' ? 'rgba(148, 163, 184, 0.15)' : 'transparent',
+                      color: inventorySubTab === 'inactive' ? '#e2e8f0' : 'var(--color-outline)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                    title="Visualizar e excluir definitivamente produtos inativados"
+                  >
+                    <Trash2 size={14} /> Inativos & Lixeira ({inactiveProducts.length})
+                  </button>
+                </div>
+
+                {/* Filtros de Busca e Seleção */}
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ position: 'relative', minWidth: '220px' }}>
+                    <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-outline)' }} />
+                    <input
+                      type="text"
+                      className="system-input"
+                      placeholder="Pesquisar por nome, ID ou motivo..."
+                      value={inventorySearch}
+                      onChange={(e) => setInventorySearch(e.target.value)}
+                      style={{ paddingLeft: '32px', fontSize: '12px', height: '36px' }}
+                    />
+                    {inventorySearch && (
+                      <button
+                        type="button"
+                        onClick={() => setInventorySearch('')}
+                        style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--color-outline)', cursor: 'pointer' }}
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+
+                  {inventorySubTab !== 'movements' ? (
+                    <select
+                      className="system-input"
+                      value={inventoryGameFilter}
+                      onChange={(e) => setInventoryGameFilter(e.target.value as GameId | 'all')}
+                      style={{ fontSize: '12px', height: '36px' }}
+                    >
+                      <option value="all">Todos os Jogos</option>
+                      <option value="pokemon">Pokémon TCG</option>
+                      <option value="magic">Magic: The Gathering</option>
+                      <option value="yugioh">Yu-Gi-Oh!</option>
+                      <option value="onepiece">One Piece Card Game</option>
+                      <option value="outros">Acessórios / Outros</option>
+                    </select>
+                  ) : (
+                    <select
+                      className="system-input"
+                      value={movementTypeFilter}
+                      onChange={(e) => setMovementTypeFilter(e.target.value as 'all' | 'entrada' | 'saida')}
+                      style={{ fontSize: '12px', height: '36px' }}
+                    >
+                      <option value="all">Todas as Operações</option>
+                      <option value="entrada">Apenas Entradas (+)</option>
+                      <option value="saida">Apenas Saídas (-)</option>
+                    </select>
+                  )}
+                </div>
+              </div>
+
+              {/* TABELA: PRODUTOS (Ativos ou Críticos) */}
+              {(inventorySubTab === 'all' || inventorySubTab === 'critical') && (
+                <div style={{ overflowX: 'auto' }}>
+                  {filteredProducts.length === 0 ? (
+                    <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--color-outline)' }}>
+                      <Package size={36} style={{ margin: '0 auto 10px', opacity: 0.5 }} />
+                      <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>Nenhum produto encontrado com os filtros selecionados.</p>
+                      <span style={{ fontSize: '12px' }}>Tente alterar o termo de busca ou selecionar outra categoria.</span>
+                    </div>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--card-border)', color: 'var(--color-outline)', fontSize: '11px', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          <th style={{ padding: '12px 10px' }}>Produto</th>
+                          <th style={{ padding: '12px 10px' }}>Jogo / Categoria</th>
+                          <th style={{ padding: '12px 10px' }}>Preço Unitário</th>
+                          <th style={{ padding: '12px 10px' }}>Estoque Atual</th>
+                          <th style={{ padding: '12px 10px' }}>Estoque Mínimo</th>
+                          <th style={{ padding: '12px 10px' }}>Status</th>
+                          <th style={{ padding: '12px 10px', textAlign: 'right' }}>Ações de Movimentação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredProducts.map((p) => {
+                          const minStock = p.estoqueMinimo ?? 3;
+                          const isOutOfStock = p.estoque <= 0;
+                          const isLowStock = !isOutOfStock && p.estoque <= minStock;
+                          const progressPercentage = Math.min(100, Math.round((p.estoque / (minStock * 2 || 6)) * 100));
+
+                          return (
+                            <tr key={p.id} className="admin-table-row" style={{ borderBottom: '1px solid var(--card-border)', fontSize: '13px' }}>
+                              {/* Thumbnail + Nome */}
+                              <td style={{ padding: '12px 10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                  <div
+                                    style={{
+                                      width: '42px',
+                                      height: '42px',
+                                      borderRadius: '8px',
+                                      backgroundColor: 'var(--color-surface-container-high)',
+                                      overflow: 'hidden',
+                                      flexShrink: 0,
+                                      border: '1px solid var(--card-border)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    {p.imagemUrl ? (
+                                      <img
+                                        src={p.imagemUrl}
+                                        alt={p.nome}
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        onError={(e) => {
+                                          (e.currentTarget as HTMLElement).style.display = 'none';
+                                        }}
+                                      />
+                                    ) : (
+                                      <Package size={18} color="var(--color-outline)" />
+                                    )}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight: 700, color: 'var(--color-headline)', fontSize: '13.5px' }}>
+                                      {p.nome}
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)' }}>
+                                      ID: #{p.id}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Jogo e Categoria */}
+                              <td style={{ padding: '12px 10px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                  <span className="badge badge-muted" style={{ width: 'fit-content', fontSize: '10px' }}>
+                                    {p.jogoNome}
+                                  </span>
+                                  {p.categoria && (
+                                    <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)' }}>
+                                      {p.categoria}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Preço Unitário */}
+                              <td style={{ padding: '12px 10px', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-primary)' }}>
+                                R$ {p.preco.toFixed(2)}
+                              </td>
+
+                              {/* Estoque Atual com Barra Visual */}
+                              <td style={{ padding: '12px 10px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '110px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span
+                                      style={{
+                                        fontFamily: 'var(--font-mono)',
+                                        fontWeight: 800,
+                                        fontSize: '14px',
+                                        color: isOutOfStock ? '#f87171' : isLowStock ? '#fbbf24' : '#4ade80',
+                                      }}
+                                    >
+                                      {p.estoque} un.
+                                    </span>
+                                  </div>
+                                  <div
+                                    style={{
+                                      width: '100%',
+                                      height: '5px',
+                                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                      borderRadius: '4px',
+                                      overflow: 'hidden',
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        height: '100%',
+                                        width: `${progressPercentage}%`,
+                                        backgroundColor: isOutOfStock ? '#f87171' : isLowStock ? '#fbbf24' : '#4ade80',
+                                        borderRadius: '4px',
+                                        transition: 'width 0.3s ease',
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Estoque Mínimo Configurável */}
+                              <td style={{ padding: '12px 10px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => openMinStockModal(p)}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '4px 10px',
+                                    borderRadius: '6px',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                    border: '1px solid var(--card-border)',
+                                    color: 'var(--color-headline)',
+                                    fontFamily: 'var(--font-mono)',
+                                    fontSize: '12px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                  title="Clique para alterar o limite mínimo deste item"
+                                >
+                                  <span>{minStock} un.</span>
+                                  <Settings size={12} color="var(--color-outline)" />
+                                </button>
+                              </td>
+
+                              {/* Badge de Status */}
+                              <td style={{ padding: '12px 10px' }}>
+                                {isOutOfStock ? (
+                                  <span
+                                    style={{
+                                      display: 'inline-block',
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '10px',
+                                      fontWeight: 800,
+                                      fontFamily: 'var(--font-mono)',
+                                      textTransform: 'uppercase',
+                                      backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                      border: '1px solid rgba(239, 68, 68, 0.35)',
+                                      color: '#f87171',
+                                    }}
+                                  >
+                                    ESGOTADO
+                                  </span>
+                                ) : isLowStock ? (
+                                  <span
+                                    style={{
+                                      display: 'inline-block',
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '10px',
+                                      fontWeight: 800,
+                                      fontFamily: 'var(--font-mono)',
+                                      textTransform: 'uppercase',
+                                      backgroundColor: 'rgba(251, 191, 36, 0.15)',
+                                      border: '1px solid rgba(251, 191, 36, 0.35)',
+                                      color: '#fbbf24',
+                                    }}
+                                  >
+                                    CRÍTICO
+                                  </span>
+                                ) : (
+                                  <span
+                                    style={{
+                                      display: 'inline-block',
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '10px',
+                                      fontWeight: 800,
+                                      fontFamily: 'var(--font-mono)',
+                                      textTransform: 'uppercase',
+                                      backgroundColor: 'rgba(74, 222, 128, 0.12)',
+                                      border: '1px solid rgba(74, 222, 128, 0.3)',
+                                      color: '#4ade80',
+                                    }}
+                                  >
+                                    REGULAR
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Ações Rápidas por Linha */}
+                              <td style={{ padding: '12px 10px', textAlign: 'right' }}>
+                                <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => openEntryModal(p)}
+                                    style={{
+                                      padding: '5px 10px',
+                                      borderRadius: '6px',
+                                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                      color: '#34d399',
+                                      fontSize: '11px',
+                                      fontFamily: 'var(--font-mono)',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                    title="Registrar entrada de mercadoria deste produto"
+                                  >
+                                    <Plus size={12} /> Entrada
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => openExitModal(p)}
+                                    disabled={p.estoque <= 0}
+                                    style={{
+                                      padding: '5px 10px',
+                                      borderRadius: '6px',
+                                      border: '1px solid rgba(239, 68, 68, 0.4)',
+                                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                      color: '#f87171',
+                                      fontSize: '11px',
+                                      fontFamily: 'var(--font-mono)',
+                                      fontWeight: 700,
+                                      cursor: p.estoque <= 0 ? 'not-allowed' : 'pointer',
+                                      opacity: p.estoque <= 0 ? 0.5 : 1,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                    title="Registrar saída / baixa operacional deste produto"
+                                  >
+                                    <Minus size={12} /> Baixa
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
+              {/* TABELA: KARDEX & AUDITORIA DE MOVIMENTAÇÕES */}
+              {inventorySubTab === 'movements' && (
+                <div style={{ overflowX: 'auto' }}>
+                  {filteredMovements.length === 0 ? (
+                    <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--color-outline)' }}>
+                      <History size={36} style={{ margin: '0 auto 10px', opacity: 0.5 }} />
+                      <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>Nenhuma movimentação de estoque registrada até o momento.</p>
+                      <span style={{ fontSize: '12px' }}>Realize uma entrada ou baixa para iniciar o histórico auditável do Kardex.</span>
+                    </div>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--card-border)', color: 'var(--color-outline)', fontSize: '11px', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          <th style={{ padding: '12px 10px' }}>Data / Hora</th>
+                          <th style={{ padding: '12px 10px' }}>Produto</th>
+                          <th style={{ padding: '12px 10px' }}>Tipo</th>
+                          <th style={{ padding: '12px 10px' }}>Quantidade</th>
+                          <th style={{ padding: '12px 10px' }}>Transição de Saldo</th>
+                          <th style={{ padding: '12px 10px' }}>Motivo / Justificativa</th>
+                          <th style={{ padding: '12px 10px' }}>Responsável</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredMovements.map((m) => {
+                          const isEntrada = m.tipo === 'entrada';
+                          return (
+                            <tr key={m.id_movimentacao} className="admin-table-row" style={{ borderBottom: '1px solid var(--card-border)', fontSize: '13px' }}>
+                              <td style={{ padding: '12px 10px', fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--color-outline)' }}>
+                                {m.data_hora}
+                              </td>
+
+                              <td style={{ padding: '12px 10px' }}>
+                                <div style={{ fontWeight: 700, color: 'var(--color-headline)' }}>
+                                  {m.produto_nome}
+                                </div>
+                                <span style={{ fontSize: '10.5px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)' }}>
+                                  ID Ref: #{m.produto_id}
+                                </span>
+                              </td>
+
+                              <td style={{ padding: '12px 10px' }}>
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '3px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '11px',
+                                    fontFamily: 'var(--font-mono)',
+                                    fontWeight: 800,
+                                    backgroundColor: isEntrada ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                    border: isEntrada ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.4)',
+                                    color: isEntrada ? '#34d399' : '#f87171',
+                                  }}
+                                >
+                                  {isEntrada ? <ArrowUpCircle size={13} /> : <ArrowDownCircle size={13} />}
+                                  {m.tipo.toUpperCase()}
+                                </span>
+                              </td>
+
+                              <td style={{ padding: '12px 10px', fontFamily: 'var(--font-mono)', fontWeight: 800, color: isEntrada ? '#34d399' : '#f87171' }}>
+                                {isEntrada ? `+${m.quantidade}` : `-${m.quantidade}`} un.
+                              </td>
+
+                              <td style={{ padding: '12px 10px', fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
+                                <span style={{ color: 'var(--color-outline)' }}>{m.saldo_anterior} un.</span>
+                                <span style={{ margin: '0 6px', color: 'var(--color-primary)' }}>➔</span>
+                                <strong style={{ color: 'var(--color-headline)' }}>{m.saldo_posterior} un.</strong>
+                              </td>
+
+                              <td style={{ padding: '12px 10px', color: 'var(--color-on-surface-variant)', fontSize: '12.5px' }}>
+                                {m.motivo || 'Sem justificativa preenchida'}
+                              </td>
+
+                              <td style={{ padding: '12px 10px' }}>
+                                <span
+                                  style={{
+                                    display: 'inline-block',
+                                    padding: '2px 8px',
+                                    borderRadius: '4px',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                                    fontSize: '11px',
+                                    fontFamily: 'var(--font-mono)',
+                                    color: 'var(--color-headline)',
+                                  }}
+                                >
+                                  {m.responsavel}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
+              {/* TABELA: PRODUTOS INATIVOS & LIXEIRA (Permite excluir definitivamente) */}
+              {inventorySubTab === 'inactive' && (
+                <div style={{ overflowX: 'auto' }}>
+                  {filteredInactive.length === 0 ? (
+                    <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--color-outline)' }}>
+                      <Trash2 size={36} style={{ margin: '0 auto 10px', opacity: 0.5 }} />
+                      <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>Nenhum produto inativo no momento.</p>
+                      <span style={{ fontSize: '12px' }}>Produtos desativados no catálogo aparecerão aqui para serem reativados ou excluídos definitivamente.</span>
+                    </div>
+                  ) : (
+                    <div>
+                      <div
+                        style={{
+                          padding: '12px 16px',
+                          borderRadius: '8px',
+                          backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                          border: '1px solid rgba(239, 68, 68, 0.25)',
+                          marginBottom: '16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                        }}
+                      >
+                        <AlertCircle size={18} color="#f87171" />
+                        <span style={{ fontSize: '12.5px', color: '#fca5a5' }}>
+                          Itens inativos não estão visíveis aos clientes na vitrine da loja. Você pode restaurá-los a qualquer momento ou excluí-los permanentemente da base de dados.
+                        </span>
+                      </div>
+
+                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--card-border)', color: 'var(--color-outline)', fontSize: '11px', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            <th style={{ padding: '12px 10px' }}>Produto Inativado</th>
+                            <th style={{ padding: '12px 10px' }}>Jogo / Categoria</th>
+                            <th style={{ padding: '12px 10px' }}>Preço</th>
+                            <th style={{ padding: '12px 10px' }}>Estoque Remanescente</th>
+                            <th style={{ padding: '12px 10px', textAlign: 'right' }}>Ações de Descarte / Restauração</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredInactive.map((p) => (
+                            <tr key={p.id} className="admin-table-row" style={{ borderBottom: '1px solid var(--card-border)', fontSize: '13px' }}>
+                              <td style={{ padding: '12px 10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                  <div
+                                    style={{
+                                      width: '40px',
+                                      height: '40px',
+                                      borderRadius: '8px',
+                                      backgroundColor: 'var(--color-surface-container-high)',
+                                      overflow: 'hidden',
+                                      flexShrink: 0,
+                                      border: '1px solid var(--card-border)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    {p.imagemUrl ? (
+                                      <img
+                                        src={p.imagemUrl}
+                                        alt={p.nome}
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        onError={(e) => {
+                                          (e.currentTarget as HTMLElement).style.display = 'none';
+                                        }}
+                                      />
+                                    ) : (
+                                      <Package size={18} color="var(--color-outline)" />
+                                    )}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight: 700, color: 'var(--color-headline)' }}>{p.nome}</div>
+                                    <div style={{ fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)' }}>
+                                      ID: #{p.id} • <span style={{ color: '#f87171', fontWeight: 700 }}>INATIVO</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td style={{ padding: '12px 10px' }}>
+                                <span className="badge badge-muted" style={{ fontSize: '10px' }}>
+                                  {p.jogoNome}
+                                </span>
+                              </td>
+
+                              <td style={{ padding: '12px 10px', fontFamily: 'var(--font-mono)', color: 'var(--color-primary)' }}>
+                                R$ {p.preco.toFixed(2)}
+                              </td>
+
+                              <td style={{ padding: '12px 10px', fontFamily: 'var(--font-mono)' }}>
+                                {p.estoque} un.
+                              </td>
+
+                              <td style={{ padding: '12px 10px', textAlign: 'right' }}>
+                                <div style={{ display: 'inline-flex', gap: '8px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      reactivateProduct(p.id);
+                                      showToast(`Produto "${p.nome}" reativado com sucesso!`);
+                                    }}
+                                    className="btn-outline"
+                                    style={{
+                                      padding: '6px 12px',
+                                      fontSize: '11.5px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '5px',
+                                      borderColor: 'rgba(74, 222, 128, 0.4)',
+                                      color: '#4ade80',
+                                    }}
+                                  >
+                                    <RotateCcw size={13} /> Reativar
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      showToastConfirm({
+                                        message: `Deseja realmente excluir permanentemente o produto "${p.nome}" (ID #${p.id})? Esta ação não pode ser desfeita.`,
+                                        confirmText: 'Excluir definitivamente',
+                                        cancelText: 'Cancelar',
+                                        onConfirm: () => {
+                                          removeProductPermanently(p.id);
+                                        },
+                                      });
+                                    }}
+                                    style={{
+                                      padding: '6px 12px',
+                                      borderRadius: 'var(--radius-sm)',
+                                      border: '1px solid rgba(239, 68, 68, 0.4)',
+                                      backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                      color: '#f87171',
+                                      fontSize: '11.5px',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '5px',
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                    title="Excluir do banco permanentemente"
+                                  >
+                                    <Trash2 size={13} /> Excluir Definitivamente
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================================
+            ABA 2: GESTÃO DE USUÁRIOS E EQUIPE (Com exclusão e promoção)
+           ========================================================================= */}
         {activeAdminTab === 'users' && (
           <div className="glass-panel admin-animate-fade" style={{ padding: '24px', borderRadius: 'var(--radius-xl)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '20px' }}>
@@ -812,7 +1913,7 @@ export const AdminPage: React.FC = () => {
                   Usuários e Equipe de Funcionários
                 </h3>
                 <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', margin: '4px 0 0' }}>
-                  Controle as permissões de acesso, atribua cargos administrativos e gerencie membros.
+                  Controle as permissões de acesso, atribua cargos administrativos e gerencie membros da loja.
                 </p>
               </div>
 
@@ -885,12 +1986,13 @@ export const AdminPage: React.FC = () => {
                                 : user.role === 'funcionario'
                                   ? '#facc15'
                                   : 'var(--color-on-surface-variant)',
-                            border: `1px solid ${user.role === 'admin'
-                              ? 'rgba(216, 185, 255, 0.4)'
-                              : user.role === 'funcionario'
-                                ? 'rgba(250, 204, 21, 0.3)'
-                                : 'rgba(140, 86, 212, 0.25)'
-                              }`,
+                            border: `1px solid ${
+                              user.role === 'admin'
+                                ? 'rgba(216, 185, 255, 0.4)'
+                                : user.role === 'funcionario'
+                                  ? 'rgba(250, 204, 21, 0.3)'
+                                  : 'rgba(140, 86, 212, 0.25)'
+                            }`,
                           }}
                         >
                           {user.role}
@@ -900,7 +2002,7 @@ export const AdminPage: React.FC = () => {
                         {user.cargo || (user.role === 'admin' ? 'Administrador Geral' : user.role === 'funcionario' ? 'Atendente' : 'Cliente')}
                       </td>
                       <td style={{ padding: '12px 10px', textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '6px' }}>
+                        <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
                           {user.role !== 'admin' && (
                             <button
                               type="button"
@@ -960,6 +2062,30 @@ export const AdminPage: React.FC = () => {
                               Cliente
                             </button>
                           )}
+
+                          {/* Botão de Exclusão de Usuário */}
+                          {user.id !== currentUser.id && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteUser(user)}
+                              style={{
+                                padding: '5px 8px',
+                                fontSize: '11px',
+                                borderRadius: '6px',
+                                border: '1px solid rgba(239, 68, 68, 0.4)',
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                color: '#f87171',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                transition: 'all 0.15s ease',
+                              }}
+                              title={`Excluir usuário ${user.nome}`}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -970,266 +2096,269 @@ export const AdminPage: React.FC = () => {
           </div>
         )}
 
-        {/* CONTEÚDO DA ABA: PRODUTOS E ESTOQUE */}
-        {activeAdminTab === 'inventory' && (
-          <div>
-            {produtosCriticos.length > 0 && (
-              <div
-                style={{
-                  padding: '16px 20px',
-                  borderRadius: 'var(--radius-lg)',
-                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.4)',
-                  marginBottom: '20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                }}
-              >
-                <AlertTriangle size={20} color="#f87171" />
+        {/* =========================================================================
+            ABA 3: TORNEIOS & CONFRONTOS (Com exclusão e registro)
+           ========================================================================= */}
+        {activeAdminTab === 'tournaments' && (
+          <div className="admin-animate-fade" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Lista e Gestão de Torneios Cadastrados */}
+            <div className="glass-panel" style={{ padding: '24px', borderRadius: 'var(--radius-xl)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
                 <div>
-                  <strong style={{ color: '#f87171', fontSize: '14px' }}>Alerta de Estoque Crítico!</strong>
-                  <p style={{ margin: 0, fontSize: '12px', color: 'var(--color-on-surface-variant)' }}>
-                    Existem {produtosCriticos.length} produto(s) com estoque menor ou igual a 4 unidades requerendo reposição urgente.
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Trophy size={18} color="var(--color-accent-yellow)" />
+                    <h3 style={{ fontSize: '18px', color: 'var(--color-headline)', margin: 0, fontWeight: 700 }}>
+                      Torneios Oficiais do Sistema ({tournaments.length})
+                    </h3>
+                  </div>
+                  <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', margin: '4px 0 0' }}>
+                    Supervisione arenas ativas, vagas preenchidas e remova eventos encerrados ou obsoletos.
                   </p>
                 </div>
-              </div>
-            )}
 
-            <div className="glass-panel" style={{ padding: '24px', borderRadius: 'var(--radius-xl)' }}>
-              <h3 style={{ fontSize: '18px', color: 'var(--color-headline)', marginBottom: '16px' }}>
-                Inventário Geral do Catálogo
-              </h3>
+                <button
+                  type="button"
+                  onClick={() => setCurrentTab('tournaments')}
+                  className="btn-outline"
+                  style={{ padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Trophy size={13} /> Ver na Visão Geral de Arenas
+                </button>
+              </div>
+
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead>
-                    <tr style={{ borderBottom: '1px solid var(--card-border)', color: 'var(--color-outline)', fontSize: '11px', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
-                      <th style={{ padding: '10px' }}>ID</th>
-                      <th style={{ padding: '10px' }}>Produto</th>
-                      <th style={{ padding: '10px' }}>Jogo</th>
-                      <th style={{ padding: '10px' }}>Preço</th>
-                      <th style={{ padding: '10px' }}>Estoque Atual</th>
-                      <th style={{ padding: '10px', textAlign: 'right' }}>Ajuste Rápido</th>
+                    <tr style={{ borderBottom: '1px solid var(--card-border)', color: 'var(--color-outline)', fontSize: '11px', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      <th style={{ padding: '12px 10px' }}>Torneio</th>
+                      <th style={{ padding: '12px 10px' }}>Card Game</th>
+                      <th style={{ padding: '12px 10px' }}>Data / Horário</th>
+                      <th style={{ padding: '12px 10px' }}>Taxa de Entrada</th>
+                      <th style={{ padding: '12px 10px' }}>Ocupação</th>
+                      <th style={{ padding: '12px 10px' }}>Status</th>
+                      <th style={{ padding: '12px 10px', textAlign: 'right' }}>Ações</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {products.map((p) => {
-                      const isLow = p.estoque <= 4;
-                      return (
-                        <tr key={p.id} style={{ borderBottom: '1px solid var(--card-border)', fontSize: '13px' }}>
-                          <td style={{ padding: '10px', fontFamily: 'var(--font-mono)' }}>#{p.id}</td>
-                          <td style={{ padding: '10px', fontWeight: 600 }}>{p.nome}</td>
-                          <td style={{ padding: '10px' }}>
-                            <span className="badge badge-muted">{p.jogoNome}</span>
-                          </td>
-                          <td style={{ padding: '10px', fontFamily: 'var(--font-mono)', color: 'var(--color-primary)' }}>
-                            R$ {p.preco.toFixed(2)}
-                          </td>
-                          <td style={{ padding: '10px' }}>
-                            <span
-                              style={{
-                                fontFamily: 'var(--font-mono)',
-                                fontWeight: 700,
-                                color: isLow ? '#f87171' : 'var(--color-headline)',
-                              }}
-                            >
-                              {p.estoque} un.
-                            </span>
-                            {isLow && (
-                              <span style={{ marginLeft: '8px', fontSize: '10px', color: '#f87171', fontWeight: 700, textTransform: 'uppercase' }}>
-                                (Baixo)
-                              </span>
-                            )}
-                          </td>
-                          <td style={{ padding: '10px', textAlign: 'right' }}>
-                            <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
-                              <button
-                                type="button"
-                                onClick={() => updateProductStock(p.id, -1)}
-                                disabled={p.estoque <= 0}
-                                style={{
-                                  width: '28px',
-                                  height: '28px',
-                                  borderRadius: '4px',
-                                  border: '1px solid var(--card-border)',
-                                  background: 'transparent',
-                                  color: 'var(--color-on-surface)',
-                                  cursor: p.estoque <= 0 ? 'not-allowed' : 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                }}
-                              >
-                                <Minus size={13} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => updateProductStock(p.id, 1)}
-                                style={{
-                                  width: '28px',
-                                  height: '28px',
-                                  borderRadius: '4px',
-                                  border: '1px solid var(--card-border)',
-                                  background: 'transparent',
-                                  color: 'var(--color-on-surface)',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                }}
-                              >
-                                <Plus size={13} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {tournaments.map((t) => (
+                      <tr key={t.id} className="admin-table-row" style={{ borderBottom: '1px solid var(--card-border)', fontSize: '13px' }}>
+                        <td style={{ padding: '12px 10px', fontWeight: 700, color: 'var(--color-headline)' }}>
+                          {t.titulo}
+                        </td>
+                        <td style={{ padding: '12px 10px' }}>
+                          <span className="badge badge-muted">{t.jogoNome}</span>
+                        </td>
+                        <td style={{ padding: '12px 10px', fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--color-on-surface-variant)' }}>
+                          {t.data}
+                        </td>
+                        <td style={{ padding: '12px 10px', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-primary)' }}>
+                          {t.taxaInscricao > 0 ? `R$ ${t.taxaInscricao.toFixed(2)}` : 'Gratuito'}
+                        </td>
+                        <td style={{ padding: '12px 10px', fontFamily: 'var(--font-mono)' }}>
+                          {t.vagasOcupadas} / {t.vagasTotais} inscritos
+                        </td>
+                        <td style={{ padding: '12px 10px' }}>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontFamily: 'var(--font-mono)',
+                              fontWeight: 700,
+                              backgroundColor:
+                                t.status === 'aberto'
+                                  ? 'rgba(74, 222, 128, 0.15)'
+                                  : t.status === 'lotado'
+                                    ? 'rgba(250, 204, 21, 0.15)'
+                                    : 'rgba(148, 163, 184, 0.15)',
+                              color:
+                                t.status === 'aberto'
+                                  ? '#4ade80'
+                                  : t.status === 'lotado'
+                                    ? '#facc15'
+                                    : 'var(--color-outline)',
+                            }}
+                          >
+                            {t.status.toUpperCase()}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 10px', textAlign: 'right' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTournament(t.id, t.titulo)}
+                            style={{
+                              padding: '5px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid rgba(239, 68, 68, 0.4)',
+                              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                              color: '#f87171',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              transition: 'all 0.15s ease',
+                            }}
+                            title="Excluir este torneio"
+                          >
+                            <Trash2 size={12} /> Excluir
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* CONTEÚDO DA ABA: TORNEIOS E REGISTRO DE PARTIDAS */}
-        {activeAdminTab === 'tournaments' && (
-          <div className="admin-animate-fade" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
-            {/* Formulário de Registro de Confronto / Partida */}
-            <div className="glass-panel" style={{ padding: '24px', borderRadius: 'var(--radius-xl)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                <Trophy size={18} color="var(--color-primary)" />
-                <h3 style={{ fontSize: '18px', color: 'var(--color-headline)', margin: 0, fontWeight: 700 }}>
-                  Registrar Resultado de Partida
-                </h3>
-              </div>
-              <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', marginBottom: '20px' }}>
-                Lance o confronto e o resultado oficial das partidas de eliminatórias ou suíço.
-              </p>
-
-              <form onSubmit={handleRegisterMatch} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
-                    Selecione o Torneio
-                  </label>
-                  <select
-                    className="system-input"
-                    value={selectedTournamentId || ''}
-                    onChange={(e) => setSelectedTournamentId(Number(e.target.value))}
-                    style={{ fontSize: '13px' }}
-                  >
-                    <option value="">Selecione um torneio...</option>
-                    {tournaments.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.titulo} ({t.jogoNome})
-                      </option>
-                    ))}
-                  </select>
+            {/* Painel de Registro de Partidas & Histórico */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+              {/* Formulário de Registro de Confronto / Partida */}
+              <div className="glass-panel" style={{ padding: '24px', borderRadius: 'var(--radius-xl)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <Trophy size={18} color="var(--color-primary)" />
+                  <h3 style={{ fontSize: '18px', color: 'var(--color-headline)', margin: 0, fontWeight: 700 }}>
+                    Registrar Resultado de Partida
+                  </h3>
                 </div>
+                <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', marginBottom: '20px' }}>
+                  Lance o confronto e o resultado oficial das partidas de eliminatórias ou suíço.
+                </p>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <form onSubmit={handleRegisterMatch} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
-                      Jogador 1 (Duelista A)
+                      Selecione o Torneio
                     </label>
-                    <input
-                      type="text"
+                    <select
                       className="system-input"
-                      placeholder="Ex: Pedro Henrique"
-                      value={matchPlayer1}
-                      onChange={(e) => setMatchPlayer1(e.target.value)}
-                    />
+                      value={selectedTournamentId || ''}
+                      onChange={(e) => setSelectedTournamentId(Number(e.target.value))}
+                      style={{ fontSize: '13px' }}
+                    >
+                      <option value="">Selecione um torneio...</option>
+                      {tournaments.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.titulo} ({t.jogoNome})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+                        Jogador 1 (Duelista A)
+                      </label>
+                      <input
+                        type="text"
+                        className="system-input"
+                        placeholder="Ex: Pedro Henrique"
+                        value={matchPlayer1}
+                        onChange={(e) => setMatchPlayer1(e.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+                        Jogador 2 (Duelista B)
+                      </label>
+                      <input
+                        type="text"
+                        className="system-input"
+                        placeholder="Ex: Lucas Tadashi"
+                        value={matchPlayer2}
+                        onChange={(e) => setMatchPlayer2(e.target.value)}
+                      />
+                    </div>
                   </div>
 
                   <div>
                     <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
-                      Jogador 2 (Duelista B)
+                      Resultado / Placar Oficial
                     </label>
                     <input
                       type="text"
                       className="system-input"
-                      placeholder="Ex: Lucas Tadashi"
-                      value={matchPlayer2}
-                      onChange={(e) => setMatchPlayer2(e.target.value)}
+                      placeholder="Ex: Jogador 1 venceu 2x1"
+                      value={matchResult}
+                      onChange={(e) => setMatchResult(e.target.value)}
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
-                    Resultado / Placar Oficial
-                  </label>
-                  <input
-                    type="text"
-                    className="system-input"
-                    placeholder="Ex: Jogador 1 venceu 2x1"
-                    value={matchResult}
-                    onChange={(e) => setMatchResult(e.target.value)}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  style={{
-                    padding: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    background: 'var(--grad-primary)',
-                    boxShadow: '0 4px 15px var(--glow-color)',
-                    fontWeight: 700,
-                  }}
-                >
-                  <CheckCircle size={16} /> Salvar Resultado no Sistema
-                </button>
-              </form>
-            </div>
-
-            {/* Histórico das Partidas Registradas */}
-            <div className="glass-panel" style={{ padding: '24px', borderRadius: 'var(--radius-xl)' }}>
-              <h3 style={{ fontSize: '18px', color: 'var(--color-headline)', marginBottom: '8px' }}>
-                Classificação & Confrontos Recentes
-              </h3>
-              <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', marginBottom: '16px' }}>
-                Resultados computados e validados pela coordenação do torneio.
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {matchHistory.map((m) => (
-                  <div
-                    key={m.id}
+                  <button
+                    type="submit"
+                    className="btn-primary"
                     style={{
-                      padding: '12px 16px',
-                      borderRadius: '10px',
-                      backgroundColor: 'var(--color-surface-container-low)',
-                      border: '1px solid var(--card-border)',
+                      padding: '12px',
                       display: 'flex',
-                      flexDirection: 'column',
-                      gap: '4px',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      background: 'var(--grad-primary)',
+                      boxShadow: '0 4px 15px var(--glow-color)',
+                      fontWeight: 700,
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 700 }}>
-                        {m.p1} <span style={{ color: 'var(--color-outline)' }}>vs</span> {m.p2}
-                      </span>
-                      <span style={{ fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)' }}>
-                        {m.data}
-                      </span>
+                    <CheckCircle size={16} /> Salvar Resultado no Sistema
+                  </button>
+                </form>
+              </div>
+
+              {/* Histórico das Partidas Registradas */}
+              <div className="glass-panel" style={{ padding: '24px', borderRadius: 'var(--radius-xl)' }}>
+                <h3 style={{ fontSize: '18px', color: 'var(--color-headline)', marginBottom: '8px' }}>
+                  Confrontos Recentes
+                </h3>
+                <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', marginBottom: '16px' }}>
+                  Resultados computados e validados pela coordenação do torneio.
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '380px', overflowY: 'auto' }}>
+                  {matchHistory.length === 0 ? (
+                    <div style={{ padding: '30px 10px', textAlign: 'center', color: 'var(--color-outline)', fontSize: '13px' }}>
+                      Nenhum resultado registrado nesta sessão.
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <CheckCircle size={13} color="#4ade80" />
-                      <span style={{ fontSize: '12px', color: '#4ade80', fontWeight: 600 }}>{m.res}</span>
-                    </div>
-                  </div>
-                ))}
+                  ) : (
+                    matchHistory.map((m) => (
+                      <div
+                        key={m.id}
+                        style={{
+                          padding: '12px 16px',
+                          borderRadius: '10px',
+                          backgroundColor: 'var(--color-surface-container-low)',
+                          border: '1px solid var(--card-border)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 700 }}>
+                            {m.p1} <span style={{ color: 'var(--color-outline)' }}>vs</span> {m.p2}
+                          </span>
+                          <span style={{ fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)' }}>
+                            {m.data}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <CheckCircle size={13} color="#4ade80" />
+                          <span style={{ fontSize: '12px', color: '#4ade80', fontWeight: 600 }}>{m.res}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* CONTEÚDO DA ABA: PEDIDOS GERAIS */}
+        {/* =========================================================================
+            ABA 4: GESTÃO CENTRALIZADA DE PEDIDOS
+           ========================================================================= */}
         {activeAdminTab === 'orders' && (
           <div className="glass-panel" style={{ padding: '24px', borderRadius: 'var(--radius-xl)' }}>
             <h3 style={{ fontSize: '18px', color: 'var(--color-headline)', marginBottom: '16px' }}>
@@ -1285,7 +2414,371 @@ export const AdminPage: React.FC = () => {
           </div>
         )}
 
-        {/* Modal para Cadastrar Novo Membro */}
+        {/* =========================================================================
+            MODAIS OPERACIONAIS DE ESTOQUE
+           ========================================================================= */}
+
+        {/* Modal: Registrar Entrada de Estoque */}
+        {isEntryModalOpen && (
+          <div className="system-modal-overlay" onClick={() => setIsEntryModalOpen(false)}>
+            <div className="glass-panel system-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                <div>
+                  <span className="badge badge-primary" style={{ marginBottom: '6px' }}>Kardex & Suprimentos</span>
+                  <h3 style={{ fontSize: '20px', color: 'var(--color-headline)', margin: 0, fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <ArrowUpCircle size={20} color="#34d399" /> Registrar Entrada de Estoque
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEntryModalOpen(false)}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--color-on-surface-variant)', cursor: 'pointer', padding: '6px' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', marginBottom: '18px', lineHeight: 1.5 }}>
+                Lance novos lotes ou reposições fornecidas pela distribuidora. A quantidade será acrescida imediatamente ao catálogo.
+              </p>
+
+              <form onSubmit={handleConfirmEntry} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+                    Produto a Receber *
+                  </label>
+                  <select
+                    className="system-input"
+                    value={selectedStockProduct?.id || ''}
+                    onChange={(e) => {
+                      const found = activeProducts.find((p) => p.id === Number(e.target.value));
+                      if (found) setSelectedStockProduct(found);
+                    }}
+                    required
+                  >
+                    {activeProducts.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        #{p.id} - {p.nome} (Saldo atual: {p.estoque} un.)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+                      Qtd. a Adicionar *
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      className="system-input"
+                      value={stockAmountInput}
+                      onChange={(e) => setStockAmountInput(e.target.value)}
+                      placeholder="Ex: 10"
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+                      Saldo Resultante
+                    </label>
+                    <div
+                      style={{
+                        height: '42px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0 12px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid var(--input-border)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontFamily: 'var(--font-mono)',
+                        fontWeight: 700,
+                        color: '#34d399',
+                      }}
+                    >
+                      {selectedStockProduct
+                        ? `${selectedStockProduct.estoque} + ${parseInt(stockAmountInput, 10) || 0} = ${selectedStockProduct.estoque + (parseInt(stockAmountInput, 10) || 0)} un.`
+                        : '-'}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+                    Motivo / Fornecedor / Nota Fiscal
+                  </label>
+                  <input
+                    type="text"
+                    className="system-input"
+                    value={stockReasonInput}
+                    onChange={(e) => setStockReasonInput(e.target.value)}
+                    placeholder="Ex: Copag Distribuidora - NF 9821"
+                  />
+                  {/* Chips rápidos de motivos */}
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
+                    {['Compra Distribuidor', 'Reposição de Loja', 'Devolução de Cliente', 'Ajuste de Balanço'].map((chip) => (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => setStockReasonInput(chip)}
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid var(--card-border)',
+                          borderRadius: '4px',
+                          color: 'var(--color-on-surface-variant)',
+                          fontSize: '10.5px',
+                          padding: '3px 8px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="system-modal-actions">
+                  <button type="button" onClick={() => setIsEntryModalOpen(false)} className="btn-outline">
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingStock}
+                    className="btn-primary"
+                    style={{
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      boxShadow: '0 4px 15px rgba(16, 185, 129, 0.35)',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {isSubmittingStock ? 'Registrando...' : 'Confirmar Entrada no Kardex'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Registrar Saída / Baixa Operacional */}
+        {isExitModalOpen && (
+          <div className="system-modal-overlay" onClick={() => setIsExitModalOpen(false)}>
+            <div className="glass-panel system-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                <div>
+                  <span className="badge badge-primary" style={{ marginBottom: '6px' }}>Kardex & Baixas</span>
+                  <h3 style={{ fontSize: '20px', color: 'var(--color-headline)', margin: 0, fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <ArrowDownCircle size={20} color="#f87171" /> Registrar Baixa / Saída Operacional
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsExitModalOpen(false)}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--color-on-surface-variant)', cursor: 'pointer', padding: '6px' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', marginBottom: '18px', lineHeight: 1.5 }}>
+                Lance baixas decorrentes de avarias, uso interno em demonstrações, premiações de torneio ou correções auditadas.
+              </p>
+
+              <form onSubmit={handleConfirmExit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+                    Produto a Dar Baixa *
+                  </label>
+                  <select
+                    className="system-input"
+                    value={selectedStockProduct?.id || ''}
+                    onChange={(e) => {
+                      const found = activeProducts.find((p) => p.id === Number(e.target.value));
+                      if (found) setSelectedStockProduct(found);
+                    }}
+                    required
+                  >
+                    {activeProducts.map((p) => (
+                      <option key={p.id} value={p.id} disabled={p.estoque <= 0}>
+                        #{p.id} - {p.nome} (Disponível: {p.estoque} un.) {p.estoque <= 0 ? '- [ESGOTADO]' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+                      Qtd. a Retirar *
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max={selectedStockProduct ? selectedStockProduct.estoque : undefined}
+                      required
+                      className="system-input"
+                      value={stockAmountInput}
+                      onChange={(e) => setStockAmountInput(e.target.value)}
+                      placeholder="Ex: 1"
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+                      Saldo Resultante
+                    </label>
+                    <div
+                      style={{
+                        height: '42px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0 12px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid var(--input-border)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontFamily: 'var(--font-mono)',
+                        fontWeight: 700,
+                        color: '#f87171',
+                      }}
+                    >
+                      {selectedStockProduct
+                        ? `${selectedStockProduct.estoque} - ${parseInt(stockAmountInput, 10) || 0} = ${Math.max(0, selectedStockProduct.estoque - (parseInt(stockAmountInput, 10) || 0))} un.`
+                        : '-'}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+                    Motivo / Justificativa da Baixa *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className="system-input"
+                    value={stockReasonInput}
+                    onChange={(e) => setStockReasonInput(e.target.value)}
+                    placeholder="Ex: Embalagem danificada no transporte"
+                  />
+                  {/* Chips rápidos de motivos */}
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
+                    {['Avaria / Dano', 'Premiação Torneio', 'Uso Interno', 'Ajuste de Inventário', 'Venda Balcão'].map((chip) => (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => setStockReasonInput(chip)}
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid var(--card-border)',
+                          borderRadius: '4px',
+                          color: 'var(--color-on-surface-variant)',
+                          fontSize: '10.5px',
+                          padding: '3px 8px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="system-modal-actions">
+                  <button type="button" onClick={() => setIsExitModalOpen(false)} className="btn-outline">
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingStock}
+                    className="btn-primary"
+                    style={{
+                      background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                      boxShadow: '0 4px 15px rgba(239, 68, 68, 0.35)',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {isSubmittingStock ? 'Processando...' : 'Confirmar Baixa no Kardex'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Configurar Estoque Mínimo */}
+        {isMinStockModalOpen && selectedStockProduct && (
+          <div className="system-modal-overlay" onClick={() => setIsMinStockModalOpen(false)}>
+            <div className="glass-panel system-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                <div>
+                  <span className="badge badge-primary" style={{ marginBottom: '6px' }}>Segurança & Alerta</span>
+                  <h3 style={{ fontSize: '20px', color: 'var(--color-headline)', margin: 0, fontWeight: 800 }}>
+                    Limite de Estoque Mínimo
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMinStockModalOpen(false)}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--color-on-surface-variant)', cursor: 'pointer', padding: '6px' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'var(--color-surface-container-high)', marginBottom: '16px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--color-outline)', display: 'block', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+                  Produto Selecionado
+                </span>
+                <strong style={{ fontSize: '14px', color: 'var(--color-headline)' }}>{selectedStockProduct.nome}</strong>
+                <div style={{ fontSize: '12px', color: 'var(--color-primary)', marginTop: '4px', fontFamily: 'var(--font-mono)' }}>
+                  Estoque atual: {selectedStockProduct.estoque} unidades
+                </div>
+              </div>
+
+              <p style={{ fontSize: '12.5px', color: 'var(--color-on-surface-variant)', marginBottom: '16px', lineHeight: 1.5 }}>
+                Quando o saldo em prateleira for igual ou menor a este valor, o sistema emitirá alertas automáticos de reposição imediata na central de estoque.
+              </p>
+
+              <form onSubmit={handleConfirmMinStock} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+                    Quantidade Mínima de Segurança (Unidades)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    className="system-input"
+                    value={minStockValueInput}
+                    onChange={(e) => setMinStockValueInput(e.target.value)}
+                    placeholder="Ex: 3"
+                  />
+                </div>
+
+                <div className="system-modal-actions">
+                  <button type="button" onClick={() => setIsMinStockModalOpen(false)} className="btn-outline">
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingStock}
+                    className="btn-primary"
+                    style={{
+                      background: 'var(--grad-primary)',
+                      boxShadow: '0 4px 15px var(--glow-color)',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {isSubmittingStock ? 'Salvando...' : 'Salvar Limite de Segurança'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Cadastrar Novo Membro de Equipe */}
         {isNewUserModalOpen && (
           <div className="system-modal-overlay" onClick={() => setIsNewUserModalOpen(false)}>
             <div className="glass-panel system-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
@@ -1309,10 +2802,7 @@ export const AdminPage: React.FC = () => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    transition: 'all 0.15s ease',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                   title="Fechar modal"
                 >
                   <X size={20} />
@@ -1423,7 +2913,7 @@ export const AdminPage: React.FC = () => {
           </div>
         )}
 
-        {/* Modal Alterar Senha do Administrador */}
+        {/* Modal: Alterar Senha do Administrador */}
         {isPasswordModalOpen && (
           <div className="system-modal-overlay" onClick={() => setIsPasswordModalOpen(false)}>
             <div className="glass-panel system-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '460px' }}>
@@ -1447,10 +2937,7 @@ export const AdminPage: React.FC = () => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    transition: 'all 0.15s ease',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                   title="Fechar modal"
                 >
                   <X size={20} />

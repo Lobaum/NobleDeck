@@ -1,11 +1,11 @@
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 from contextlib import contextmanager
 from app.modelos.usuario import Usuario, Cliente, Funcionario, Administrador
 from app.modelos.produto import Produto
 from app.modelos.estoque import Estoque
 from app.modelos.pedido import Pedido, ItemPedido
-from app.modelos.torneio import Torneio, Inscricao, Partida
 
 DB_PATH = Path(__file__).resolve().parent.parent / "nobledeck.db"
 
@@ -103,46 +103,23 @@ def inicializar_banco():
         """)
 
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS torneios (
-                id_torneio INTEGER PRIMARY KEY AUTOINCREMENT,
-                nome TEXT NOT NULL,
-                jogo TEXT NOT NULL DEFAULT 'outros',
-                jogo_nome TEXT DEFAULT 'Geral',
-                data TEXT NOT NULL,
-                horario TEXT NOT NULL,
-                limite_participantes INTEGER NOT NULL DEFAULT 16,
-                vagas_ocupadas INTEGER NOT NULL DEFAULT 0,
-                status TEXT NOT NULL DEFAULT 'aberto',
-                formato TEXT DEFAULT 'Suíço',
-                local TEXT DEFAULT 'Noble Deck Arena',
-                taxa_inscricao REAL DEFAULT 0.0,
-                premiacao TEXT DEFAULT '',
-                is_premium INTEGER DEFAULT 0
+            CREATE TABLE IF NOT EXISTS movimentacoes_estoque (
+                id_movimentacao INTEGER PRIMARY KEY AUTOINCREMENT,
+                produto_id INTEGER NOT NULL,
+                produto_nome TEXT NOT NULL,
+                tipo TEXT NOT NULL,
+                quantidade INTEGER NOT NULL,
+                saldo_anterior INTEGER NOT NULL,
+                saldo_posterior INTEGER NOT NULL,
+                motivo TEXT DEFAULT '',
+                responsavel TEXT DEFAULT 'Sistema',
+                data_hora TEXT NOT NULL
             );
         """)
 
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS inscricoes (
-                id_inscricao INTEGER PRIMARY KEY AUTOINCREMENT,
-                torneio_id INTEGER NOT NULL,
-                cliente_id INTEGER,
-                cliente_nome TEXT NOT NULL,
-                data_inscricao TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'confirmada',
-                FOREIGN KEY (torneio_id) REFERENCES torneios (id_torneio) ON DELETE CASCADE,
-                FOREIGN KEY (cliente_id) REFERENCES usuarios (id_usuario)
-            );
-        """)
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS partidas (
-                id_partida INTEGER PRIMARY KEY AUTOINCREMENT,
-                torneio_id INTEGER NOT NULL,
-                jogador1 TEXT NOT NULL,
-                jogador2 TEXT NOT NULL,
-                resultado TEXT NOT NULL DEFAULT 'Pendente',
-                FOREIGN KEY (torneio_id) REFERENCES torneios (id_torneio) ON DELETE CASCADE
-            );
+            INSERT OR IGNORE INTO estoques (produto_id, quantidade, estoque_minimo)
+            SELECT id_produto, quantidade, 3 FROM produtos;
         """)
 
 
@@ -244,7 +221,17 @@ def listar_usuarios():
         cursor.execute("SELECT * FROM usuarios ORDER BY id_usuario ASC")
         return [instanciar_usuario_da_linha(row) for row in cursor.fetchall()]
 
+
+def excluir_usuario(id_usuario: int) -> bool:
+    with obter_conexao() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM usuarios WHERE id_usuario = ?", (id_usuario,))
+        return cursor.rowcount > 0
+
+
 def instanciar_produto_da_linha(row):
+    chaves = row.keys()
+    est_min = row["estoque_minimo"] if "estoque_minimo" in chaves and row["estoque_minimo"] is not None else 3
     return Produto(
         id_produto=row["id_produto"],
         nome=row["nome"],
@@ -253,6 +240,7 @@ def instanciar_produto_da_linha(row):
         jogo=row["jogo"] or "outros",
         preco=float(row["preco"]),
         quantidade=int(row["quantidade"]),
+        estoque_minimo=int(est_min),
         ativo=bool(row["ativo"]),
         jogo_nome=row["jogo_nome"] or "Geral",
         subtitulo=row["subtitulo"] or "",
@@ -328,9 +316,16 @@ def atualizar_produto(produto):
                 produto.id_produto,
             ),
         )
+        est_min = getattr(produto, "estoque_minimo", 3)
         cursor.execute(
-            "UPDATE estoques SET quantidade = ? WHERE produto_id = ?",
-            (produto.quantidade, produto.id_produto),
+            """
+            INSERT INTO estoques (produto_id, quantidade, estoque_minimo)
+            VALUES (?, ?, ?)
+            ON CONFLICT(produto_id) DO UPDATE SET
+                quantidade = excluded.quantidade,
+                estoque_minimo = excluded.estoque_minimo
+            """,
+            (produto.id_produto, produto.quantidade, est_min),
         )
     return produto
 
@@ -338,27 +333,48 @@ def atualizar_produto(produto):
 def obter_produto_por_id(id_produto):
     with obter_conexao() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM produtos WHERE id_produto = ?", (id_produto,))
+        cursor.execute(
+            """
+            SELECT p.*, COALESCE(e.estoque_minimo, 3) AS estoque_minimo
+            FROM produtos p
+            LEFT JOIN estoques e ON e.produto_id = p.id_produto
+            WHERE p.id_produto = ?
+            """,
+            (id_produto,),
+        )
         row = cursor.fetchone()
         if row:
             return instanciar_produto_da_linha(row)
     return None
 
 
+def excluir_produto(id_produto: int) -> bool:
+    with obter_conexao() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM estoques WHERE produto_id = ?", (id_produto,))
+        cursor.execute("DELETE FROM produtos WHERE id_produto = ?", (id_produto,))
+        return cursor.rowcount > 0
+
+
 def listar_produtos(jogo=None, categoria=None, apenas_ativos=True):
     with obter_conexao() as conn:
         cursor = conn.cursor()
-        sql = "SELECT * FROM produtos WHERE 1=1"
+        sql = """
+            SELECT p.*, COALESCE(e.estoque_minimo, 3) AS estoque_minimo
+            FROM produtos p
+            LEFT JOIN estoques e ON e.produto_id = p.id_produto
+            WHERE 1=1
+        """
         params = []
         if apenas_ativos:
-            sql += " AND ativo = 1"
+            sql += " AND p.ativo = 1"
         if jogo and jogo != "all":
-            sql += " AND jogo = ?"
+            sql += " AND p.jogo = ?"
             params.append(jogo)
         if categoria:
-            sql += " AND categoria = ?"
+            sql += " AND p.categoria = ?"
             params.append(categoria)
-        sql += " ORDER BY id_produto ASC"
+        sql += " ORDER BY p.id_produto ASC"
 
         cursor.execute(sql, params)
         return [instanciar_produto_da_linha(row) for row in cursor.fetchall()]
@@ -423,8 +439,84 @@ def listar_estoques():
         resultado = []
         for linha in linhas:
             produto = obter_produto_por_id(linha["produto_id"])
-            resultado.append(instanciar_estoque_da_linha(linha, produto))
+            if produto:
+                resultado.append(instanciar_estoque_da_linha(linha, produto))
         return resultado
+
+
+def atualizar_estoque_minimo(produto_id: int, novo_minimo: int):
+    produto = obter_produto_por_id(produto_id)
+    if not produto:
+        return None
+    minimo = max(0, int(novo_minimo))
+    with obter_conexao() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO estoques (produto_id, quantidade, estoque_minimo)
+            VALUES (?, ?, ?)
+            ON CONFLICT(produto_id) DO UPDATE SET
+                estoque_minimo = excluded.estoque_minimo
+            """,
+            (produto_id, produto.quantidade, minimo),
+        )
+    return obter_estoque_por_produto_id(produto_id)
+
+
+def registrar_movimentacao_estoque(
+    produto_id: int,
+    produto_nome: str,
+    tipo: str,
+    quantidade: int,
+    saldo_anterior: int,
+    saldo_posterior: int,
+    motivo: str = "",
+    responsavel: str = "Sistema",
+):
+    agora = datetime.now().strftime("%d/%m/%Y %H:%M")
+    with obter_conexao() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO movimentacoes_estoque (
+                produto_id, produto_nome, tipo, quantidade,
+                saldo_anterior, saldo_posterior, motivo, responsavel, data_hora
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                produto_id,
+                produto_nome,
+                tipo,
+                int(quantidade),
+                int(saldo_anterior),
+                int(saldo_posterior),
+                motivo or "",
+                responsavel or "Sistema",
+                agora,
+            ),
+        )
+        return {
+            "id_movimentacao": cursor.lastrowid,
+            "produto_id": produto_id,
+            "produto_nome": produto_nome,
+            "tipo": tipo,
+            "quantidade": int(quantidade),
+            "saldo_anterior": int(saldo_anterior),
+            "saldo_posterior": int(saldo_posterior),
+            "motivo": motivo or "",
+            "responsavel": responsavel or "Sistema",
+            "data_hora": agora,
+        }
+
+
+def listar_movimentacoes_estoque(limite: int = 100):
+    with obter_conexao() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM movimentacoes_estoque ORDER BY id_movimentacao DESC LIMIT ?",
+            (limite,),
+        )
+        return [dict(row) for row in cursor.fetchall()]
 
 def salvar_pedido(pedido):
     with obter_conexao() as conn:
@@ -527,133 +619,3 @@ def atualizar_status_pedido(id_pedido, novo_status):
         cursor = conn.cursor()
         cursor.execute("UPDATE pedidos SET status = ? WHERE id_pedido = ?", (novo_status, id_pedido))
     return obter_pedido_por_id(id_pedido)
-
-def instanciar_torneio_da_linha(row):
-    return Torneio(
-        id_torneio=row["id_torneio"],
-        nome=row["nome"],
-        jogo=row["jogo"],
-        jogo_nome=row["jogo_nome"] or "Geral",
-        data=row["data"],
-        horario=row["horario"],
-        limiteParticipantes=row["limite_participantes"],
-        vagas_ocupadas=row["vagas_ocupadas"],
-        status=row["status"],
-        formato=row["formato"] or "Suíço",
-        local=row["local"] or "Noble Deck Arena",
-        taxa_inscricao=float(row["taxa_inscricao"] or 0.0),
-        premiacao=row["premiacao"] or "",
-        is_premium=bool(row["is_premium"]),
-    )
-
-
-def salvar_torneio(torneio):
-    with obter_conexao() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            INSERT INTO torneios (
-                nome, jogo, jogo_nome, data, horario, limite_participantes,
-                vagas_ocupadas, status, formato, local, taxa_inscricao, premiacao, is_premium
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                torneio.nome,
-                torneio.jogo,
-                torneio.jogo_nome,
-                torneio.data,
-                torneio.horario,
-                torneio.limiteParticipantes,
-                torneio.vagas_ocupadas,
-                torneio.status,
-                torneio.formato,
-                torneio.local,
-                torneio.taxa_inscricao,
-                torneio.premiacao,
-                1 if torneio.is_premium else 0,
-            ),
-        )
-        torneio.id_torneio = cursor.lastrowid
-    return torneio
-
-
-def obter_torneio_por_id(id_torneio):
-    with obter_conexao() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM torneios WHERE id_torneio = ?", (id_torneio,))
-        row = cursor.fetchone()
-        if not row:
-            return None
-
-        torneio = instanciar_torneio_da_linha(row)
-
-        cursor.execute("SELECT * FROM inscricoes WHERE torneio_id = ?", (id_torneio,))
-        for i_row in cursor.fetchall():
-            inscricao = Inscricao(
-                id_inscricao=i_row["id_inscricao"],
-                torneio_id=i_row["torneio_id"],
-                cliente_id=i_row["cliente_id"],
-                cliente_nome=i_row["cliente_nome"],
-                data_inscricao=i_row["data_inscricao"],
-                status=i_row["status"],
-            )
-            torneio.inscricoes.append(inscricao)
-
-        cursor.execute("SELECT * FROM partidas WHERE torneio_id = ?", (id_torneio,))
-        for p_row in cursor.fetchall():
-            partida = Partida(
-                id_partida=p_row["id_partida"],
-                torneio_id=p_row["torneio_id"],
-                jogador1=p_row["jogador1"],
-                jogador2=p_row["jogador2"],
-                resultado=p_row["resultado"],
-            )
-            torneio.partidas.append(partida)
-
-        return torneio
-
-
-def listar_torneios():
-    with obter_conexao() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id_torneio FROM torneios ORDER BY id_torneio ASC")
-        ids = [row["id_torneio"] for row in cursor.fetchall()]
-    return [obter_torneio_por_id(i) for i in ids if i is not None]
-
-
-def salvar_inscricao(torneio, inscricao):
-    with obter_conexao() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            INSERT INTO inscricoes (torneio_id, cliente_id, cliente_nome, data_inscricao, status)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                inscricao.torneio_id,
-                inscricao.cliente_id,
-                inscricao.cliente_nome,
-                inscricao.dataInscricao,
-                inscricao.status,
-            ),
-        )
-        inscricao.id_inscricao = cursor.lastrowid
-        cursor.execute(
-            "UPDATE torneios SET vagas_ocupadas = ?, status = ? WHERE id_torneio = ?",
-            (torneio.vagas_ocupadas, torneio.status, torneio.id_torneio),
-        )
-    return inscricao
-
-
-def salvar_partida(partida):
-    with obter_conexao() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            INSERT INTO partidas (torneio_id, jogador1, jogador2, resultado)
-            VALUES (?, ?, ?, ?)
-            """,
-            (partida.torneio_id, partida.jogador1, partida.jogador2, partida.resultado),
-        )
-        partida.id_partida = cursor.lastrowid
-    return partida

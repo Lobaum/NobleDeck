@@ -1,11 +1,11 @@
 import type {
   Product,
-  Tournament,
   Order,
   CartItem,
   UserProfile,
   UserRole,
   ExternalCard,
+  StockMovement,
 } from '../types';
 
 const API_BASE = '/api';
@@ -50,6 +50,7 @@ export function adaptarProdutoDoBackend(p: any): Product {
     nome: p.nome,
     preco: p.preco,
     estoque: p.quantidade,
+    estoqueMinimo: p.estoque_minimo ?? 3,
     jogo: p.jogo,
     jogoNome: p.jogo_nome || p.jogo,
     categoria: p.categoria,
@@ -70,6 +71,7 @@ export function adaptarProdutoParaBackend(p: Omit<Product, 'id'>) {
     nome: p.nome,
     preco: p.preco,
     quantidade: p.estoque,
+    estoque_minimo: p.estoqueMinimo ?? 3,
     descricao: p.descricao,
     categoria: p.categoria,
     jogo: p.jogo,
@@ -81,26 +83,6 @@ export function adaptarProdutoParaBackend(p: Omit<Product, 'id'>) {
     is_destaque: p.isDestaque,
     idioma: p.idioma,
     ano: p.ano,
-  };
-}
-
-export function adaptarTorneioDoBackend(t: any): Tournament {
-  return {
-    id: t.id_torneio,
-    titulo: t.nome,
-    jogo: t.jogo,
-    jogoNome: t.jogo_nome || t.jogo,
-    formato: t.formato || 'Suíço',
-    data: t.data,
-    horario: t.horario,
-    local: t.local || 'Noble Deck Arena',
-    vagasTotais: t.limite_participantes,
-    vagasOcupadas: t.vagas_ocupadas ?? (t.inscritos ? t.inscritos.length : 0),
-    taxaInscricao: t.taxa_inscricao || 0,
-    premiacao: t.premiacao || '',
-    isPremium: t.is_premium ?? false,
-    status: t.status || 'aberto',
-    inscritos: t.inscritos || [],
   };
 }
 
@@ -182,6 +164,7 @@ export const api = {
     if (dadosAtualizados.nome !== undefined) payload.nome = dadosAtualizados.nome;
     if (dadosAtualizados.preco !== undefined) payload.preco = dadosAtualizados.preco;
     if (dadosAtualizados.estoque !== undefined) payload.quantidade = dadosAtualizados.estoque;
+    if (dadosAtualizados.estoqueMinimo !== undefined) payload.estoque_minimo = dadosAtualizados.estoqueMinimo;
     if (dadosAtualizados.descricao !== undefined) payload.descricao = dadosAtualizados.descricao;
     if (dadosAtualizados.categoria !== undefined) payload.categoria = dadosAtualizados.categoria;
     if (dadosAtualizados.jogo !== undefined) payload.jogo = dadosAtualizados.jogo;
@@ -225,22 +208,69 @@ export const api = {
     return adaptarProdutoDoBackend(dados);
   },
 
+  async excluirProduto(produtoId: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/produtos/${produtoId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Falha ao excluir produto' }));
+      throw new Error(err.detail || 'Falha ao excluir produto');
+    }
+  },
+
   // ESTOQUE
-  async registrarEntradaEstoque(produtoId: number, quantidade: number) {
+  async registrarEntradaEstoque(
+    produtoId: number,
+    quantidade: number,
+    motivo: string = 'Reposição de Estoque',
+    responsavel: string = 'Administrador'
+  ) {
     const res = await fetch(`${API_BASE}/estoque/entrada`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ produto_id: produtoId, quantidade }),
+      body: JSON.stringify({ produto_id: produtoId, quantidade, motivo, responsavel }),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Falha ao registrar entrada de estoque' }));
+      throw new Error(err.detail || 'Falha ao registrar entrada de estoque');
+    }
     return res.json();
   },
 
-  async registrarSaidaEstoque(produtoId: number, quantidade: number) {
+  async registrarSaidaEstoque(
+    produtoId: number,
+    quantidade: number,
+    motivo: string = 'Baixa Operacional',
+    responsavel: string = 'Administrador'
+  ) {
     const res = await fetch(`${API_BASE}/estoque/saida`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ produto_id: produtoId, quantidade }),
+      body: JSON.stringify({ produto_id: produtoId, quantidade, motivo, responsavel }),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Quantidade indisponível ou erro na baixa de estoque' }));
+      throw new Error(err.detail || 'Quantidade indisponível ou erro na baixa de estoque');
+    }
+    return res.json();
+  },
+
+  async definirEstoqueMinimo(produtoId: number, estoqueMinimo: number) {
+    const res = await fetch(`${API_BASE}/estoque/${produtoId}/minimo`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estoque_minimo: Math.max(0, estoqueMinimo) }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Erro ao definir estoque mínimo' }));
+      throw new Error(err.detail || 'Erro ao definir estoque mínimo');
+    }
+    return res.json();
+  },
+
+  async obterMovimentacoesEstoque(limite: number = 100): Promise<StockMovement[]> {
+    const res = await fetch(`${API_BASE}/estoque/movimentacoes?limite=${limite}`);
+    if (!res.ok) throw new Error('Falha ao consultar movimentações de estoque');
     return res.json();
   },
 
@@ -248,55 +278,6 @@ export const api = {
     const res = await fetch(`${API_BASE}/estoque/falta`);
     if (!res.ok) throw new Error('Falha ao consultar estoque em falta');
     return res.json();
-  },
-
-  // TORNEIOS
-  async obterTorneios(): Promise<Tournament[]> {
-    const res = await fetch(`${API_BASE}/torneios`);
-    if (!res.ok) throw new Error('Falha ao carregar torneios da API');
-    const dados = await res.json();
-    return dados.map(adaptarTorneioDoBackend);
-  },
-
-  async cadastrarTorneio(t: Omit<Tournament, 'id' | 'vagasOcupadas' | 'inscritos' | 'status'>): Promise<Tournament> {
-    const payload = {
-      nome: t.titulo,
-      jogo: t.jogo,
-      jogo_nome: t.jogoNome,
-      data: t.data,
-      horario: t.horario,
-      limite_participantes: t.vagasTotais,
-      formato: t.formato,
-      local: t.local,
-      taxa_inscricao: t.taxaInscricao,
-      premiacao: t.premiacao,
-      is_premium: t.isPremium,
-    };
-    const res = await fetch(`${API_BASE}/torneios`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Erro ao cadastrar torneio' }));
-      throw new Error(err.detail || 'Erro ao cadastrar torneio');
-    }
-    const dados = await res.json();
-    return adaptarTorneioDoBackend(dados);
-  },
-
-  async inscreverTorneio(torneioId: number, clienteId: number, clienteNome: string): Promise<Tournament> {
-    const res = await fetch(`${API_BASE}/torneios/${torneioId}/inscricao`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cliente_id: clienteId, cliente_nome: clienteNome }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Erro ao realizar inscrição' }));
-      throw new Error(err.detail || 'Erro ao realizar inscrição');
-    }
-    const dados = await res.json();
-    return adaptarTorneioDoBackend(dados);
   },
 
   // PEDIDOS
@@ -353,8 +334,8 @@ export const api = {
       dados.tipo_usuario === 'administrador'
         ? 'admin'
         : dados.tipo_usuario === 'funcionario'
-        ? 'funcionario'
-        : 'cliente';
+          ? 'funcionario'
+          : 'cliente';
 
     return {
       id: dados.id_usuario,
@@ -362,7 +343,6 @@ export const api = {
       email: dados.email,
       role,
       cargo: dados.cargo,
-      torneiosInscritos: [],
     };
   },
 
@@ -371,14 +351,15 @@ export const api = {
     email: string,
     senha: string,
     tipoUsuario: UserRole = 'cliente',
-    telefone: string = ''
+    telefone: string = '',
+    cargo?: string
   ): Promise<UserProfile> {
     const backendTipo =
       tipoUsuario === 'admin'
         ? 'administrador'
         : tipoUsuario === 'funcionario'
-        ? 'funcionario'
-        : 'cliente';
+          ? 'funcionario'
+          : 'cliente';
 
     const res = await fetch(`${API_BASE}/auth/cadastro`, {
       method: 'POST',
@@ -389,6 +370,7 @@ export const api = {
         senha,
         tipo_usuario: backendTipo,
         telefone,
+        cargo,
       }),
     });
     if (!res.ok) {
@@ -402,8 +384,17 @@ export const api = {
       email: dados.email,
       role: tipoUsuario,
       cargo: dados.cargo,
-      torneiosInscritos: [],
     };
+  },
+
+  async excluirUsuario(idUsuario: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/auth/usuarios/${idUsuario}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Falha ao excluir usuário' }));
+      throw new Error(err.detail || 'Falha ao excluir usuário');
+    }
   },
 
   async obterUsuarios(): Promise<UserProfile[]> {
@@ -418,7 +409,6 @@ export const api = {
       email: u.email,
       role: (u.tipo_usuario === 'administrador' ? 'admin' : u.tipo_usuario === 'funcionario' ? 'funcionario' : 'cliente') as UserRole,
       cargo: u.cargo || (u.tipo_usuario === 'administrador' ? 'Administrador' : u.tipo_usuario === 'funcionario' ? 'Atendente' : 'Cliente'),
-      torneiosInscritos: [],
     }));
   },
 
@@ -427,8 +417,8 @@ export const api = {
       tipoUsuario === 'admin'
         ? 'administrador'
         : tipoUsuario === 'funcionario'
-        ? 'funcionario'
-        : 'cliente';
+          ? 'funcionario'
+          : 'cliente';
 
     const res = await fetch(`${API_BASE}/auth/usuarios/${idUsuario}/perfil`, {
       method: 'PUT',
@@ -449,7 +439,6 @@ export const api = {
       email: dados.email,
       role: tipoUsuario,
       cargo: dados.cargo,
-      torneiosInscritos: [],
     };
   },
 
@@ -464,23 +453,6 @@ export const api = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Falha ao alterar senha' }));
       throw new Error(err.detail || 'Falha ao alterar senha');
-    }
-    return await res.json();
-  },
-
-  async registrarPartida(idTorneio: number, jogador1: string, jogador2: string, resultado: string) {
-    const res = await fetch(`${API_BASE}/torneios/${idTorneio}/partidas`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jogador1,
-        jogador2,
-        resultado,
-      }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Erro ao registrar partida' }));
-      throw new Error(err.detail || 'Erro ao registrar partida');
     }
     return await res.json();
   },

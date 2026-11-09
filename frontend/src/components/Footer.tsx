@@ -58,7 +58,7 @@ export const Footer: React.FC = () => {
               }}
             >
               Sistema de Gerenciamento de Card Games. Encontre seus cards raros, construa
-              decks e participe de torneios oficiais com a comunidade.
+              coleções épicas e conecte-se com a comunidade.
             </p>
           </div>
 
@@ -114,26 +114,6 @@ export const Footer: React.FC = () => {
                   onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-on-surface-variant)')}
                 >
                   Catálogo de Produtos
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => {
-                    setCurrentTab('tournaments');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--color-on-surface-variant)',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    transition: 'color 0.2s ease',
-                  }}
-                  onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
-                  onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-on-surface-variant)')}
-                >
-                  Calendário de Torneios
                 </button>
               </li>
               <li>
@@ -222,7 +202,7 @@ export const Footer: React.FC = () => {
                 marginTop: '16px',
               }}
             >
-              Arena oficial de torneios sancionados e loja especializada.
+              Catálogo completo, novidades e loja especializada em Card Games.
             </p>
           </div>
         </div>

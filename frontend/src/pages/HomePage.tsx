@@ -3,9 +3,7 @@ import { useApp } from '../context/AppContext';
 import { HeroZoomSlider, type ZoomCardItem } from '../components/HeroZoomSlider';
 import {
   ArrowRight,
-  Trophy,
-  Swords,
-  Calendar,
+  Info,
   Star,
 } from 'lucide-react';
 import type { ExternalCard, GameId, Product } from '../types';
@@ -23,9 +21,7 @@ export const HomePage: React.FC = () => {
     setCurrentTab,
     setSelectedGameFilter,
     products,
-    tournaments,
     setSelectedProductForModal,
-    setSelectedTournamentForModal,
     addToCart,
     setIsAuthModalOpen,
     setAuthModalMode,
@@ -174,8 +170,7 @@ export const HomePage: React.FC = () => {
               }}
             >
               Explore cartas, boosters, decks e acessórios dos principais universos de Trading
-              Card Games. Monte sua coleção, descubra novos produtos e participe dos torneios da
-              Noble Deck.
+              Card Games. Monte sua coleção e descubra os cards mais raros na Noble Deck.
             </p>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
@@ -193,13 +188,13 @@ export const HomePage: React.FC = () => {
 
               <button
                 onClick={() => {
-                  setCurrentTab('tournaments');
+                  setCurrentTab('about');
                 }}
                 className="btn-secondary"
                 style={{ padding: '16px 32px' }}
               >
-                <span>Ver torneios</span>
-                <Trophy size={18} />
+                <span>Sobre a loja</span>
+                <Info size={18} />
               </button>
             </div>
           </div>

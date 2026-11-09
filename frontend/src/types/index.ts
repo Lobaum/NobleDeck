@@ -34,6 +34,7 @@ export interface Product {
   nome: string;
   preco: number;
   estoque: number;
+  estoqueMinimo?: number;
   jogo: GameId;
   jogoNome: string;
   categoria: ProductCategory;
@@ -49,22 +50,17 @@ export interface Product {
   externalCard?: ExternalCard;
 }
 
-export interface Tournament {
-  id: number;
-  titulo: string;
-  jogo: GameId;
-  jogoNome: string;
-  formato: string;
-  data: string;
-  horario: string;
-  local: string;
-  vagasTotais: number;
-  vagasOcupadas: number;
-  taxaInscricao: number;
-  premiacao: string;
-  isPremium?: boolean;
-  status: 'aberto' | 'lotado' | 'encerrado';
-  inscritos: string[];
+export interface StockMovement {
+  id_movimentacao: number;
+  produto_id: number;
+  produto_nome: string;
+  tipo: 'entrada' | 'saida' | 'ajuste';
+  quantidade: number;
+  saldo_anterior: number;
+  saldo_posterior: number;
+  motivo: string;
+  responsavel: string;
+  data_hora: string;
 }
 
 export interface CartItem {
@@ -92,5 +88,4 @@ export interface UserProfile {
   role: UserRole;
   cargo?: string;
   avatarUrl?: string;
-  torneiosInscritos: number[];
 }

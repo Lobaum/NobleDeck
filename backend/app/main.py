@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.banco import inicializar_banco
-from app.rotas import auth, produtos, estoque, pedidos, torneios
+from app.rotas import auth, produtos, estoque, pedidos
 
 
 @asynccontextmanager
@@ -42,7 +42,6 @@ app.include_router(auth.router)
 app.include_router(produtos.router)
 app.include_router(estoque.router)
 app.include_router(pedidos.router)
-app.include_router(torneios.router)
 
 if __name__ == "__main__":
     import uvicorn

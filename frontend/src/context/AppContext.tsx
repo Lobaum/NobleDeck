@@ -1,24 +1,23 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type {
   Product,
-  Tournament,
   CartItem,
   Order,
   UserProfile,
   UserRole,
   GameId,
   ExternalCard,
+  StockMovement,
 } from '../types';
 import { api, externalCardToProduct } from '../services/api';
 
-export type NavigationTab = 'home' | 'products' | 'tournaments' | 'about' | 'dashboard' | 'admin';
+export type NavigationTab = 'home' | 'products' | 'about' | 'dashboard' | 'admin';
 
 const GUEST_USER: UserProfile = {
   id: 0,
   nome: '',
   email: '',
   role: 'cliente',
-  torneiosInscritos: [],
 };
 
 interface AppContextType {
@@ -37,12 +36,12 @@ interface AppContextType {
   editProduct: (productId: number, updatedFields: Partial<Product>) => Promise<void> | void;
   deleteProduct: (productId: number) => Promise<void> | void;
   reactivateProduct: (productId: number) => Promise<void> | void;
-
-  tournaments: Tournament[];
-  selectedTournamentForModal: Tournament | null;
-  setSelectedTournamentForModal: (tournament: Tournament | null) => void;
-  registerInTournament: (tournamentId: number) => Promise<boolean> | boolean;
-  createTournament: (tournament: Omit<Tournament, 'id' | 'vagasOcupadas' | 'inscritos' | 'status'>) => Promise<void> | void;
+  removeProductPermanently: (productId: number) => Promise<void> | void;
+  stockMovements: StockMovement[];
+  refreshStockMovements: () => Promise<void> | void;
+  registerStockEntry: (productId: number, quantity: number, motivo?: string) => Promise<void> | void;
+  registerStockExit: (productId: number, quantity: number, motivo?: string) => Promise<void> | void;
+  updateProductMinStock: (productId: number, minStock: number) => Promise<void> | void;
 
   cart: CartItem[];
   isCartOpen: boolean;
@@ -133,7 +132,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Remove caches antigos de dados mock que pudessem existir no localStorage
   useEffect(() => {
     localStorage.removeItem('noble_products');
-    localStorage.removeItem('noble_tournaments');
     localStorage.removeItem('noble_orders');
     localStorage.removeItem('noble_registered_emails');
   }, []);
@@ -141,7 +139,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedGameFilter, setSelectedGameFilter] = useState<GameId | 'all'>('all');
 
   const [products, setProducts] = useState<Product[]>([]);
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
 
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -164,10 +161,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.removeItem('noble_user');
           return GUEST_USER;
         }
-        return {
-          ...parsed,
-          torneiosInscritos: Array.isArray(parsed.torneiosInscritos) ? parsed.torneiosInscritos : [],
-        };
+        return parsed;
       } catch {
         return GUEST_USER;
       }
@@ -176,8 +170,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
-  const [selectedTournamentForModal, setSelectedTournamentForModal] = useState<Tournament | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -211,7 +205,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (active && Array.isArray(dadosProdutos)) {
           loadedProducts = dadosProdutos;
           setProducts(dadosProdutos);
-          // Filtra itens antigos do carrinho que eram mocks locais (ID > 0 inexistente no banco)
           setCart((prev) =>
             prev.filter(
               (item) =>
@@ -226,21 +219,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       try {
-        const dadosTorneios = await api.obterTorneios();
-        if (active && Array.isArray(dadosTorneios)) {
-          setTournaments(dadosTorneios);
-        }
-      } catch (err: any) {
-        console.warn('Não foi possível carregar torneios do backend:', err?.message);
-      }
-
-      try {
         const dadosPedidos = await api.obterPedidos(loadedProducts);
         if (active && Array.isArray(dadosPedidos)) {
           setOrders(dadosPedidos);
         }
       } catch (err: any) {
         console.warn('Não foi possível carregar pedidos do backend:', err?.message);
+      }
+
+      try {
+        const dadosMovimentacoes = await api.obterMovimentacoesEstoque(100);
+        if (active && Array.isArray(dadosMovimentacoes)) {
+          setStockMovements(dadosMovimentacoes);
+        }
+      } catch {
+        // Ignora silenciosamente na carga inicial
       }
     }
 
@@ -249,20 +242,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       active = false;
     };
   }, []);
-
-  // Sincroniza inscrições em torneios do usuário autenticado a partir dos dados reais do backend
-  useEffect(() => {
-    if (!currentUser.email || !currentUser.nome || tournaments.length === 0) return;
-    const inscritosIds = tournaments
-      .filter((t) => t.inscritos.some((nome) => nome.toLowerCase() === currentUser.nome.toLowerCase()))
-      .map((t) => t.id);
-
-    setCurrentUser((prev) => {
-      const merged = Array.from(new Set([...prev.torneiosInscritos, ...inscritosIds]));
-      if (merged.length === prev.torneiosInscritos.length) return prev;
-      return { ...prev, torneiosInscritos: merged };
-    });
-  }, [tournaments, currentUser.email, currentUser.nome]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -459,57 +438,111 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const registerInTournament = async (tournamentId: number): Promise<boolean> => {
-    if (!currentUser.email || currentUser.id <= 0) {
-      showToast('Faça login para se inscrever no torneio!');
-      setAuthModalMode('login');
-      setIsAuthModalOpen(true);
-      return false;
-    }
 
-    const t = tournaments.find((item) => item.id === tournamentId);
-    if (!t) return false;
-
-    if (t.vagasOcupadas >= t.vagasTotais) {
-      showToast('Este torneio já atingiu a lotação máxima!');
-      return false;
-    }
-
-    if (currentUser.torneiosInscritos.includes(tournamentId)) {
-      showToast('Você já está inscrito neste torneio.');
-      return false;
-    }
-
+  const refreshStockMovements = async () => {
     try {
-      const atualizado = await api.inscreverTorneio(
-        tournamentId,
-        currentUser.id,
-        currentUser.nome
-      );
-      setTournaments((prev) =>
-        prev.map((item) => (item.id === tournamentId ? atualizado : item))
-      );
-      setCurrentUser((prev) => ({
-        ...prev,
-        torneiosInscritos: [...prev.torneiosInscritos, tournamentId],
-      }));
-      showToast(`Inscrição confirmada no torneio: ${t.titulo}!`);
-      return true;
-    } catch (err: any) {
-      showToast(err?.message || 'Erro ao realizar inscrição no torneio.');
-      return false;
+      const movs = await api.obterMovimentacoesEstoque(100);
+      if (Array.isArray(movs)) {
+        setStockMovements(movs);
+      }
+    } catch {
+      // Ignora erro
     }
   };
 
-  const createTournament = async (
-    data: Omit<Tournament, 'id' | 'vagasOcupadas' | 'inscritos' | 'status'>
+  const registerStockEntry = async (
+    productId: number,
+    quantity: number,
+    motivo: string = 'Reposição de Estoque'
   ) => {
+    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+    if (!isStaffOrAdmin) {
+      showToast('Apenas funcionários ou administradores podem registrar entradas!');
+      return;
+    }
+    const prod = products.find((p) => p.id === productId);
     try {
-      const criado = await api.cadastrarTorneio(data);
-      setTournaments((prev) => [criado, ...prev]);
-      showToast(`Torneio "${criado.titulo}" cadastrado com sucesso!`);
+      const resp = await api.registrarEntradaEstoque(
+        productId,
+        quantity,
+        motivo,
+        currentUser.nome || 'Administrador'
+      );
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === productId
+            ? {
+                ...p,
+                estoque: resp.quantidade ?? p.estoque + quantity,
+                estoqueMinimo: resp.estoque_minimo ?? p.estoqueMinimo,
+              }
+            : p
+        )
+      );
+      await refreshStockMovements();
+      showToast(`Entrada de +${quantity} un. registrada para "${prod?.nome || 'Produto'}"!`);
     } catch (err: any) {
-      showToast(err?.message || 'Erro ao cadastrar torneio no servidor.');
+      showToast(err?.message || 'Erro ao registrar entrada de estoque.');
+      throw err;
+    }
+  };
+
+  const registerStockExit = async (
+    productId: number,
+    quantity: number,
+    motivo: string = 'Baixa Operacional'
+  ) => {
+    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+    if (!isStaffOrAdmin) {
+      showToast('Apenas funcionários ou administradores podem registrar saídas!');
+      return;
+    }
+    const prod = products.find((p) => p.id === productId);
+    try {
+      const resp = await api.registrarSaidaEstoque(
+        productId,
+        quantity,
+        motivo,
+        currentUser.nome || 'Administrador'
+      );
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === productId
+            ? {
+                ...p,
+                estoque: resp.quantidade ?? Math.max(0, p.estoque - quantity),
+                estoqueMinimo: resp.estoque_minimo ?? p.estoqueMinimo,
+              }
+            : p
+        )
+      );
+      await refreshStockMovements();
+      showToast(`Saída de -${quantity} un. registrada para "${prod?.nome || 'Produto'}"!`);
+    } catch (err: any) {
+      showToast(err?.message || 'Erro ao registrar saída de estoque.');
+      throw err;
+    }
+  };
+
+  const updateProductMinStock = async (productId: number, minStock: number) => {
+    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+    if (!isStaffOrAdmin) {
+      showToast('Apenas funcionários ou administradores podem configurar o estoque mínimo!');
+      return;
+    }
+    const prod = products.find((p) => p.id === productId);
+    try {
+      const resp = await api.definirEstoqueMinimo(productId, minStock);
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === productId
+            ? { ...p, estoqueMinimo: resp.estoque_minimo ?? minStock }
+            : p
+        )
+      );
+      showToast(`Estoque mínimo de "${prod?.nome || 'Produto'}" definido para ${minStock} un.!`);
+    } catch (err: any) {
+      showToast(err?.message || 'Erro ao atualizar estoque mínimo.');
     }
   };
 
@@ -517,6 +550,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const criado = await api.cadastrarProduto(p);
       setProducts((prev) => [criado, ...prev]);
+      await refreshStockMovements();
       showToast(`Produto "${criado.nome}" cadastrado com sucesso!`);
     } catch (err: any) {
       showToast(err?.message || 'Erro ao cadastrar produto no servidor.');
@@ -654,6 +688,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const removeProductPermanently = async (productId: number) => {
+    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+    if (!isStaffOrAdmin) {
+      showToast('Apenas funcionários ou administradores podem excluir produtos permanentemente!');
+      return;
+    }
+
+    const prod = products.find((p) => p.id === productId);
+    try {
+      await api.excluirProduto(productId);
+      setProducts((prev) => prev.filter((p) => p.id !== productId));
+      showToast(`Produto "${prod?.nome || ''}" excluído permanentemente!`);
+    } catch (err: any) {
+      showToast(err?.message || 'Falha ao excluir produto no servidor.');
+      throw err;
+    }
+  };
+
   const switchRole = (role: UserRole) => {
     setCurrentUser((prev) => ({
       ...prev,
@@ -665,6 +717,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? 'Especialista em TCG'
           : undefined,
     }));
+    if (role === 'admin') {
+      setCurrentTab('admin');
+    }
     showToast(`Perfil alternado para: ${role.toUpperCase()}`);
   };
 
@@ -688,12 +743,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentUser(cadastrado);
         setIsAuthModalOpen(false);
         showToast(`Cadastro realizado! Bem-vindo, ${cadastrado.nome}!`);
+        if (cadastrado.role === 'admin') {
+          setCurrentTab('admin');
+        }
         return true;
       } else {
         const logado = await api.login(emailLimpo, senha);
         setCurrentUser(logado);
         setIsAuthModalOpen(false);
         showToast(`Bem-vindo de volta, ${logado.nome}!`);
+        if (logado.role === 'admin') {
+          setCurrentTab('admin');
+        }
         return true;
       }
     } catch (err: any) {
@@ -736,11 +797,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         editProduct,
         deleteProduct,
         reactivateProduct,
-        tournaments,
-        selectedTournamentForModal,
-        setSelectedTournamentForModal,
-        registerInTournament,
-        createTournament,
+        removeProductPermanently,
+        stockMovements,
+        refreshStockMovements,
+        registerStockEntry,
+        registerStockExit,
+        updateProductMinStock,
         cart,
         isCartOpen,
         setIsCartOpen,

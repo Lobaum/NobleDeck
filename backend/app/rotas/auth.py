@@ -2,9 +2,11 @@ from fastapi import APIRouter, HTTPException, status
 from app.banco import (
     salvar_usuario,
     obter_usuario_por_email,
+    obter_usuario_por_id,
     listar_usuarios,
     atualizar_usuario_perfil,
     atualizar_senha_usuario,
+    excluir_usuario,
 )
 from app.modelos.usuario import Cliente, Funcionario, Administrador
 from app.esquemas import (
@@ -79,3 +81,12 @@ def alterar_senha(id_usuario: int, dados: UsuarioAlterarSenha):
     if not atualizado:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
     return atualizado
+
+
+@router.delete("/usuarios/{id_usuario}", status_code=status.HTTP_204_NO_CONTENT, tags=["Usuários"])
+def remover_usuario(id_usuario: int):
+    existente = obter_usuario_por_id(id_usuario)
+    if not existente:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    excluir_usuario(id_usuario)
+    return None

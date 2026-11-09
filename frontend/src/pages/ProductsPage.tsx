@@ -106,18 +106,18 @@ export const ProductsPage: React.FC = () => {
       catalogSource === 'api'
         ? []
         : activeStoreProducts.filter((p) => {
-            const matchesGame =
-              selectedGameFilter === 'all' ? true : p.jogo === selectedGameFilter;
-            const matchesCategory =
-              selectedCategory === 'all' ? true : p.categoria === selectedCategory;
-            const q = searchQuery.toLowerCase();
-            const matchesSearch =
-              !q ||
-              p.nome.toLowerCase().includes(q) ||
-              p.descricao.toLowerCase().includes(q) ||
-              p.subtitulo.toLowerCase().includes(q);
-            return matchesGame && matchesCategory && matchesSearch;
-          });
+          const matchesGame =
+            selectedGameFilter === 'all' ? true : p.jogo === selectedGameFilter;
+          const matchesCategory =
+            selectedCategory === 'all' ? true : p.categoria === selectedCategory;
+          const q = searchQuery.toLowerCase();
+          const matchesSearch =
+            !q ||
+            p.nome.toLowerCase().includes(q) ||
+            p.descricao.toLowerCase().includes(q) ||
+            p.subtitulo.toLowerCase().includes(q);
+          return matchesGame && matchesCategory && matchesSearch;
+        });
 
     const storeKeys = new Set(
       activeStoreProducts.map((p) => `${p.jogo}:${p.nome.toLowerCase().trim()}`)
@@ -125,8 +125,8 @@ export const ProductsPage: React.FC = () => {
 
     const mappedApiProducts = shouldFetchApi
       ? apiCards
-          .filter((c) => !storeKeys.has(`${c.jogo}:${c.nome.toLowerCase().trim()}`))
-          .map((c) => externalCardToProduct(c))
+        .filter((c) => !storeKeys.has(`${c.jogo}:${c.nome.toLowerCase().trim()}`))
+        .map((c) => externalCardToProduct(c))
       : [];
 
     const combined = [...storeMatches, ...mappedApiProducts];
@@ -635,10 +635,10 @@ export const ProductsPage: React.FC = () => {
                           }}
                         >
                           {p.externalCard
-                            ? 'Sob encomenda / API'
+                            ? 'Sob encomenda'
                             : p.estoque > 0
-                            ? `${p.estoque} em estoque`
-                            : 'Esgotado'}
+                              ? `${p.estoque} em estoque`
+                              : 'Esgotado'}
                         </span>
                       </div>
                     </div>
