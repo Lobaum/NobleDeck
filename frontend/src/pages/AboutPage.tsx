@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, Trophy, Star, MapPin, Clock, Phone, Mail, HelpCircle } from 'lucide-react';
+import { ShieldCheck, Users, Star, MapPin, Clock, Phone, Mail, HelpCircle } from 'lucide-react';
 import nobleLogo from '../assets/noble-logo.png';
 
 export const AboutPage: React.FC = () => {
@@ -9,8 +9,8 @@ export const AboutPage: React.FC = () => {
       a: 'Sim, 100% dos produtos comercializados são oficiais, lacrados de fábrica pelas distribuidoras autorizadas (Copag, Wizards of the Coast, Konami e Bandai).',
     },
     {
-      q: 'Como funcionam os torneios da loja?',
-      a: 'Nossos torneios seguem as diretrizes oficiais de cada jogo (DCI/WER, Play! Pokémon, Konami OTS e Bandai TCG+). Você pode se inscrever pelo nosso site e realizar o check-in até 15 minutos antes do início.',
+      q: 'Como funciona o envio e a segurança das cartas?',
+      a: 'Todas as cartas são enviadas com sleeves de proteção, toploaders rígidos e embalagens reforçadas para garantir que cheguem em perfeito estado até você.',
     },
     {
       q: 'A loja compra ou avalia cartas avulsas?',
@@ -60,9 +60,9 @@ export const AboutPage: React.FC = () => {
               lineHeight: 1.6,
             }}
           >
-            O Noble Deck nasceu para unir colecionadores e duelistas em uma experiência
-            sofisticada, tecnológica e acolhedora. Da busca pelo próximo card secreto à emoção das
-            finais de um torneio regional, nosso compromisso é com a qualidade.
+            O Noble Deck nasceu para unir colecionadores e jogadores em uma experiência
+            sofisticada, tecnológica e acolhedora. Da busca pelo próximo card secreto à construção
+            da coleção dos seus sonhos, nosso compromisso é com a qualidade.
           </p>
         </div>
 
@@ -84,10 +84,10 @@ export const AboutPage: React.FC = () => {
           </div>
 
           <div className="glass-panel" style={{ padding: '28px', borderRadius: 'var(--radius-lg)' }}>
-            <Trophy size={32} color="var(--color-accent-pink)" style={{ marginBottom: '16px' }} />
-            <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>Torneios Sancionados</h3>
+            <Users size={32} color="var(--color-accent-pink)" style={{ marginBottom: '16px' }} />
+            <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>Comunidade Apaixonada</h3>
             <p style={{ fontSize: '14px', color: 'var(--color-on-surface-variant)', lineHeight: 1.5 }}>
-              Arena climatizada com capacidade para mais de 60 duelistas simultâneos, juízes credenciados e premiações justas.
+              Espaço acolhedor para troca de cards, dicas de montagem de coleções e conexão com outros entusiastas de TCG.
             </p>
           </div>
 

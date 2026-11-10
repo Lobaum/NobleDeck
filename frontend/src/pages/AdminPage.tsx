@@ -6,10 +6,8 @@ import {
   Lock,
   Users,
   AlertTriangle,
-  CheckCircle,
   Plus,
   Minus,
-  Trophy,
   Package,
   ShoppingBag,
   ArrowLeft,
@@ -50,9 +48,6 @@ export const AdminPage: React.FC = () => {
     registerStockEntry,
     registerStockExit,
     updateProductMinStock,
-    tournaments,
-    deleteTournament,
-    registerTournamentMatch,
     orders,
     updateOrderStatus,
     showToast,
@@ -66,7 +61,7 @@ export const AdminPage: React.FC = () => {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // Painel Admin Abas Principais
-  const [activeAdminTab, setActiveAdminTab] = useState<'users' | 'inventory' | 'tournaments' | 'orders'>('inventory');
+  const [activeAdminTab, setActiveAdminTab] = useState<'inventory' | 'users' | 'orders'>('inventory');
   const [userList, setUserList] = useState<UserProfile[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
 
@@ -100,12 +95,6 @@ export const AdminPage: React.FC = () => {
   const [confirmAdminPassword, setConfirmAdminPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
-  // Torneios & Registro de Partidas
-  const [selectedTournamentId, setSelectedTournamentId] = useState<number | null>(null);
-  const [matchPlayer1, setMatchPlayer1] = useState('');
-  const [matchPlayer2, setMatchPlayer2] = useState('');
-  const [matchResult, setMatchResult] = useState('');
-  const [matchHistory, setMatchHistory] = useState<Array<{ id: number; torneioId: number; p1: string; p2: string; res: string; data: string }>>([]);
 
   const isAuthenticated = Boolean(currentUser.email) && currentUser.id !== 0;
   const isAdmin = isAuthenticated && currentUser.role === 'admin';
@@ -416,50 +405,6 @@ export const AdminPage: React.FC = () => {
     }
   };
 
-  // Excluir Torneio
-  const handleDeleteTournament = (tournamentId: number, tournamentTitle: string) => {
-    showToastConfirm({
-      message: `Tem certeza que deseja excluir o torneio "${tournamentTitle}"? Todas as inscrições associadas serão removidas.`,
-      confirmText: 'Excluir Torneio',
-      cancelText: 'Cancelar',
-      onConfirm: async () => {
-        await deleteTournament(tournamentId);
-      },
-    });
-  };
-
-  // Registrar Resultado de Partida de Torneio
-  const handleRegisterMatch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedTournamentId) {
-      showToast('Selecione um torneio para registrar a partida.');
-      return;
-    }
-    if (!matchPlayer1.trim() || !matchPlayer2.trim() || !matchResult.trim()) {
-      showToast('Preencha os jogadores e o resultado do confronto.');
-      return;
-    }
-
-    try {
-      await registerTournamentMatch(selectedTournamentId, matchPlayer1.trim(), matchPlayer2.trim(), matchResult.trim());
-    } catch {
-      showToast('Resultado de partida registrado localmente!');
-    }
-
-    const novaPartida = {
-      id: Date.now(),
-      torneioId: selectedTournamentId,
-      p1: matchPlayer1.trim(),
-      p2: matchPlayer2.trim(),
-      res: matchResult.trim(),
-      data: new Date().toLocaleString('pt-BR'),
-    };
-
-    setMatchHistory((prev) => [novaPartida, ...prev]);
-    setMatchPlayer1('');
-    setMatchPlayer2('');
-    setMatchResult('');
-  };
 
   // 1. CASO NÃO AUTENTICADO: Tela de Login Administrativo
   if (!isAuthenticated) {
@@ -886,26 +831,6 @@ export const AdminPage: React.FC = () => {
           <div
             className="glass-panel admin-kpi-card"
             style={{ padding: '20px', borderRadius: 'var(--radius-lg)', cursor: 'pointer' }}
-            onClick={() => setActiveAdminTab('tournaments')}
-            title="Ir para Torneios"
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <span style={{ fontSize: '11px', color: 'var(--color-outline)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>
-                Torneios Ativos
-              </span>
-              <div style={{ padding: '6px', borderRadius: '8px', backgroundColor: 'rgba(255, 244, 191, 0.1)' }}>
-                <Trophy size={16} color="var(--color-accent-yellow)" />
-              </div>
-            </div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-headline)', fontFamily: 'var(--font-mono)' }}>
-              {tournaments.length}
-            </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)' }}>Arenas e eventos cadastrados</span>
-          </div>
-
-          <div
-            className="glass-panel admin-kpi-card"
-            style={{ padding: '20px', borderRadius: 'var(--radius-lg)', cursor: 'pointer' }}
             onClick={() => setActiveAdminTab('users')}
             title="Ir para Usuários"
           >
@@ -954,7 +879,7 @@ export const AdminPage: React.FC = () => {
               boxShadow: activeAdminTab === 'inventory' ? '0 0 15px var(--glow-color)' : 'none',
             }}
           >
-            <Package size={15} /> Controle de Estoque & Kardex
+            <Package size={15} /> Controle de Estoque
           </button>
 
           <button
@@ -977,28 +902,6 @@ export const AdminPage: React.FC = () => {
             }}
           >
             <Users size={15} /> Gestão de Usuários & Equipe ({userList.length})
-          </button>
-
-          <button
-            onClick={() => setActiveAdminTab('tournaments')}
-            className="admin-tab-btn"
-            style={{
-              padding: '10px 18px',
-              borderRadius: 'var(--radius-md)',
-              border: activeAdminTab === 'tournaments' ? '1px solid rgba(216, 185, 255, 0.35)' : '1px solid transparent',
-              backgroundColor: activeAdminTab === 'tournaments' ? 'rgba(216, 185, 255, 0.14)' : 'transparent',
-              color: activeAdminTab === 'tournaments' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '13px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              boxShadow: activeAdminTab === 'tournaments' ? '0 0 15px var(--glow-color)' : 'none',
-            }}
-          >
-            <Trophy size={15} /> Torneios & Confrontos ({tournaments.length})
           </button>
 
           <button
@@ -1025,7 +928,7 @@ export const AdminPage: React.FC = () => {
         </div>
 
         {/* =========================================================================
-            ABA 1: REFORMULAÇÃO 100% COMPLETA DE ESTOQUE & KARDEX
+            ABA 1: REFORMULAÇÃO 100% COMPLETA DE ESTOQUE
            ========================================================================= */}
         {activeAdminTab === 'inventory' && (
           <div className="admin-animate-fade">
@@ -1047,7 +950,7 @@ export const AdminPage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Package size={22} color="var(--color-primary)" />
                   <h3 style={{ fontSize: '20px', color: 'var(--color-headline)', margin: 0, fontWeight: 800 }}>
-                    Central de Gestão de Estoque & Auditoria Kardex
+                    Central de Gestão de Estoque
                   </h3>
                 </div>
                 <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', margin: '4px 0 0' }}>
@@ -1198,7 +1101,7 @@ export const AdminPage: React.FC = () => {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <span style={{ fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    Auditorias no Kardex
+                    Histórico
                   </span>
                   <History size={16} color="var(--color-secondary)" />
                 </div>
@@ -1294,7 +1197,7 @@ export const AdminPage: React.FC = () => {
                       gap: '6px',
                     }}
                   >
-                    <History size={14} /> Kardex / Movimentações ({stockMovements.length})
+                    <History size={14} />Movimentações ({stockMovements.length})
                   </button>
 
                   <button
@@ -1643,14 +1546,14 @@ export const AdminPage: React.FC = () => {
                 </div>
               )}
 
-              {/* TABELA: KARDEX & AUDITORIA DE MOVIMENTAÇÕES */}
+              {/* AUDITORIA DE MOVIMENTAÇÕES */}
               {inventorySubTab === 'movements' && (
                 <div style={{ overflowX: 'auto' }}>
                   {filteredMovements.length === 0 ? (
                     <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--color-outline)' }}>
                       <History size={36} style={{ margin: '0 auto 10px', opacity: 0.5 }} />
                       <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>Nenhuma movimentação de estoque registrada até o momento.</p>
-                      <span style={{ fontSize: '12px' }}>Realize uma entrada ou baixa para iniciar o histórico auditável do Kardex.</span>
+                      <span style={{ fontSize: '12px' }}>Realize uma entrada ou baixa para iniciar o histórico.</span>
                     </div>
                   ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -1986,13 +1889,12 @@ export const AdminPage: React.FC = () => {
                                 : user.role === 'funcionario'
                                   ? '#facc15'
                                   : 'var(--color-on-surface-variant)',
-                            border: `1px solid ${
-                              user.role === 'admin'
-                                ? 'rgba(216, 185, 255, 0.4)'
-                                : user.role === 'funcionario'
-                                  ? 'rgba(250, 204, 21, 0.3)'
-                                  : 'rgba(140, 86, 212, 0.25)'
-                            }`,
+                            border: `1px solid ${user.role === 'admin'
+                              ? 'rgba(216, 185, 255, 0.4)'
+                              : user.role === 'funcionario'
+                                ? 'rgba(250, 204, 21, 0.3)'
+                                : 'rgba(140, 86, 212, 0.25)'
+                              }`,
                           }}
                         >
                           {user.role}
@@ -2096,268 +1998,9 @@ export const AdminPage: React.FC = () => {
           </div>
         )}
 
-        {/* =========================================================================
-            ABA 3: TORNEIOS & CONFRONTOS (Com exclusão e registro)
-           ========================================================================= */}
-        {activeAdminTab === 'tournaments' && (
-          <div className="admin-animate-fade" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {/* Lista e Gestão de Torneios Cadastrados */}
-            <div className="glass-panel" style={{ padding: '24px', borderRadius: 'var(--radius-xl)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Trophy size={18} color="var(--color-accent-yellow)" />
-                    <h3 style={{ fontSize: '18px', color: 'var(--color-headline)', margin: 0, fontWeight: 700 }}>
-                      Torneios Oficiais do Sistema ({tournaments.length})
-                    </h3>
-                  </div>
-                  <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', margin: '4px 0 0' }}>
-                    Supervisione arenas ativas, vagas preenchidas e remova eventos encerrados ou obsoletos.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setCurrentTab('tournaments')}
-                  className="btn-outline"
-                  style={{ padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                  <Trophy size={13} /> Ver na Visão Geral de Arenas
-                </button>
-              </div>
-
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--card-border)', color: 'var(--color-outline)', fontSize: '11px', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      <th style={{ padding: '12px 10px' }}>Torneio</th>
-                      <th style={{ padding: '12px 10px' }}>Card Game</th>
-                      <th style={{ padding: '12px 10px' }}>Data / Horário</th>
-                      <th style={{ padding: '12px 10px' }}>Taxa de Entrada</th>
-                      <th style={{ padding: '12px 10px' }}>Ocupação</th>
-                      <th style={{ padding: '12px 10px' }}>Status</th>
-                      <th style={{ padding: '12px 10px', textAlign: 'right' }}>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tournaments.map((t) => (
-                      <tr key={t.id} className="admin-table-row" style={{ borderBottom: '1px solid var(--card-border)', fontSize: '13px' }}>
-                        <td style={{ padding: '12px 10px', fontWeight: 700, color: 'var(--color-headline)' }}>
-                          {t.titulo}
-                        </td>
-                        <td style={{ padding: '12px 10px' }}>
-                          <span className="badge badge-muted">{t.jogoNome}</span>
-                        </td>
-                        <td style={{ padding: '12px 10px', fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--color-on-surface-variant)' }}>
-                          {t.data}
-                        </td>
-                        <td style={{ padding: '12px 10px', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-primary)' }}>
-                          {t.taxaInscricao > 0 ? `R$ ${t.taxaInscricao.toFixed(2)}` : 'Gratuito'}
-                        </td>
-                        <td style={{ padding: '12px 10px', fontFamily: 'var(--font-mono)' }}>
-                          {t.vagasOcupadas} / {t.vagasTotais} inscritos
-                        </td>
-                        <td style={{ padding: '12px 10px' }}>
-                          <span
-                            style={{
-                              display: 'inline-block',
-                              padding: '2px 8px',
-                              borderRadius: '4px',
-                              fontSize: '11px',
-                              fontFamily: 'var(--font-mono)',
-                              fontWeight: 700,
-                              backgroundColor:
-                                t.status === 'aberto'
-                                  ? 'rgba(74, 222, 128, 0.15)'
-                                  : t.status === 'lotado'
-                                    ? 'rgba(250, 204, 21, 0.15)'
-                                    : 'rgba(148, 163, 184, 0.15)',
-                              color:
-                                t.status === 'aberto'
-                                  ? '#4ade80'
-                                  : t.status === 'lotado'
-                                    ? '#facc15'
-                                    : 'var(--color-outline)',
-                            }}
-                          >
-                            {t.status.toUpperCase()}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 10px', textAlign: 'right' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteTournament(t.id, t.titulo)}
-                            style={{
-                              padding: '5px 10px',
-                              borderRadius: '6px',
-                              border: '1px solid rgba(239, 68, 68, 0.4)',
-                              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                              color: '#f87171',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              transition: 'all 0.15s ease',
-                            }}
-                            title="Excluir este torneio"
-                          >
-                            <Trash2 size={12} /> Excluir
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Painel de Registro de Partidas & Histórico */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
-              {/* Formulário de Registro de Confronto / Partida */}
-              <div className="glass-panel" style={{ padding: '24px', borderRadius: 'var(--radius-xl)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <Trophy size={18} color="var(--color-primary)" />
-                  <h3 style={{ fontSize: '18px', color: 'var(--color-headline)', margin: 0, fontWeight: 700 }}>
-                    Registrar Resultado de Partida
-                  </h3>
-                </div>
-                <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', marginBottom: '20px' }}>
-                  Lance o confronto e o resultado oficial das partidas de eliminatórias ou suíço.
-                </p>
-
-                <form onSubmit={handleRegisterMatch} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
-                      Selecione o Torneio
-                    </label>
-                    <select
-                      className="system-input"
-                      value={selectedTournamentId || ''}
-                      onChange={(e) => setSelectedTournamentId(Number(e.target.value))}
-                      style={{ fontSize: '13px' }}
-                    >
-                      <option value="">Selecione um torneio...</option>
-                      {tournaments.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.titulo} ({t.jogoNome})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
-                        Jogador 1 (Duelista A)
-                      </label>
-                      <input
-                        type="text"
-                        className="system-input"
-                        placeholder="Ex: Pedro Henrique"
-                        value={matchPlayer1}
-                        onChange={(e) => setMatchPlayer1(e.target.value)}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
-                        Jogador 2 (Duelista B)
-                      </label>
-                      <input
-                        type="text"
-                        className="system-input"
-                        placeholder="Ex: Lucas Tadashi"
-                        value={matchPlayer2}
-                        onChange={(e) => setMatchPlayer2(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
-                      Resultado / Placar Oficial
-                    </label>
-                    <input
-                      type="text"
-                      className="system-input"
-                      placeholder="Ex: Jogador 1 venceu 2x1"
-                      value={matchResult}
-                      onChange={(e) => setMatchResult(e.target.value)}
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="btn-primary"
-                    style={{
-                      padding: '12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      background: 'var(--grad-primary)',
-                      boxShadow: '0 4px 15px var(--glow-color)',
-                      fontWeight: 700,
-                    }}
-                  >
-                    <CheckCircle size={16} /> Salvar Resultado no Sistema
-                  </button>
-                </form>
-              </div>
-
-              {/* Histórico das Partidas Registradas */}
-              <div className="glass-panel" style={{ padding: '24px', borderRadius: 'var(--radius-xl)' }}>
-                <h3 style={{ fontSize: '18px', color: 'var(--color-headline)', marginBottom: '8px' }}>
-                  Confrontos Recentes
-                </h3>
-                <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', marginBottom: '16px' }}>
-                  Resultados computados e validados pela coordenação do torneio.
-                </p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '380px', overflowY: 'auto' }}>
-                  {matchHistory.length === 0 ? (
-                    <div style={{ padding: '30px 10px', textAlign: 'center', color: 'var(--color-outline)', fontSize: '13px' }}>
-                      Nenhum resultado registrado nesta sessão.
-                    </div>
-                  ) : (
-                    matchHistory.map((m) => (
-                      <div
-                        key={m.id}
-                        style={{
-                          padding: '12px 16px',
-                          borderRadius: '10px',
-                          backgroundColor: 'var(--color-surface-container-low)',
-                          border: '1px solid var(--card-border)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '4px',
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '13px', fontWeight: 700 }}>
-                            {m.p1} <span style={{ color: 'var(--color-outline)' }}>vs</span> {m.p2}
-                          </span>
-                          <span style={{ fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)' }}>
-                            {m.data}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <CheckCircle size={13} color="#4ade80" />
-                          <span style={{ fontSize: '12px', color: '#4ade80', fontWeight: 600 }}>{m.res}</span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* =========================================================================
-            ABA 4: GESTÃO CENTRALIZADA DE PEDIDOS
+            ABA 3: GESTÃO CENTRALIZADA DE PEDIDOS
            ========================================================================= */}
         {activeAdminTab === 'orders' && (
           <div className="glass-panel" style={{ padding: '24px', borderRadius: 'var(--radius-xl)' }}>
@@ -2424,7 +2067,7 @@ export const AdminPage: React.FC = () => {
             <div className="glass-panel system-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                 <div>
-                  <span className="badge badge-primary" style={{ marginBottom: '6px' }}>Kardex & Suprimentos</span>
+                  <span className="badge badge-primary" style={{ marginBottom: '6px' }}>Suprimentos</span>
                   <h3 style={{ fontSize: '20px', color: 'var(--color-headline)', margin: 0, fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <ArrowUpCircle size={20} color="#34d399" /> Registrar Entrada de Estoque
                   </h3>
@@ -2553,7 +2196,7 @@ export const AdminPage: React.FC = () => {
                       fontWeight: 700,
                     }}
                   >
-                    {isSubmittingStock ? 'Registrando...' : 'Confirmar Entrada no Kardex'}
+                    {isSubmittingStock ? 'Registrando...' : 'Confirmar Entrada'}
                   </button>
                 </div>
               </form>
@@ -2567,7 +2210,7 @@ export const AdminPage: React.FC = () => {
             <div className="glass-panel system-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                 <div>
-                  <span className="badge badge-primary" style={{ marginBottom: '6px' }}>Kardex & Baixas</span>
+                  <span className="badge badge-primary" style={{ marginBottom: '6px' }}>Baixas</span>
                   <h3 style={{ fontSize: '20px', color: 'var(--color-headline)', margin: 0, fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <ArrowDownCircle size={20} color="#f87171" /> Registrar Baixa / Saída Operacional
                   </h3>
@@ -2582,7 +2225,7 @@ export const AdminPage: React.FC = () => {
               </div>
 
               <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', marginBottom: '18px', lineHeight: 1.5 }}>
-                Lance baixas decorrentes de avarias, uso interno em demonstrações, premiações de torneio ou correções auditadas.
+                Lance baixas decorrentes de avarias, uso interno em demonstrações, premiações / eventos ou correções auditadas.
               </p>
 
               <form onSubmit={handleConfirmExit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -2663,7 +2306,7 @@ export const AdminPage: React.FC = () => {
                   />
                   {/* Chips rápidos de motivos */}
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
-                    {['Avaria / Dano', 'Premiação Torneio', 'Uso Interno', 'Ajuste de Inventário', 'Venda Balcão'].map((chip) => (
+                    {['Avaria / Dano', 'Premiação / Evento', 'Uso Interno', 'Ajuste de Inventário', 'Venda Balcão'].map((chip) => (
                       <button
                         key={chip}
                         type="button"
@@ -2698,7 +2341,7 @@ export const AdminPage: React.FC = () => {
                       fontWeight: 700,
                     }}
                   >
-                    {isSubmittingStock ? 'Processando...' : 'Confirmar Baixa no Kardex'}
+                    {isSubmittingStock ? 'Processando...' : 'Confirmar Baixa'}
                   </button>
                 </div>
               </form>

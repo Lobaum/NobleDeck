@@ -1306,7 +1306,6 @@ export const DashboardPage: React.FC = () => {
   const {
     currentUser,
     orders,
-    tournaments,
     products,
     updateProductStock,
     setProductStockExact,
@@ -1316,27 +1315,16 @@ export const DashboardPage: React.FC = () => {
     removeProductPermanently,
     showToastConfirm,
     addProduct,
-    createTournament,
     updateOrderStatus,
     setCurrentTab,
     setIsAuthModalOpen,
     setAuthModalMode,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'new-tournament'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'inventory'>('orders');
   const [productStatusFilter, setProductStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isCreateProductModalOpen, setIsCreateProductModalOpen] = useState(false);
-
-  const [newTourTitle, setNewTourTitle] = useState('');
-  const [newTourGame, setNewTourGame] = useState<GameId>('magic');
-  const [newTourFormat, setNewTourFormat] = useState('');
-  const [newTourDate, setNewTourDate] = useState('');
-  const [newTourTime, setNewTourTime] = useState('');
-  const [newTourLocal, setNewTourLocal] = useState('');
-  const [newTourSlots, setNewTourSlots] = useState('');
-  const [newTourFee, setNewTourFee] = useState('');
-  const [newTourPrize, setNewTourPrize] = useState('');
 
   const isStaffOrAdmin = currentUser.role === 'funcionario' || currentUser.role === 'admin';
   const visibleOrders = isStaffOrAdmin
@@ -1428,37 +1416,6 @@ export const DashboardPage: React.FC = () => {
     );
   }
 
-  const handleCreateTournament = (e: React.FormEvent) => {
-    e.preventDefault();
-    const gameNames: Record<GameId, string> = {
-      pokemon: 'Pokémon TCG',
-      magic: 'Magic: The Gathering',
-      yugioh: 'Yu-Gi-Oh!',
-      onepiece: 'One Piece',
-      outros: 'Geral',
-    };
-
-    createTournament({
-      titulo: newTourTitle,
-      jogo: newTourGame,
-      jogoNome: gameNames[newTourGame],
-      formato: newTourFormat,
-      data: newTourDate,
-      horario: newTourTime,
-      local: newTourLocal,
-      vagasTotais: parseInt(newTourSlots) || 16,
-      taxaInscricao: parseFloat(newTourFee) || 0,
-      premiacao: newTourPrize,
-      isPremium: true,
-    });
-
-    setNewTourTitle('');
-    setCurrentTab('tournaments');
-  };
-
-  const myTournaments = tournaments.filter((t) =>
-    currentUser.torneiosInscritos.includes(t.id)
-  );
 
   return (
     <div style={{ paddingTop: '40px', paddingBottom: '80px' }}>
@@ -1560,27 +1517,6 @@ export const DashboardPage: React.FC = () => {
                 }}
               >
                 Gerenciar Estoque ({products.length})
-              </button>
-
-
-
-              <button
-                onClick={() => setActiveTab('new-tournament')}
-                style={{
-                  padding: '10px 18px',
-                  borderRadius: 'var(--radius-md)',
-                  border: 'none',
-                  backgroundColor:
-                    activeTab === 'new-tournament' ? 'rgba(140, 86, 212, 0.25)' : 'transparent',
-                  color: activeTab === 'new-tournament' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                }}
-              >
-                + Cadastrar Torneio
               </button>
             </>
           )}
@@ -1744,49 +1680,6 @@ export const DashboardPage: React.FC = () => {
                 </div>
               ))
             )}
-
-            {!isStaffOrAdmin && (
-              <div style={{ marginTop: '24px' }}>
-                <h3 style={{ fontSize: '20px', marginBottom: '16px' }}>
-                  Torneios que você está participando
-                </h3>
-                {myTournaments.length === 0 ? (
-                  <p style={{ color: 'var(--color-on-surface-variant)', fontSize: '14px' }}>
-                    Você ainda não se inscreveu em nenhum torneio.{' '}
-                    <button
-                      onClick={() => setCurrentTab('tournaments')}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--color-primary)',
-                        cursor: 'pointer',
-                        textDecoration: 'underline',
-                      }}
-                    >
-                      Ver calendário
-                    </button>
-                  </p>
-                ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-                    {myTournaments.map((t) => (
-                      <div
-                        key={t.id}
-                        className="glass-panel"
-                        style={{ padding: '16px', borderRadius: 'var(--radius-md)' }}
-                      >
-                        <span className="badge badge-purple" style={{ marginBottom: '8px' }}>
-                          {t.jogoNome}
-                        </span>
-                        <h4 style={{ fontSize: '16px', marginBottom: '6px' }}>{t.titulo}</h4>
-                        <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)' }}>
-                          {t.data} às {t.horario} • {t.local}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         )}
 
@@ -1893,166 +1786,6 @@ export const DashboardPage: React.FC = () => {
           </div>
         )}
 
-        {/* Novo Torneio */}
-        {isStaffOrAdmin && activeTab === 'new-tournament' && (
-          <div
-            className="glass-panel"
-            style={{
-              maxWidth: '680px',
-              padding: '32px',
-              borderRadius: 'var(--radius-xl)',
-            }}
-          >
-            <h3 style={{ fontSize: '22px', marginBottom: '8px' }}>Cadastrar Novo Torneio</h3>
-            <p
-              style={{
-                fontSize: '13px',
-                color: 'var(--color-on-surface-variant)',
-                marginBottom: '24px',
-              }}
-            >
-              Defina as regras, jogo, premiação e número de vagas para os jogadores.
-            </p>
-
-            <form onSubmit={handleCreateTournament} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px' }}>
-                  Título do Torneio
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Torneio de Lançamento Regional"
-                  className="system-input"
-                  value={newTourTitle}
-                  onChange={(e) => setNewTourTitle(e.target.value)}
-                />
-              </div>
-
-              <div className="system-form-grid">
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px' }}>
-                    Jogo
-                  </label>
-                  <SystemSelect<GameId>
-                    value={newTourGame}
-                    onChange={(val) => setNewTourGame(val)}
-                    options={gameOptions.filter((g) => g.value !== 'outros')}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px' }}>
-                    Formato
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: Standard Suíço"
-                    className="system-input"
-                    value={newTourFormat}
-                    onChange={(e) => setNewTourFormat(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="system-form-grid">
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px' }}>
-                    Data
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: Sáb, 15 Dez"
-                    className="system-input"
-                    value={newTourDate}
-                    onChange={(e) => setNewTourDate(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px' }}>
-                    Horário
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: 14:00"
-                    className="system-input"
-                    value={newTourTime}
-                    onChange={(e) => setNewTourTime(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px' }}>
-                  Local da Partida
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Noble Deck Arena - Sala Principal"
-                  className="system-input"
-                  value={newTourLocal}
-                  onChange={(e) => setNewTourLocal(e.target.value)}
-                />
-              </div>
-
-              <div className="system-form-grid">
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px' }}>
-                    Limite de Vagas
-                  </label>
-                  <input
-                    type="number"
-                    min="2"
-                    required
-                    placeholder="Ex: 32"
-                    className="system-input"
-                    value={newTourSlots}
-                    onChange={(e) => setNewTourSlots(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px' }}>
-                    Taxa de Inscrição (R$)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    required
-                    placeholder="Ex: 50.00"
-                    className="system-input"
-                    value={newTourFee}
-                    onChange={(e) => setNewTourFee(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px' }}>
-                  Premiação Oferecida
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Créditos na loja + Boosters"
-                  className="system-input"
-                  value={newTourPrize}
-                  onChange={(e) => setNewTourPrize(e.target.value)}
-                />
-              </div>
-
-              <button type="submit" className="btn-primary" style={{ padding: '16px', marginTop: '8px' }}>
-                Publicar Torneio no Calendário
-              </button>
-            </form>
-          </div>
-        )}
 
         {/* Modal de Cadastro de Produto */}
         <CreateProductModal

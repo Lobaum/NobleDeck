@@ -34,9 +34,9 @@ const SLIDES: Slide[] = [
     id: 1,
     tag: 'Pokémon TCG',
     tagColor: '#FFCB05',
-    title: 'Torneios Semanais & Ligas Oficiais',
+    title: 'Coleções Exclusivas & Lançamentos',
     description:
-      'Dispute batalhas presenciais, ganhe premiações exclusivas e suba no ranking da comunidade.',
+      'Descubra boosters lacrados, cartas promocionais raras e produtos oficiais com procedência garantida.',
     image: charizardImg,
   },
   {
@@ -52,9 +52,9 @@ const SLIDES: Slide[] = [
     id: 3,
     tag: 'Yu-Gi-Oh!',
     tagColor: '#60A5FA',
-    title: 'A Maior Arena Competitiva',
+    title: 'Catálogo de Cards Raros',
     description:
-      'Cadastre seus decks, participe de eliminatórias no formato Suíço e enfrente os melhores duelistas.',
+      'Monte sua coleção com segurança, confira o estoque em tempo real e adquira suas cartas favoritas.',
     image: blueEyesImg,
   },
   {
@@ -599,8 +599,8 @@ export const AuthModal: React.FC = () => {
               }}
             >
               {authModalMode === 'login'
-                ? 'Informe suas credenciais para gerenciar seus pedidos e torneios.'
-                : 'Cadastre-se para colecionar, duelar e comprar na Noble Deck.'}
+                ? 'Informe suas credenciais para gerenciar seus pedidos e coleções.'
+                : 'Cadastre-se para colecionar e comprar na Noble Deck.'}
             </p>
 
             {/* Formulário */}
