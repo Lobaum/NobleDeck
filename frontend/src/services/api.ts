@@ -31,7 +31,7 @@ export function externalCardToProduct(card: ExternalCard, estoquePadrao = 5): Pr
     subtitulo: `${card.colecao} • ${card.codigoCarta}`,
     descricao:
       card.descricao ||
-      `Carta oficial ${card.nome} (${card.colecao}) consultada via ${card.fonteApi}.`,
+      `Carta oficial colecionável ${card.nome} (${card.colecao}).`,
     imagemUrl: card.imagemUrl,
     raridade: card.raridade,
     isNovo: false,

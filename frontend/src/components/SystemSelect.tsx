@@ -1,29 +1,38 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Check } from 'lucide-react';
 
-export interface SelectOption<T extends string = string> {
+export interface SelectOption<T extends string | number = string> {
   value: T;
   label: string;
   badge?: string;
   icon?: React.ReactNode;
+  disabled?: boolean;
 }
 
-interface SystemSelectProps<T extends string = string> {
+export interface SystemSelectProps<T extends string | number = string> {
   value: T;
   onChange: (value: T) => void;
   options: SelectOption<T>[];
   placeholder?: string;
   disabled?: boolean;
   id?: string;
+  size?: 'sm' | 'md';
+  style?: React.CSSProperties;
+  triggerStyle?: React.CSSProperties;
+  dropdownStyle?: React.CSSProperties;
 }
 
-export function SystemSelect<T extends string = string>({
+export function SystemSelect<T extends string | number = string>({
   value,
   onChange,
   options,
   placeholder = 'Selecione uma opção...',
   disabled = false,
   id,
+  size = 'md',
+  style,
+  triggerStyle,
+  dropdownStyle,
 }: SystemSelectProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,28 +62,24 @@ export function SystemSelect<T extends string = string>({
   }, [isOpen]);
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+    <div
+      ref={containerRef}
+      style={{
+        position: 'relative',
+        width: '100%',
+        zIndex: isOpen ? 9999 : undefined,
+        ...style,
+      }}
+    >
       <button
         id={id}
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen((prev) => !prev)}
-        className="system-input system-select-trigger"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          textAlign: 'left',
-          padding: '10px 12px',
-          borderColor: isOpen ? 'var(--color-primary, #8c56d4)' : undefined,
-          boxShadow: isOpen
-            ? '0 0 0 3px rgba(140, 86, 212, 0.25), 0 4px 14px rgba(140, 86, 212, 0.15)'
-            : undefined,
-          transform: isOpen ? 'translateY(-1px)' : undefined,
-        }}
+        className={`system-input system-select-trigger size-${size} ${isOpen ? 'is-open' : ''}`}
+        style={triggerStyle}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', minWidth: 0, flex: 1 }}>
           {selectedOption?.icon}
           <span
             style={{
@@ -89,14 +94,14 @@ export function SystemSelect<T extends string = string>({
           {selectedOption?.badge && (
             <span
               className="badge badge-purple"
-              style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px' }}
+              style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', flexShrink: 0 }}
             >
               {selectedOption.badge}
             </span>
           )}
         </div>
         <ChevronDown
-          size={16}
+          size={size === 'sm' ? 14 : 16}
           style={{
             color: 'var(--color-primary, #8c56d4)',
             transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -108,71 +113,39 @@ export function SystemSelect<T extends string = string>({
       </button>
 
       {isOpen && (
-        <div
-          className="system-select-dropdown"
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 6px)',
-            left: 0,
-            right: 0,
-            zIndex: 1100,
-            maxHeight: '230px',
-            overflowY: 'auto',
-            backgroundColor: 'var(--card-bg, #1a1622)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            border: '1px solid rgba(140, 86, 212, 0.35)',
-            borderRadius: '10px',
-            padding: '4px',
-            boxShadow: '0 16px 36px rgba(0, 0, 0, 0.55), 0 0 25px rgba(140, 86, 212, 0.2)',
-          }}
-        >
+        <div className="system-select-dropdown" style={dropdownStyle}>
           {options.map((opt) => {
             const isSelected = opt.value === value;
             return (
               <button
-                key={opt.value}
+                key={String(opt.value)}
                 type="button"
+                disabled={opt.disabled}
                 onClick={() => {
+                  if (opt.disabled) return;
                   onChange(opt.value);
                   setIsOpen(false);
                 }}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '9px 12px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  backgroundColor: isSelected ? 'rgba(140, 86, 212, 0.18)' : 'transparent',
-                  color: isSelected ? 'var(--color-headline, #ffffff)' : 'var(--color-on-surface, #e8e0eb)',
-                  fontSize: '13px',
-                  fontWeight: isSelected ? 600 : 400,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.15s ease',
-                  marginBottom: '2px',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isSelected) {
-                    e.currentTarget.style.backgroundColor = 'rgba(140, 86, 212, 0.1)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isSelected) {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }
-                }}
+                className={`system-select-option ${isSelected ? 'selected' : ''}`}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', minWidth: 0 }}>
                   {opt.icon}
-                  <span>{opt.label}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {opt.label}
+                  </span>
+                  {opt.badge && (
+                    <span
+                      className="badge badge-muted"
+                      style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', flexShrink: 0 }}
+                    >
+                      {opt.badge}
+                    </span>
+                  )}
                 </div>
                 {isSelected && (
                   <Check
-                    size={14}
-                    style={{ color: 'var(--color-primary, #8c56d4)', flexShrink: 0 }}
+                    size={size === 'sm' ? 13 : 15}
+                    style={{ color: 'var(--color-primary, #8c56d4)', flexShrink: 0, marginLeft: '6px' }}
                   />
                 )}
               </button>

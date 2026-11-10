@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { AlertTriangle, ChevronDown, Check, Pencil, Trash2, Plus, Minus, X, Save, Shield, RotateCcw, Search } from 'lucide-react';
 import type { ActiveGameApi, ExternalCard, GameId, ProductCategory, Order, Product } from '../types';
 import { SystemSelect } from '../components/SystemSelect';
+import { SystemModal } from '../components/SystemModal';
 import { searchLiveCards } from '../services/tcgApi';
 
 interface OrderStatusDropdownProps {
@@ -641,11 +642,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
   };
 
   return (
-    <div className="system-modal-overlay" onClick={onClose}>
-      <div
-        className="glass-panel system-modal-card"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <SystemModal onClose={onClose} maxWidth="640px">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div>
             <span className="badge badge-primary" style={{ marginBottom: '6px' }}>CRUD de Produtos</span>
@@ -716,15 +713,31 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
               <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
                 Preço (R$) *
               </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                required
-                className="system-input"
-                value={preco}
-                onChange={(e) => setPreco(formatMoneyInput(e.target.value))}
-                placeholder="0,00"
-              />
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: '12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    fontFamily: 'var(--font-mono)',
+                    color: 'var(--color-outline)',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  R$
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  required
+                  className="system-input"
+                  value={preco}
+                  onChange={(e) => setPreco(formatMoneyInput(e.target.value))}
+                  placeholder="0,00"
+                  style={{ paddingLeft: '38px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}
+                />
+              </div>
             </div>
 
             <div>
@@ -917,8 +930,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
             </div>
           </div>
         </form>
-      </div>
-    </div>
+    </SystemModal>
   );
 };
 
@@ -1026,11 +1038,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
   };
 
   return (
-    <div className="system-modal-overlay" onClick={onClose}>
-      <div
-        className="glass-panel system-modal-card"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <SystemModal onClose={onClose} maxWidth="640px">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div>
             <span className="badge badge-primary" style={{ marginBottom: '6px' }}>Novo Item</span>
@@ -1068,7 +1076,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
             }}
           >
             <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-primary)' }}>
-              Preencher com Carta Oficial da API (Scryfall / TCGdex / YGOPRODeck / OPTCG)
+              Preencher Automaticamente com Carta Oficial (Acervo Global)
             </label>
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
@@ -1172,15 +1180,31 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
               <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
                 Preço Unitário (R$) *
               </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                required
-                className="system-input"
-                value={preco}
-                onChange={(e) => setPreco(formatMoneyInput(e.target.value))}
-                placeholder="0,00"
-              />
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: '12px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    fontFamily: 'var(--font-mono)',
+                    color: 'var(--color-outline)',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  R$
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  required
+                  className="system-input"
+                  value={preco}
+                  onChange={(e) => setPreco(formatMoneyInput(e.target.value))}
+                  placeholder="0,00"
+                  style={{ paddingLeft: '38px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}
+                />
+              </div>
             </div>
 
             <div>
@@ -1297,8 +1321,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
             </div>
           </div>
         </form>
-      </div>
-    </div>
+    </SystemModal>
   );
 };
 

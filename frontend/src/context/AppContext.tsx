@@ -584,7 +584,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       const criado = await api.cadastrarProduto(payload);
       setProducts((prev) => [criado, ...prev]);
-      showToast(`Carta "${criado.nome}" importada da ${card.fonteApi} para o estoque!`);
+      showToast(`Carta "${criado.nome}" adicionada com sucesso ao estoque!`);
       return criado;
     } catch (err: any) {
       showToast(err?.message || 'Erro ao importar carta para o estoque.');

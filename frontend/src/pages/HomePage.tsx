@@ -28,7 +28,15 @@ export const HomePage: React.FC = () => {
 
   const [liveApiCards, setLiveApiCards] = useState<ExternalCard[]>([]);
 
+  const activeProducts = useMemo(
+    () => products.filter((p) => p.ativo !== false),
+    [products]
+  );
+
+  // Apenas busca acervo externo como fallback se a loja não tiver nenhum produto cadastrado
   useEffect(() => {
+    if (activeProducts.length > 0) return;
+
     let active = true;
     searchLiveCards('all', '', 1)
       .then(({ cards }) => {
@@ -40,7 +48,7 @@ export const HomePage: React.FC = () => {
     return () => {
       active = false;
     };
-  }, []);
+  }, [activeProducts.length]);
 
   const handleGameSelect = (game: GameId) => {
     setSelectedGameFilter(game);
@@ -48,31 +56,18 @@ export const HomePage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const activeProducts = useMemo(
-    () => products.filter((p) => p.ativo !== false),
-    [products]
-  );
-
   const heroSliderCards: ZoomCardItem[] = useMemo(() => {
-    if (liveApiCards.length > 0) {
-      return liveApiCards.slice(0, 8).map((c, idx) => ({
-        id: c.uid,
-        number: String(idx + 1).padStart(2, '0'),
-        name: c.nome,
-        rarity: `${c.raridade} • ${c.codigoCarta}`,
-        game: c.jogoNome,
-        image: c.imagemUrl,
-        description: c.descricao,
-        badge: c.fonteApi,
-        price: c.precoMercadoBrl,
-        externalCard: c,
-      }));
-    }
+    const storeCards = activeProducts.filter((p) => Boolean(p.imagemUrl));
 
-    return activeProducts
-      .filter((p) => Boolean(p.imagemUrl))
-      .slice(0, 8)
-      .map((p, idx) => ({
+    // 1. Prioridade absoluta: produtos cadastrados no estoque da loja
+    if (storeCards.length > 0) {
+      const sorted = [...storeCards].sort((a, b) => {
+        if (a.isDestaque && !b.isDestaque) return -1;
+        if (!a.isDestaque && b.isDestaque) return 1;
+        return 0;
+      });
+
+      return sorted.slice(0, 8).map((p, idx) => ({
         id: p.id,
         number: String(idx + 1).padStart(2, '0'),
         name: p.nome,
@@ -85,7 +80,26 @@ export const HomePage: React.FC = () => {
         productId: p.id,
         product: p,
       }));
-  }, [liveApiCards, activeProducts]);
+    }
+
+    // 2. Fallback caso a loja ainda não tenha produtos cadastrados
+    if (liveApiCards.length > 0) {
+      return liveApiCards.slice(0, 8).map((c, idx) => ({
+        id: c.uid,
+        number: String(idx + 1).padStart(2, '0'),
+        name: c.nome,
+        rarity: `${c.raridade} • ${c.codigoCarta}`,
+        game: c.jogoNome,
+        image: c.imagemUrl,
+        description: c.descricao,
+        badge: c.raridade || 'Carta Avulsa',
+        price: c.precoMercadoBrl,
+        externalCard: c,
+      }));
+    }
+
+    return [];
+  }, [activeProducts, liveApiCards]);
 
   const featuredProducts: Product[] = useMemo(() => {
     const storeFeatured = activeProducts.filter((p) => p.isDestaque);

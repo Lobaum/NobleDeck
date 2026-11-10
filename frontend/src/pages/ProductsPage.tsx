@@ -188,6 +188,8 @@ export const ProductsPage: React.FC = () => {
         <div
           className="glass-panel"
           style={{
+            position: 'relative',
+            zIndex: 15,
             padding: '20px',
             borderRadius: 'var(--radius-lg)',
             marginBottom: '36px',
@@ -254,9 +256,9 @@ export const ProductsPage: React.FC = () => {
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 {(
                   [
-                    { id: 'all', label: 'Todos (Loja + API)' },
+                    { id: 'all', label: 'Catálogo Completo' },
                     { id: 'store', label: `Estoque (${activeStoreProducts.length})` },
-                    { id: 'api', label: 'APIs de Cartas' },
+                    { id: 'api', label: 'Cards Oficiais (Sob Encomenda)' },
                   ] as const
                 ).map((src) => (
                   <button
@@ -411,7 +413,7 @@ export const ProductsPage: React.FC = () => {
             {isLoadingApi ? (
               <>
                 <Globe size={14} color="var(--color-primary)" />
-                <span>Buscando cartas nas APIs oficiais...</span>
+                <span>Consultando acervo oficial de cartas...</span>
               </>
             ) : (
               <span>Mostrando {filteredProducts.length} itens encontrados</span>
@@ -509,15 +511,14 @@ export const ProductsPage: React.FC = () => {
                       }}
                     />
 
-                    {p.externalCard ? (
+                    {p.isNovo && (
                       <span
                         style={{
                           position: 'absolute',
                           top: '12px',
                           right: '12px',
-                          backgroundColor: 'var(--color-surface-container-high)',
-                          border: '1px solid var(--card-border)',
-                          color: 'var(--color-primary)',
+                          backgroundColor: 'var(--color-primary-container)',
+                          color: '#ffffff',
                           fontFamily: 'var(--font-mono)',
                           fontSize: '10px',
                           textTransform: 'uppercase',
@@ -526,28 +527,8 @@ export const ProductsPage: React.FC = () => {
                           zIndex: 5,
                         }}
                       >
-                        {p.externalCard.fonteApi}
+                        Novo
                       </span>
-                    ) : (
-                      p.isNovo && (
-                        <span
-                          style={{
-                            position: 'absolute',
-                            top: '12px',
-                            right: '12px',
-                            backgroundColor: 'var(--color-primary-container)',
-                            color: '#ffffff',
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: '10px',
-                            textTransform: 'uppercase',
-                            padding: '3px 8px',
-                            borderRadius: 'var(--radius-sm)',
-                            zIndex: 5,
-                          }}
-                        >
-                          Novo
-                        </span>
-                      )
                     )}
 
                     {p.raridade && (

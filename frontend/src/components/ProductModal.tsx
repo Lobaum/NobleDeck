@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { X, ShoppingBag, PackagePlus } from 'lucide-react';
 import nobleLogo from '../assets/noble-logo.png';
@@ -11,6 +11,15 @@ export const ProductModal: React.FC = () => {
     currentUser,
     importExternalCard,
   } = useApp();
+
+  useEffect(() => {
+    if (!selectedProductForModal) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [selectedProductForModal]);
 
   if (!selectedProductForModal) return null;
 
@@ -35,7 +44,8 @@ export const ProductModal: React.FC = () => {
           position: 'absolute',
           inset: 0,
           backgroundColor: 'var(--modal-backdrop)',
-          backdropFilter: 'blur(8px)',
+          backdropFilter: 'blur(14px)',
+          WebkitBackdropFilter: 'blur(14px)',
         }}
       />
 
@@ -240,16 +250,10 @@ export const ProductModal: React.FC = () => {
               </div>
               <div>
                 <span style={{ color: 'var(--color-outline)', display: 'block' }}>
-                  {product.externalCard ? 'Fonte Oficial' : 'Garantia'}
+                  Garantia
                 </span>
                 <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>
-                  {product.externalCard
-                    ? `${product.externalCard.fonteApi}${
-                        product.externalCard.precoOriginalUsd
-                          ? ` (US$ ${product.externalCard.precoOriginalUsd.toFixed(2)})`
-                          : ''
-                      }`
-                    : '100% Autêntico'}
+                  100% Autêntico
                 </span>
               </div>
             </div>

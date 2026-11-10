@@ -227,15 +227,6 @@ export const Footer: React.FC = () => {
           >
             © 2026 Noble Deck - Todos os direitos reservados.
           </p>
-          <p
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '11px',
-              color: 'rgba(205, 195, 212, 0.6)',
-            }}
-          >
-            Desenvolvido com React + TypeScript & FastAPI
-          </p>
         </div>
       </div>
     </footer>
