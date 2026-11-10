@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { AlertTriangle, ChevronDown, Check, Pencil, Trash2, Plus, Minus, X, Save, Shield, RotateCcw, Search } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Check, Pencil, Trash2, Plus, Minus, X, Save, Shield, RotateCcw, Search, Boxes } from 'lucide-react';
 import type { ActiveGameApi, ExternalCard, GameId, ProductCategory, Order, Product } from '../types';
 import { SystemSelect } from '../components/SystemSelect';
 import { SystemModal } from '../components/SystemModal';
@@ -1540,6 +1540,24 @@ export const DashboardPage: React.FC = () => {
                 }}
               >
                 Gerenciar Estoque ({products.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCurrentTab('product-control')}
+                className="btn-primary"
+                style={{
+                  marginLeft: 'auto',
+                  padding: '8px 16px',
+                  borderRadius: '10px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Boxes size={14} /> Abrir Controle 2.0
               </button>
             </>
           )}

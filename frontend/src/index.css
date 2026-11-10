@@ -1015,3 +1015,166 @@ html.light .system-modal-card::-webkit-scrollbar-thumb {
     justify-content: center !important;
   }
 }
+
+/* ============================================================================
+   WORKSTATION 2.0 • NEXT-GEN FULL-CANVAS & 3D HOLOGRAPHIC STYLES
+   ============================================================================ */
+.workstation-canvas {
+  width: 100%;
+  min-height: calc(100vh - 80px);
+  padding: 24px 36px 90px;
+  box-sizing: border-box;
+  animation: fadeIn 0.25s ease-out;
+}
+
+@media (max-width: 1024px) {
+  .workstation-canvas {
+    padding: 18px 20px 80px;
+  }
+}
+
+@media (max-width: 640px) {
+  .workstation-canvas {
+    padding: 14px 12px 70px;
+  }
+}
+
+/* 3D Holographic Card Container */
+.holo-3d-card {
+  position: relative;
+  border-radius: 16px;
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.2s ease;
+  user-select: none;
+}
+
+.holo-glare-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  pointer-events: none;
+  mix-blend-mode: color-dodge;
+  transition: opacity 0.2s ease;
+  z-index: 5;
+}
+
+/* Drawer Lateral de Inspeção Rápida (Slide-over Inspector) */
+.side-inspector-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(5, 4, 8, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 99990;
+  display: flex;
+  justify-content: flex-end;
+  animation: modalFadeIn 0.2s ease-out forwards;
+}
+
+:root[data-theme="light"] .side-inspector-overlay,
+html.light .side-inspector-overlay {
+  background-color: rgba(22, 14, 34, 0.4);
+}
+
+.side-inspector-pane {
+  width: 100%;
+  max-width: 520px;
+  height: 100%;
+  background: var(--card-bg, #14111c);
+  border-left: 1px solid var(--card-border);
+  box-shadow: -15px 0 50px rgba(0, 0, 0, 0.75);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  animation: drawerSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  z-index: 99995;
+}
+
+:root[data-theme="light"] .side-inspector-pane,
+html.light .side-inspector-pane {
+  background: #ffffff;
+  border-left: 1px solid rgba(115, 55, 189, 0.2);
+  box-shadow: -15px 0 40px rgba(45, 15, 75, 0.12);
+}
+
+@keyframes drawerSlideIn {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Floating Dock de Ações em Lote (Estilo Linear/Vercel) */
+.floating-bulk-dock {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9990;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  border-radius: 9999px;
+  background: rgba(22, 18, 30, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(216, 185, 255, 0.3);
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.65), 0 0 25px rgba(140, 86, 212, 0.35);
+  animation: modalScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+:root[data-theme="light"] .floating-bulk-dock,
+html.light .floating-bulk-dock {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(115, 55, 189, 0.3);
+  box-shadow: 0 16px 40px rgba(45, 15, 75, 0.18), 0 0 20px rgba(115, 55, 189, 0.15);
+}
+
+/* Sticky ERP Table Header */
+.workstation-table-header th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-surface-container, #181422);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+:root[data-theme="light"] .workstation-table-header th,
+html.light .workstation-table-header th {
+  background: #f7f5fa;
+}
+
+/* Shimmer pulse badge */
+.pulse-indicator {
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.pulse-indicator::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  opacity: 0.7;
+  animation: pulseRipple 1.8s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+
+@keyframes pulseRipple {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}

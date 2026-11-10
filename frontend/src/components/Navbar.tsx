@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import nobleLogo from '../assets/noble-logo.png';
-import { ShoppingBag, Menu, X, Shield, User, LogOut } from 'lucide-react';
+import { ShoppingBag, Menu, X, Shield, User, LogOut, Boxes } from 'lucide-react';
 import { CurtainThemeToggle } from './CurtainThemeToggle';
 
 export const Navbar: React.FC = () => {
@@ -141,6 +141,32 @@ export const Navbar: React.FC = () => {
           >
             Sobre nós
           </button>
+          {(currentUser.role === 'admin' || currentUser.role === 'funcionario') && (
+            <button
+              onClick={() => handleNavClick('product-control')}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontFamily: 'var(--font-nav)',
+                fontSize: '15px',
+                fontWeight: currentTab === 'product-control' ? 600 : 500,
+                letterSpacing: '0.01em',
+                cursor: 'pointer',
+                color: currentTab === 'product-control' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+                borderBottom: currentTab === 'product-control' ? '2px solid var(--color-primary)' : '2px solid transparent',
+                paddingBottom: '4px',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+              title="Controle de Produtos"
+            >
+              <Boxes size={14} color="var(--color-primary)" />
+              Controle de Produtos
+            </button>
+          )}
+
           {Boolean(currentUser.email) && (
             <button
               onClick={() => handleNavClick(currentUser.role === 'admin' ? 'admin' : 'dashboard')}
@@ -360,6 +386,27 @@ export const Navbar: React.FC = () => {
           >
             Sobre nós
           </button>
+          {(currentUser.role === 'admin' || currentUser.role === 'funcionario') && (
+            <button
+              onClick={() => handleNavClick('product-control')}
+              style={{
+                background: 'none',
+                border: 'none',
+                textAlign: 'left',
+                color: currentTab === 'product-control' ? 'var(--color-primary)' : 'var(--color-on-surface)',
+                fontFamily: 'var(--font-nav)',
+                fontSize: '18px',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <Boxes size={16} color="var(--color-primary)" />
+              Controle de Produtos
+            </button>
+          )}
+
           {Boolean(currentUser.email) && (
             <button
               onClick={() => handleNavClick(currentUser.role === 'admin' ? 'admin' : 'dashboard')}

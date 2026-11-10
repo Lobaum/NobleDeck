@@ -11,7 +11,7 @@ import type {
 } from '../types';
 import { api, externalCardToProduct } from '../services/api';
 
-export type NavigationTab = 'home' | 'products' | 'about' | 'dashboard' | 'admin';
+export type NavigationTab = 'home' | 'products' | 'about' | 'dashboard' | 'admin' | 'product-control';
 
 const GUEST_USER: UserProfile = {
   id: 0,
@@ -91,11 +91,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return clean === '/admin';
   };
 
+  const isProductControlPath = (pathname: string) => {
+    const clean = pathname.toLowerCase().replace(/\/+$/, '');
+    return clean === '/gestao-produtos' || clean === '/controle-produtos' || clean === '/produtos-admin';
+  };
+
   const getInitialTab = (): NavigationTab => {
     if (typeof window !== 'undefined') {
-      if (isAdminPath(window.location.pathname)) {
-        return 'admin';
-      }
+      const p = window.location.pathname;
+      if (isAdminPath(p)) return 'admin';
+      if (isProductControlPath(p)) return 'product-control';
     }
     return 'home';
   };
@@ -109,8 +114,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!isAdminPath(window.location.pathname)) {
           window.history.pushState(null, '', '/admin');
         }
+      } else if (tab === 'product-control') {
+        if (!isProductControlPath(window.location.pathname)) {
+          window.history.pushState(null, '', '/gestao-produtos');
+        }
       } else {
-        if (isAdminPath(window.location.pathname)) {
+        if (isAdminPath(window.location.pathname) || isProductControlPath(window.location.pathname)) {
           window.history.pushState(null, '', '/');
         }
       }
@@ -119,8 +128,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     const handlePop = () => {
-      if (isAdminPath(window.location.pathname)) {
+      const p = window.location.pathname;
+      if (isAdminPath(p)) {
         setCurrentTabState('admin');
+      } else if (isProductControlPath(p)) {
+        setCurrentTabState('product-control');
       } else {
         setCurrentTabState('home');
       }
@@ -770,15 +782,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentTab('home');
   };
 
-  // Bloqueia acesso direto ao painel se não estiver autenticado
+  // Bloqueia acesso direto a painéis restritos se não estiver autenticado/autorizado
   useEffect(() => {
     if (currentTab === 'dashboard' && (!currentUser.email || currentUser.id === 0)) {
       setCurrentTab('home');
       showToast('Faça login para acessar o painel!');
       setAuthModalMode('login');
       setIsAuthModalOpen(true);
+    } else if (currentTab === 'product-control') {
+      const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+      if (!isStaffOrAdmin) {
+        setCurrentTab('home');
+        showToast('Acesso restrito a Administradores e Funcionários!');
+        setAuthModalMode('login');
+        setIsAuthModalOpen(true);
+      }
     }
-  }, [currentTab, currentUser.email, currentUser.id]);
+  }, [currentTab, currentUser.email, currentUser.id, currentUser.role]);
 
   return (
     <AppContext.Provider

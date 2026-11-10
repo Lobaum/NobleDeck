@@ -11,6 +11,7 @@ import { ProductsPage } from './pages/ProductsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { AboutPage } from './pages/AboutPage';
 import { AdminPage } from './pages/AdminPage';
+import { ProductControlPage } from './pages/ProductControlPage';
 import { ThemeProvider } from './context/ThemeContext';
 
 const AppContent: React.FC = () => {
@@ -26,6 +27,7 @@ const AppContent: React.FC = () => {
         {currentTab === 'about' && <AboutPage />}
         {currentTab === 'dashboard' && <DashboardPage />}
         {currentTab === 'admin' && <AdminPage />}
+        {currentTab === 'product-control' && <ProductControlPage />}
       </main>
 
       <Footer />
