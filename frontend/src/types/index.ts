@@ -25,8 +25,10 @@ export interface ExternalCard {
   precoMercadoBrl: number;
   precoOriginalUsd: number | null;
   fonteApi: 'Scryfall' | 'TCGdex' | 'YGOPRODeck' | 'OPTCG';
+  categoria?: ProductCategory;
   ano?: number;
   atributos?: string;
+  idioma?: string;
 }
 
 export interface Product {

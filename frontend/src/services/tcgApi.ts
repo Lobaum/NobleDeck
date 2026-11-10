@@ -105,40 +105,311 @@ export async function searchMagicScryfall(query: string, page = 1): Promise<Exte
 }
 
 // ============================================================================
-// 2. POKÉMON TCG — TCGdex API v2
+// 2. POKÉMON TCG — TCGdex API v2 (Oficial com Suporte a PT-BR e Busca por Sets)
 // ============================================================================
-export async function searchPokemonTcgdex(query: string, page = 1): Promise<ExternalCard[]> {
-  let summaries: any[] = [];
+export interface PokemonSetOption {
+  id: string;
+  name: string;
+  cardCount?: { total: number; official?: number };
+  logo?: string;
+  symbol?: string;
+}
 
-  if (query.trim()) {
-    const params = `name=${encodeURIComponent(query.trim())}&pagination:page=${page}&pagination:itemsPerPage=28`;
+let cachedPokemonSets: PokemonSetOption[] | null = null;
+
+export async function getPokemonSets(): Promise<PokemonSetOption[]> {
+  if (cachedPokemonSets && cachedPokemonSets.length > 0) {
+    return cachedPokemonSets;
+  }
+  try {
     const list = await fetchWithFallback(
-      `/ext-tcgdex/v2/en/cards?${params}`,
-      `https://api.tcgdex.net/v2/en/cards?${params}`
+      '/ext-tcgdex/v2/pt/sets',
+      'https://api.tcgdex.net/v2/pt/sets'
     );
-    summaries = Array.isArray(list) ? list : [];
-  } else {
-    // Sem termo digitado: busca cartas reais da coleção Scarlet & Violet 151 (sv03.5) / Crown Zenith (swsh12.5)
-    const setCode = page % 2 === 1 ? 'sv03.5' : 'swsh12.5';
-    const setRes = await fetchWithFallback(
-      `/ext-tcgdex/v2/en/sets/${setCode}`,
-      `https://api.tcgdex.net/v2/en/sets/${setCode}`
-    );
-    const allCards: any[] = Array.isArray(setRes?.cards) ? setRes.cards : [];
-    // Prioriza o final da coleção (Illustration Rare / Ultra Rare / Hyper Rare)
-    summaries = [...allCards].reverse().slice(0, 24);
+    if (Array.isArray(list)) {
+      // Inverte para exibir coleções mais recentes no topo (ex: Megaevolução, Evoluções Prismáticas, Coroa Estelar...)
+      cachedPokemonSets = [...list].reverse();
+      return cachedPokemonSets;
+    }
+  } catch {
+    try {
+      const listEn = await fetchWithFallback(
+        '/ext-tcgdex/v2/en/sets',
+        'https://api.tcgdex.net/v2/en/sets'
+      );
+      if (Array.isArray(listEn)) {
+        cachedPokemonSets = [...listEn].reverse();
+        return cachedPokemonSets;
+      }
+    } catch {
+      // fallback
+    }
+  }
+  return [];
+}
+
+function normalizeTcgText(str: string): string {
+  return (str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+export function generateSealedPokemonProducts(set: PokemonSetOption): ExternalCard[] {
+  const logoBase = set.logo || '';
+  const cleanLogo = logoBase ? (logoBase.endsWith('.png') || logoBase.endsWith('.webp') ? logoBase : `${logoBase}.png`) : '';
+  const glLogo = cleanLogo ? toWebGLSafeImageUrl(cleanLogo) : '';
+  const isSpecial = set.id.includes('.5');
+  const packPrice = isSpecial ? 19.9 : 14.9;
+  const boxCount = isSpecial ? 20 : 36;
+  const boxPrice = isSpecial ? 389.0 : 499.0;
+
+  return [
+    {
+      uid: `pokemon:booster:${set.id}`,
+      externalId: `booster-${set.id}`,
+      nome: `Booster Pack • Pokémon ${set.name}`,
+      jogo: 'pokemon',
+      jogoNome: 'Pokémon TCG',
+      colecao: set.name,
+      codigoCarta: `${set.id.toUpperCase()}-PACK`,
+      raridade: 'Pacote Lacrado',
+      categoria: 'Booster Pack',
+      descricao: `Pacotinho oficial lacrado de Booster da coleção ${set.name} (${set.id.toUpperCase()}). Contém 6 cartas colecionáveis oficiais em português com chance de cartas holográficas e ultra raras.`,
+      imagemUrl: cleanLogo || 'https://assets.tcgdex.net/univ/swsh/swsh1/symbol.png',
+      glImageUrl: glLogo || '',
+      precoMercadoBrl: packPrice,
+      precoOriginalUsd: Number((packPrice / USD_TO_BRL).toFixed(2)),
+      fonteApi: 'TCGdex',
+      idioma: 'Português',
+      atributos: 'Produto Lacrado • 6 Cartas • Copag Brasil',
+    },
+    {
+      uid: `pokemon:box:${set.id}`,
+      externalId: `box-${set.id}`,
+      nome: `Booster Box • Pokémon ${set.name} (${boxCount} Pacotes)`,
+      jogo: 'pokemon',
+      jogoNome: 'Pokémon TCG',
+      colecao: set.name,
+      codigoCarta: `${set.id.toUpperCase()}-BOX`,
+      raridade: 'Display Fechado',
+      categoria: 'Booster Box',
+      descricao: `Display oficial fechado de fábrica com ${boxCount} pacotes de booster da coleção ${set.name} (${set.id.toUpperCase()}) em português. Produto novo e lacrado.`,
+      imagemUrl: cleanLogo || 'https://assets.tcgdex.net/univ/swsh/swsh1/symbol.png',
+      glImageUrl: glLogo || '',
+      precoMercadoBrl: boxPrice,
+      precoOriginalUsd: Number((boxPrice / USD_TO_BRL).toFixed(2)),
+      fonteApi: 'TCGdex',
+      idioma: 'Português',
+      atributos: `Display Lacrado • ${boxCount} Boosters • Copag Brasil`,
+    },
+  ];
+}
+
+export async function searchPokemonTcgdex(
+  query: string,
+  page = 1,
+  setId?: string
+): Promise<ExternalCard[]> {
+  let summaries: any[] = [];
+  const cleanQ = query.trim();
+  const normQ = normalizeTcgText(cleanQ);
+
+  // Carrega ou utiliza cache dos sets disponíveis
+  const availableSets = await getPokemonSets();
+
+  let effectiveSetId = setId?.trim() || '';
+  let cardNameSearch = cleanQ;
+
+  const isSealedSearch = ['booster', 'pack', 'pacotinho', 'pacote', 'box', 'caixa', 'display'].some((w) =>
+    normQ.includes(w)
+  );
+
+  // Se o usuário buscou explicitamente por termos de produtos lacrados e não selecionou um set
+  if (isSealedSearch && !effectiveSetId) {
+    const cleanWithoutBooster = normQ
+      .replace(/booster/g, '')
+      .replace(/pack/g, '')
+      .replace(/pacotinho/g, '')
+      .replace(/pacote/g, '')
+      .replace(/box/g, '')
+      .replace(/caixa/g, '')
+      .replace(/display/g, '')
+      .trim();
+
+    let targetSets = availableSets;
+    if (cleanWithoutBooster.length >= 3) {
+      targetSets = availableSets.filter((s) =>
+        normalizeTcgText(s.name).includes(cleanWithoutBooster) ||
+        normalizeTcgText(s.id).includes(cleanWithoutBooster)
+      );
+    }
+
+    const sealedCards: ExternalCard[] = [];
+    targetSets.slice(0, 16).forEach((s) => {
+      sealedCards.push(...generateSealedPokemonProducts(s));
+    });
+
+    const res = sealedCards as any;
+    res.totalCount = sealedCards.length;
+    res.hasMore = false;
+    return sealedCards;
   }
 
-  const withImages = summaries.filter((c) => Boolean(c?.image)).slice(0, 20);
+  // Se nenhum setId foi passado explicitamente, verifica se o usuário digitou o nome de um set/coleção
+  if (!effectiveSetId && normQ) {
+    const sortedSets = [...availableSets].sort(
+      (a, b) => normalizeTcgText(b.name).length - normalizeTcgText(a.name).length
+    );
+
+    let matched = sortedSets.find(
+      (s) => normalizeTcgText(s.name) === normQ || normalizeTcgText(s.id) === normQ
+    );
+
+    if (!matched && normQ.length >= 4) {
+      matched = sortedSets.find(
+        (s) => normQ.includes(normalizeTcgText(s.name)) || normalizeTcgText(s.name).includes(normQ)
+      );
+    }
+
+    if (matched) {
+      effectiveSetId = matched.id;
+      const matchedNorm = normalizeTcgText(matched.name);
+      if (normQ.includes(matchedNorm)) {
+        cardNameSearch = cleanQ
+          .replace(new RegExp(matched.name, 'gi'), '')
+          .replace(new RegExp(matchedNorm, 'gi'), '')
+          .trim();
+      } else {
+        cardNameSearch = '';
+      }
+    }
+  }
+
+  let totalCount = 0;
+  let hasMore = false;
+  let sealedPacksForSet: ExternalCard[] = [];
+
+  // 1. Caso haja um setId identificado
+  if (effectiveSetId) {
+    const matchedSetObj = availableSets.find((s) => s.id === effectiveSetId);
+    if (matchedSetObj && page === 1 && (!cardNameSearch || isSealedSearch)) {
+      sealedPacksForSet = generateSealedPokemonProducts(matchedSetObj);
+    }
+
+    const params = cardNameSearch
+      ? `set=${encodeURIComponent(effectiveSetId)}&name=${encodeURIComponent(cardNameSearch)}`
+      : `set=${encodeURIComponent(effectiveSetId)}`;
+
+    try {
+      const list = await fetchWithFallback(
+        `/ext-tcgdex/v2/pt/cards?${params}`,
+        `https://api.tcgdex.net/v2/pt/cards?${params}`
+      );
+      const allFound: any[] = Array.isArray(list) ? list : [];
+      totalCount = allFound.length;
+
+      const pageSize = 24;
+      const startIndex = Math.max(0, (page - 1) * pageSize);
+      hasMore = startIndex + pageSize < totalCount;
+      summaries = allFound.slice(startIndex, startIndex + pageSize);
+    } catch {
+      try {
+        const listEn = await fetchWithFallback(
+          `/ext-tcgdex/v2/en/cards?${params}`,
+          `https://api.tcgdex.net/v2/en/cards?${params}`
+        );
+        const allFound: any[] = Array.isArray(listEn) ? listEn : [];
+        totalCount = allFound.length;
+
+        const pageSize = 24;
+        const startIndex = Math.max(0, (page - 1) * pageSize);
+        hasMore = startIndex + pageSize < totalCount;
+        summaries = allFound.slice(startIndex, startIndex + pageSize);
+      } catch {
+        summaries = [];
+      }
+    }
+  } else if (cleanQ) {
+    // 2. Busca comum por nome de carta (sem set)
+    const params = `name=${encodeURIComponent(cleanQ)}&pagination:page=${page}&pagination:itemsPerPage=28`;
+    try {
+      const list = await fetchWithFallback(
+        `/ext-tcgdex/v2/pt/cards?${params}`,
+        `https://api.tcgdex.net/v2/pt/cards?${params}`
+      );
+      summaries = Array.isArray(list) ? list : [];
+      hasMore = summaries.length >= 28;
+      totalCount = summaries.length;
+    } catch {
+      try {
+        const listEn = await fetchWithFallback(
+          `/ext-tcgdex/v2/en/cards?${params}`,
+          `https://api.tcgdex.net/v2/en/cards?${params}`
+        );
+        summaries = Array.isArray(listEn) ? listEn : [];
+        hasMore = summaries.length >= 28;
+        totalCount = summaries.length;
+      } catch {
+        summaries = [];
+      }
+    }
+  } else {
+    // 3. Sem termo digitado: busca a coleção mais recente de destaque (Evoluções Prismáticas sv08.5)
+    const defaultSet = page % 2 === 1 ? 'sv08.5' : 'sv03.5';
+    const matchedSetObj = availableSets.find((s) => s.id === defaultSet);
+    if (matchedSetObj && page === 1) {
+      sealedPacksForSet = generateSealedPokemonProducts(matchedSetObj);
+    }
+
+    try {
+      const setRes = await fetchWithFallback(
+        `/ext-tcgdex/v2/pt/sets/${defaultSet}`,
+        `https://api.tcgdex.net/v2/pt/sets/${defaultSet}`
+      );
+      const allCards: any[] = Array.isArray(setRes?.cards) ? setRes.cards : [];
+      totalCount = allCards.length;
+      const pageSize = 24;
+      const startIndex = Math.max(0, (page - 1) * pageSize);
+      hasMore = startIndex + pageSize < totalCount;
+      summaries = [...allCards].reverse().slice(startIndex, startIndex + pageSize);
+    } catch {
+      try {
+        const setResEn = await fetchWithFallback(
+          `/ext-tcgdex/v2/en/sets/${defaultSet}`,
+          `https://api.tcgdex.net/v2/en/sets/${defaultSet}`
+        );
+        const allCards: any[] = Array.isArray(setResEn?.cards) ? setResEn.cards : [];
+        totalCount = allCards.length;
+        const pageSize = 24;
+        const startIndex = Math.max(0, (page - 1) * pageSize);
+        hasMore = startIndex + pageSize < totalCount;
+        summaries = [...allCards].reverse().slice(startIndex, startIndex + pageSize);
+      } catch {
+        summaries = [];
+      }
+    }
+  }
+
+  const withImages = summaries.filter((c) => Boolean(c?.image)).slice(0, 24);
 
   const hydrated = await Promise.all(
     withImages.map(async (item): Promise<ExternalCard | null> => {
       const fullImg = `${item.image}/high.webp`;
       try {
-        const detail = await fetchWithFallback(
-          `/ext-tcgdex/v2/en/cards/${encodeURIComponent(item.id)}`,
-          `https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(item.id)}`
-        );
+        let detail: any = null;
+        try {
+          detail = await fetchWithFallback(
+            `/ext-tcgdex/v2/pt/cards/${encodeURIComponent(item.id)}`,
+            `https://api.tcgdex.net/v2/pt/cards/${encodeURIComponent(item.id)}`
+          );
+        } catch {
+          detail = await fetchWithFallback(
+            `/ext-tcgdex/v2/en/cards/${encodeURIComponent(item.id)}`,
+            `https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(item.id)}`
+          );
+        }
 
         const tcgUsd =
           detail?.pricing?.tcgplayer?.holofoil?.marketPrice ??
@@ -181,6 +452,7 @@ export async function searchPokemonTcgdex(query: string, page = 1): Promise<Exte
           precoMercadoBrl: brl,
           precoOriginalUsd: usd,
           fonteApi: 'TCGdex',
+          idioma: 'Português',
           atributos: [
             detail?.hp ? `HP ${detail.hp}` : null,
             Array.isArray(detail?.types) ? detail.types.join('/') : null,
@@ -199,18 +471,23 @@ export async function searchPokemonTcgdex(query: string, page = 1): Promise<Exte
           colecao: 'Pokémon TCG Official',
           codigoCarta: String(item.id).toUpperCase(),
           raridade: 'Rare',
-          descricao: 'Carta oficial obtida via TCGdex API.',
+          descricao: 'Carta oficial.',
           imagemUrl: fullImg,
           glImageUrl: toWebGLSafeImageUrl(fullImg),
           precoMercadoBrl: 24.9,
           precoOriginalUsd: null,
           fonteApi: 'TCGdex',
+          idioma: 'Português',
         };
       }
     })
   );
 
-  return hydrated.filter((c): c is ExternalCard => c !== null);
+  const cleanHydrated = hydrated.filter((c): c is ExternalCard => c !== null);
+  const finalResult = page === 1 ? [...sealedPacksForSet, ...cleanHydrated] : cleanHydrated;
+  (finalResult as any).totalCount = totalCount;
+  (finalResult as any).hasMore = hasMore;
+  return finalResult;
 }
 
 // ============================================================================
@@ -287,8 +564,8 @@ export async function searchOnePieceOptcg(query: string): Promise<ExternalCard[]
   const sorted = query.trim()
     ? arr
     : [...arr].sort(
-        (a, b) => (parseFloat(b?.market_price) || 0) - (parseFloat(a?.market_price) || 0)
-      );
+      (a, b) => (parseFloat(b?.market_price) || 0) - (parseFloat(a?.market_price) || 0)
+    );
 
   return sorted
     .slice(0, 24)
@@ -334,17 +611,42 @@ export async function searchOnePieceOptcg(query: string): Promise<ExternalCard[]
 // ============================================================================
 // BUSCA UNIFICADA MULTI-API
 // ============================================================================
+export interface LiveSearchResults {
+  cards: ExternalCard[];
+  errors: string[];
+  totalCount?: number;
+  hasMore?: boolean;
+}
+
 export async function searchLiveCards(
   game: ActiveGameApi | 'all',
   query: string,
-  page = 1
-): Promise<{ cards: ExternalCard[]; errors: string[] }> {
+  page = 1,
+  setId?: string
+): Promise<LiveSearchResults> {
   if (game !== 'all') {
     try {
-      if (game === 'magic') return { cards: await searchMagicScryfall(query, page), errors: [] };
-      if (game === 'pokemon') return { cards: await searchPokemonTcgdex(query, page), errors: [] };
-      if (game === 'yugioh') return { cards: await searchYugiohProdeck(query, page), errors: [] };
-      if (game === 'onepiece') return { cards: await searchOnePieceOptcg(query), errors: [] };
+      if (game === 'magic') {
+        const cards = await searchMagicScryfall(query, page);
+        return { cards, errors: [], hasMore: cards.length >= 24 };
+      }
+      if (game === 'pokemon') {
+        const cards = await searchPokemonTcgdex(query, page, setId);
+        return {
+          cards,
+          errors: [],
+          totalCount: (cards as any).totalCount,
+          hasMore: (cards as any).hasMore,
+        };
+      }
+      if (game === 'yugioh') {
+        const cards = await searchYugiohProdeck(query, page);
+        return { cards, errors: [], hasMore: cards.length >= 24 };
+      }
+      if (game === 'onepiece') {
+        const cards = await searchOnePieceOptcg(query);
+        return { cards, errors: [], hasMore: cards.length >= 24 };
+      }
     } catch (err: any) {
       return { cards: [], errors: [`${game}: ${err?.message || 'falha de rede'}`] };
     }
@@ -352,7 +654,7 @@ export async function searchLiveCards(
 
   // Modo 'all': consulta as 4 APIs públicas em paralelo e intercala os resultados reais
   const tasks: [ActiveGameApi, Promise<ExternalCard[]>][] = [
-    ['pokemon', searchPokemonTcgdex(query, page)],
+    ['pokemon', searchPokemonTcgdex(query, page, setId)],
     ['magic', searchMagicScryfall(query, page)],
     ['yugioh', searchYugiohProdeck(query, page)],
     ['onepiece', searchOnePieceOptcg(query)],

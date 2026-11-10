@@ -27,7 +27,7 @@ export function externalCardToProduct(card: ExternalCard, estoquePadrao = 5): Pr
     estoque: estoquePadrao,
     jogo: card.jogo,
     jogoNome: card.jogoNome,
-    categoria: 'Carta Avulsa',
+    categoria: card.categoria || 'Carta Avulsa',
     subtitulo: `${card.colecao} • ${card.codigoCarta}`,
     descricao:
       card.descricao ||
@@ -36,7 +36,7 @@ export function externalCardToProduct(card: ExternalCard, estoquePadrao = 5): Pr
     raridade: card.raridade,
     isNovo: false,
     isDestaque: false,
-    idioma: 'Inglês / Oficial',
+    idioma: card.idioma || (card.jogo === 'pokemon' ? 'Português' : 'Inglês / Oficial'),
     ano: card.ano || new Date().getFullYear(),
     ativo: true,
     externalCard: card,
