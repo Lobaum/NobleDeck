@@ -43,7 +43,7 @@ import type {
   ExternalCard,
 } from '../types';
 import { api } from '../services/api';
-import { searchLiveCards } from '../services/tcgApi';
+import { searchLiveCards, getPokemonSets, type PokemonSetOption } from '../services/tcgApi';
 import { SystemSelect } from '../components/SystemSelect';
 import { SystemModal } from '../components/SystemModal';
 
@@ -138,9 +138,16 @@ export const AdminPage: React.FC = () => {
   // Estados do Catálogo TCG Live (API Externa)
   const [apiGameFilter, setApiGameFilter] = useState<ActiveGameApi | 'all'>('all');
   const [apiSearchQuery, setApiSearchQuery] = useState('');
+  const [apiPokemonSetFilter, setApiPokemonSetFilter] = useState('');
+  const [pokemonSets, setPokemonSets] = useState<PokemonSetOption[]>([]);
   const [apiCards, setApiCards] = useState<ExternalCard[]>([]);
   const [isLoadingApiCards, setIsLoadingApiCards] = useState(false);
+  const [isLoadingMoreApi, setIsLoadingMoreApi] = useState(false);
   const [apiHasLoadedOnce, setApiHasLoadedOnce] = useState(false);
+  const [apiPage, setApiPage] = useState(1);
+  const [apiHasMore, setApiHasMore] = useState(false);
+  const [apiTotalCount, setApiTotalCount] = useState(0);
+  const [apiFilterType, setApiFilterType] = useState<'all' | 'sealed' | 'singles'>('all');
   const [importingCardUid, setImportingCardUid] = useState<string | null>(null);
 
   // Configurações inline de importação de cards da API
@@ -211,33 +218,60 @@ export const AdminPage: React.FC = () => {
   }, [isAdmin]);
 
   // Carregar Cards da API TCG quando a aba for aberta pela primeira vez ou filtros mudarem
-  const carregarCardsDaApi = async (game: ActiveGameApi | 'all', query = '') => {
-    setIsLoadingApiCards(true);
+  const carregarCardsDaApi = async (
+    game: ActiveGameApi | 'all',
+    query = '',
+    setId?: string,
+    page = 1
+  ) => {
+    if (page === 1) {
+      setIsLoadingApiCards(true);
+      setApiPage(1);
+    } else {
+      setIsLoadingMoreApi(true);
+    }
     try {
-      const { cards } = await searchLiveCards(game, query.trim(), 1);
-      setApiCards(cards);
+      const { cards, totalCount, hasMore } = await searchLiveCards(game, query.trim(), page, setId);
+      if (page === 1) {
+        setApiCards(cards);
+      } else {
+        setApiCards((prev) => [...prev, ...cards]);
+      }
+      setApiHasMore(Boolean(hasMore));
+      setApiTotalCount(totalCount || (page === 1 ? cards.length : apiTotalCount));
+      setApiPage(page);
       setApiHasLoadedOnce(true);
     } catch {
-      setApiCards([]);
+      if (page === 1) setApiCards([]);
     } finally {
       setIsLoadingApiCards(false);
+      setIsLoadingMoreApi(false);
     }
   };
 
   useEffect(() => {
-    if (activeAdminTab === 'api-catalog' && !apiHasLoadedOnce) {
-      carregarCardsDaApi(apiGameFilter, apiSearchQuery);
+    if (activeAdminTab === 'api-catalog') {
+      getPokemonSets().then(setPokemonSets);
+      if (!apiHasLoadedOnce) {
+        carregarCardsDaApi(apiGameFilter, apiSearchQuery, apiPokemonSetFilter, 1);
+      }
     }
   }, [activeAdminTab, apiHasLoadedOnce]);
 
   const handleSearchApi = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    carregarCardsDaApi(apiGameFilter, apiSearchQuery);
+    carregarCardsDaApi(apiGameFilter, apiSearchQuery, apiPokemonSetFilter, 1);
   };
 
   const handleGameFilterChange = (game: ActiveGameApi | 'all') => {
     setApiGameFilter(game);
-    carregarCardsDaApi(game, apiSearchQuery);
+    setApiPokemonSetFilter('');
+    carregarCardsDaApi(game, apiSearchQuery, '', 1);
+  };
+
+  const handleLoadMoreApi = () => {
+    if (!apiHasMore || isLoadingApiCards || isLoadingMoreApi) return;
+    carregarCardsDaApi(apiGameFilter, apiSearchQuery, apiPokemonSetFilter, apiPage + 1);
   };
 
   // Cálculos de Métricas de Estoque
@@ -994,6 +1028,45 @@ export const AdminPage: React.FC = () => {
               <Sparkles size={12} color="var(--color-primary)" /> Pokémon, MTG, YGO & One Piece
             </span>
           </div>
+        </div>
+
+        {/* Banner de Acesso à Versão 2.0 */}
+        <div
+          style={{
+            padding: '14px 20px',
+            borderRadius: '14px',
+            marginBottom: '20px',
+            background: 'linear-gradient(135deg, rgba(216, 185, 255, 0.12) 0%, rgba(168, 85, 247, 0.08) 100%)',
+            border: '1px solid rgba(216, 185, 255, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ padding: '8px', borderRadius: '10px', backgroundColor: 'rgba(216, 185, 255, 0.2)', color: 'var(--color-primary)' }}>
+              <Boxes size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--color-headline)' }}>
+                Controle de Produtos
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--color-on-surface-variant)' }}>
+                Interface especializada com reajuste em massa (%), exportação CSV, visão dupla (Tabela/Cards HD) e edição inline.
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setCurrentTab('product-control')}
+            className="btn-primary"
+            style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            Abrir Controle 2.0 <Sparkles size={14} />
+          </button>
         </div>
 
         {/* =========================================================================
@@ -1910,8 +1983,28 @@ export const AdminPage: React.FC = () => {
               </div>
 
               {/* Form de Busca Live */}
-              <form onSubmit={handleSearchApi} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                <div style={{ position: 'relative', flex: 1 }}>
+              <form onSubmit={handleSearchApi} style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {apiGameFilter === 'pokemon' && (
+                  <div style={{ width: '230px' }}>
+                    <SystemSelect<string>
+                      value={apiPokemonSetFilter}
+                      onChange={(val) => {
+                        setApiPokemonSetFilter(val);
+                        carregarCardsDaApi(apiGameFilter, apiSearchQuery, val);
+                      }}
+                      options={[
+                        { value: '', label: 'Todas as Coleções' },
+                        ...pokemonSets.map((s) => ({
+                          value: s.id,
+                          label: s.name,
+                          badge: s.id.toUpperCase(),
+                        })),
+                      ]}
+                      placeholder="Coleção / Set..."
+                    />
+                  </div>
+                )}
+                <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
                   <Search
                     size={16}
                     style={{
@@ -1925,7 +2018,11 @@ export const AdminPage: React.FC = () => {
                   <input
                     type="text"
                     className="system-input"
-                    placeholder="Digite o nome do card (ex: Charizard, Black Lotus, Blue-Eyes, Luffy, Pikachu)..."
+                    placeholder={
+                      apiGameFilter === 'pokemon'
+                        ? 'Digite a carta ou coleção (ex: Evoluções Prismáticas, Charizard, 151)...'
+                        : 'Digite o nome do card (ex: Charizard, Black Lotus, Blue-Eyes, Luffy, Pikachu)...'
+                    }
                     value={apiSearchQuery}
                     onChange={(e) => setApiSearchQuery(e.target.value)}
                     style={{ paddingLeft: '38px', height: '42px', fontSize: '13px' }}
@@ -1937,9 +2034,81 @@ export const AdminPage: React.FC = () => {
                   className="btn-primary"
                   style={{ height: '42px', padding: '0 20px', fontWeight: 700, fontSize: '13px' }}
                 >
-                  {isLoadingApiCards ? 'Buscando...' : 'Buscar Cards'}
+                  {isLoadingApiCards ? 'Buscando...' : 'Buscar'}
                 </button>
               </form>
+
+              {/* Filtros por Tipo de Item: Todos / Booster Packs / Cards Avulsos */}
+              <div style={{ display: 'flex', gap: '8px', marginTop: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', textTransform: 'uppercase' }}>
+                  Tipo de Produto:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setApiFilterType('all')}
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: '6px',
+                    fontSize: '11.5px',
+                    fontFamily: 'var(--font-mono)',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    border: apiFilterType === 'all' ? '1px solid var(--color-primary)' : '1px solid var(--card-border)',
+                    backgroundColor: apiFilterType === 'all' ? 'rgba(216, 185, 255, 0.18)' : 'transparent',
+                    color: apiFilterType === 'all' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+                  }}
+                >
+                  Todos ({apiCards.length})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setApiFilterType('sealed')}
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: '6px',
+                    fontSize: '11.5px',
+                    fontFamily: 'var(--font-mono)',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    border: apiFilterType === 'sealed' ? '1px solid #ec4899' : '1px solid var(--card-border)',
+                    backgroundColor: apiFilterType === 'sealed' ? 'rgba(236, 72, 153, 0.18)' : 'transparent',
+                    color: apiFilterType === 'sealed' ? '#f472b6' : 'var(--color-on-surface-variant)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                  }}
+                >
+                  📦 Booster Packs & Boxes ({apiCards.filter(c => c.categoria === 'Booster Pack' || c.categoria === 'Booster Box').length})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setApiFilterType('singles')}
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: '6px',
+                    fontSize: '11.5px',
+                    fontFamily: 'var(--font-mono)',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    border: apiFilterType === 'singles' ? '1px solid #38bdf8' : '1px solid var(--card-border)',
+                    backgroundColor: apiFilterType === 'singles' ? 'rgba(56, 189, 248, 0.18)' : 'transparent',
+                    color: apiFilterType === 'singles' ? '#38bdf8' : 'var(--color-on-surface-variant)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                  }}
+                >
+                  🎴 Cards Avulsos ({apiCards.filter(c => !c.categoria || c.categoria === 'Carta Avulsa').length})
+                </button>
+
+                {apiTotalCount > 0 && (
+                  <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)' }}>
+                    Exibindo {apiCards.length} de {apiTotalCount} itens disponíveis
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Grid dos Cards do Catálogo Oficial */}
@@ -1966,310 +2135,346 @@ export const AdminPage: React.FC = () => {
                 </span>
               </div>
             ) : (
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
-                  gap: '18px',
-                }}
-              >
-                {apiCards.map((card) => {
-                  const existingProduct = findExistingProductForApiCard(card);
-                  const isImporting = importingCardUid === card.uid;
-                  const custom = apiCardCustoms[card.uid] || {
-                    stock: 5,
-                    price: card.precoMercadoBrl > 0 ? card.precoMercadoBrl : 19.9,
-                    minStock: 3,
-                  };
+              <>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
+                    gap: '18px',
+                  }}
+                >
+                  {apiCards
+                    .filter((card) => {
+                      if (apiFilterType === 'sealed') return card.categoria === 'Booster Pack' || card.categoria === 'Booster Box';
+                      if (apiFilterType === 'singles') return !card.categoria || card.categoria === 'Carta Avulsa';
+                      return true;
+                    })
+                    .map((card) => {
+                      const existingProduct = findExistingProductForApiCard(card);
+                      const isImporting = importingCardUid === card.uid;
+                      const custom = apiCardCustoms[card.uid] || {
+                        stock: 5,
+                        price: card.precoMercadoBrl > 0 ? card.precoMercadoBrl : 19.9,
+                        minStock: 3,
+                      };
 
-                  return (
-                    <div
-                      key={card.uid}
-                      className="glass-panel"
-                      style={{
-                        padding: '16px',
-                        borderRadius: '16px',
-                        border: existingProduct
-                          ? '1px solid rgba(74, 222, 128, 0.35)'
-                          : '1px solid var(--card-border)',
-                        backgroundColor: existingProduct
-                          ? 'rgba(74, 222, 128, 0.04)'
-                          : 'var(--color-surface-container-low)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        gap: '14px',
-                        position: 'relative',
-                        transition: 'transform 0.2s ease, border-color 0.2s ease',
-                      }}
-                    >
-                      {/* Topo do Card */}
-                      <div style={{ display: 'flex', gap: '14px' }}>
-                        {/* Imagem do Card */}
+                      return (
                         <div
+                          key={card.uid}
+                          className="glass-panel"
                           style={{
-                            width: '84px',
-                            height: '116px',
-                            borderRadius: '10px',
-                            backgroundColor: 'var(--color-surface-container)',
-                            overflow: 'hidden',
-                            flexShrink: 0,
-                            border: '1px solid var(--card-border)',
+                            padding: '16px',
+                            borderRadius: '16px',
+                            border: existingProduct
+                              ? '1px solid rgba(74, 222, 128, 0.35)'
+                              : '1px solid var(--card-border)',
+                            backgroundColor: existingProduct
+                              ? 'rgba(74, 222, 128, 0.04)'
+                              : 'var(--color-surface-container-low)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            gap: '14px',
                             position: 'relative',
+                            transition: 'transform 0.2s ease, border-color 0.2s ease',
                           }}
                         >
-                          {card.imagemUrl ? (
-                            <img
-                              src={card.imagemUrl}
-                              alt={card.nome}
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                              loading="lazy"
-                            />
+                          {/* Topo do Card */}
+                          <div style={{ display: 'flex', gap: '14px' }}>
+                            {/* Imagem do Card */}
+                            <div
+                              style={{
+                                width: '84px',
+                                height: '116px',
+                                borderRadius: '10px',
+                                backgroundColor: 'var(--color-surface-container)',
+                                overflow: 'hidden',
+                                flexShrink: 0,
+                                border: '1px solid var(--card-border)',
+                                position: 'relative',
+                              }}
+                            >
+                              {card.imagemUrl ? (
+                                <img
+                                  src={card.imagemUrl}
+                                  alt={card.nome}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  loading="lazy"
+                                />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <Package size={24} color="var(--color-outline)" />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Informações */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                <span className="badge badge-muted" style={{ fontSize: '10px' }}>
+                                  {card.jogoNome}
+                                </span>
+                                {card.raridade && (
+                                  <span
+                                    className="badge badge-primary"
+                                    style={{
+                                      fontSize: '10px',
+                                      fontFamily: 'var(--font-mono)',
+                                    }}
+                                  >
+                                    {card.raridade}
+                                  </span>
+                                )}
+                              </div>
+
+                              <h4
+                                style={{
+                                  fontSize: '14px',
+                                  fontWeight: 700,
+                                  color: 'var(--color-headline)',
+                                  margin: '2px 0 0',
+                                  lineHeight: 1.3,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                                title={card.nome}
+                              >
+                                {card.nome}
+                              </h4>
+
+                              <span style={{ fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)' }}>
+                                {card.colecao} {card.codigoCarta ? `• #${card.codigoCarta}` : ''}
+                              </span>
+
+                              <div style={{ marginTop: 'auto', paddingTop: '4px' }}>
+                                <span style={{ fontSize: '11px', color: 'var(--color-outline)', display: 'block' }}>
+                                  Preço de Mercado:
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: '15px',
+                                    fontWeight: 800,
+                                    fontFamily: 'var(--font-mono)',
+                                    color: 'var(--color-primary)',
+                                  }}
+                                >
+                                  R$ {formatBRL(card.precoMercadoBrl > 0 ? card.precoMercadoBrl : 19.9)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Status no Catálogo */}
+                          {existingProduct ? (
+                            existingProduct.ativo === false ? (
+                              <div
+                                style={{
+                                  padding: '8px 12px',
+                                  borderRadius: '10px',
+                                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <AlertTriangle size={14} color="#f87171" />
+                                  <span style={{ fontSize: '12px', color: '#f87171', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                                    Inativo ({existingProduct.estoque} un.)
+                                  </span>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => reactivateProduct(existingProduct.id)}
+                                  style={{
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    border: 'none',
+                                    backgroundColor: '#22c55e',
+                                    color: '#ffffff',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                  }}
+                                  title="Reativar este produto no catálogo público"
+                                >
+                                  Reativar
+                                </button>
+                              </div>
+                            ) : (
+                              <div
+                                style={{
+                                  padding: '8px 12px',
+                                  borderRadius: '10px',
+                                  backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                                  border: '1px solid rgba(74, 222, 128, 0.3)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <Check size={14} color="#4ade80" />
+                                  <span style={{ fontSize: '12px', color: '#4ade80', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                                    Em Estoque: {existingProduct.estoque} un.
+                                  </span>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickInlineStock(existingProduct, 5)}
+                                  style={{
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    border: 'none',
+                                    backgroundColor: '#4ade80',
+                                    color: '#000000',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                  }}
+                                  title="Adicionar +5 unidades rapidamente a este produto existente"
+                                >
+                                  +5 un.
+                                </button>
+                              </div>
+                            )
                           ) : (
-                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <Package size={24} color="var(--color-outline)" />
+                            <div
+                              style={{
+                                padding: '10px',
+                                borderRadius: '10px',
+                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                border: '1px solid var(--card-border)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '8px',
+                              }}
+                            >
+                              {/* Parâmetros rápidos de importação */}
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                <div>
+                                  <label style={{ display: 'block', fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '3px' }}>
+                                    QTD. INICIAL
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    className="system-input"
+                                    value={custom.stock}
+                                    onChange={(e) =>
+                                      setApiCardCustoms((prev) => ({
+                                        ...prev,
+                                        [card.uid]: {
+                                          ...custom,
+                                          stock: Math.max(1, parseInt(e.target.value, 10) || 1),
+                                        },
+                                      }))
+                                    }
+                                    style={{ height: '32px', fontSize: '12px', padding: '4px 8px' }}
+                                  />
+                                </div>
+
+                                <div>
+                                  <label style={{ display: 'block', fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '3px' }}>
+                                    PREÇO VENDA (R$)
+                                  </label>
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    className="system-input"
+                                    value={formatMoneyInput(custom.price)}
+                                    onChange={(e) =>
+                                      setApiCardCustoms((prev) => ({
+                                        ...prev,
+                                        [card.uid]: {
+                                          ...custom,
+                                          price: parseMoneyToFloat(e.target.value),
+                                        },
+                                      }))
+                                    }
+                                    placeholder="0,00"
+                                    style={{ height: '32px', fontSize: '12px', padding: '4px 8px', fontFamily: 'var(--font-mono)' }}
+                                  />
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickImportApiCard(card)}
+                                  disabled={isImporting}
+                                  className="btn-primary"
+                                  style={{
+                                    flex: 1,
+                                    height: '34px',
+                                    fontSize: '12px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px',
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  <Download size={13} />
+                                  {isImporting ? 'Cadastrando...' : 'Importar ao Estoque'}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenConfigApiCard(card)}
+                                  className="btn-outline"
+                                  style={{
+                                    padding: '0 10px',
+                                    height: '34px',
+                                    fontSize: '11px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                  title="Configurar categoria, estoque mínimo e detalhes antes de importar"
+                                >
+                                  <SlidersHorizontal size={13} />
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
+                      );
+                    })}
+                </div>
 
-                        {/* Informações */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                            <span className="badge badge-muted" style={{ fontSize: '10px' }}>
-                              {card.jogoNome}
-                            </span>
-                            {card.raridade && (
-                              <span
-                                className="badge badge-primary"
-                                style={{
-                                  fontSize: '10px',
-                                  fontFamily: 'var(--font-mono)',
-                                }}
-                              >
-                                {card.raridade}
-                              </span>
-                            )}
-                          </div>
-
-                          <h4
-                            style={{
-                              fontSize: '14px',
-                              fontWeight: 700,
-                              color: 'var(--color-headline)',
-                              margin: '2px 0 0',
-                              lineHeight: 1.3,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                            title={card.nome}
-                          >
-                            {card.nome}
-                          </h4>
-
-                          <span style={{ fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)' }}>
-                            {card.colecao} {card.codigoCarta ? `• #${card.codigoCarta}` : ''}
-                          </span>
-
-                          <div style={{ marginTop: 'auto', paddingTop: '4px' }}>
-                            <span style={{ fontSize: '11px', color: 'var(--color-outline)', display: 'block' }}>
-                              Preço de Mercado:
-                            </span>
-                            <span
-                              style={{
-                                fontSize: '15px',
-                                fontWeight: 800,
-                                fontFamily: 'var(--font-mono)',
-                                color: 'var(--color-primary)',
-                              }}
-                            >
-                              R$ {formatBRL(card.precoMercadoBrl > 0 ? card.precoMercadoBrl : 19.9)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Status no Catálogo */}
-                      {existingProduct ? (
-                        existingProduct.ativo === false ? (
-                          <div
-                            style={{
-                              padding: '8px 12px',
-                              borderRadius: '10px',
-                              backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                              border: '1px solid rgba(239, 68, 68, 0.4)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <AlertTriangle size={14} color="#f87171" />
-                              <span style={{ fontSize: '12px', color: '#f87171', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                                Inativo ({existingProduct.estoque} un.)
-                              </span>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => reactivateProduct(existingProduct.id)}
-                              style={{
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                border: 'none',
-                                backgroundColor: '#22c55e',
-                                color: '#ffffff',
-                                fontSize: '11px',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                              }}
-                              title="Reativar este produto no catálogo público"
-                            >
-                              Reativar
-                            </button>
-                          </div>
-                        ) : (
-                          <div
-                            style={{
-                              padding: '8px 12px',
-                              borderRadius: '10px',
-                              backgroundColor: 'rgba(74, 222, 128, 0.1)',
-                              border: '1px solid rgba(74, 222, 128, 0.3)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <Check size={14} color="#4ade80" />
-                              <span style={{ fontSize: '12px', color: '#4ade80', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                                Em Estoque: {existingProduct.estoque} un.
-                              </span>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => handleQuickInlineStock(existingProduct, 5)}
-                              style={{
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                border: 'none',
-                                backgroundColor: '#4ade80',
-                                color: '#000000',
-                                fontSize: '11px',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                              }}
-                              title="Adicionar +5 unidades rapidamente a este produto existente"
-                            >
-                              +5 un.
-                            </button>
-                          </div>
-                        )
+                {/* Botão Carregar Mais Cartas da Coleção (Paginação Contínua) */}
+                {apiHasMore && !isLoadingApiCards && (
+                  <div style={{ textAlign: 'center', marginTop: '24px' }}>
+                    <button
+                      type="button"
+                      onClick={handleLoadMoreApi}
+                      disabled={isLoadingMoreApi}
+                      className="btn-outline"
+                      style={{
+                        padding: '12px 28px',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                      }}
+                    >
+                      {isLoadingMoreApi ? (
+                        'Carregando mais cartas...'
                       ) : (
-                        <div
-                          style={{
-                            padding: '10px',
-                            borderRadius: '10px',
-                            backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                            border: '1px solid var(--card-border)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '8px',
-                          }}
-                        >
-                          {/* Parâmetros rápidos de importação */}
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                            <div>
-                              <label style={{ display: 'block', fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '3px' }}>
-                                QTD. INICIAL
-                              </label>
-                              <input
-                                type="number"
-                                min="1"
-                                className="system-input"
-                                value={custom.stock}
-                                onChange={(e) =>
-                                  setApiCardCustoms((prev) => ({
-                                    ...prev,
-                                    [card.uid]: {
-                                      ...custom,
-                                      stock: Math.max(1, parseInt(e.target.value, 10) || 1),
-                                    },
-                                  }))
-                                }
-                                style={{ height: '32px', fontSize: '12px', padding: '4px 8px' }}
-                              />
-                            </div>
-
-                            <div>
-                              <label style={{ display: 'block', fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '3px' }}>
-                                PREÇO VENDA (R$)
-                              </label>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                className="system-input"
-                                value={formatMoneyInput(custom.price)}
-                                onChange={(e) =>
-                                  setApiCardCustoms((prev) => ({
-                                    ...prev,
-                                    [card.uid]: {
-                                      ...custom,
-                                      price: parseMoneyToFloat(e.target.value),
-                                    },
-                                  }))
-                                }
-                                placeholder="0,00"
-                                style={{ height: '32px', fontSize: '12px', padding: '4px 8px', fontFamily: 'var(--font-mono)' }}
-                              />
-                            </div>
-                          </div>
-
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            <button
-                              type="button"
-                              onClick={() => handleQuickImportApiCard(card)}
-                              disabled={isImporting}
-                              className="btn-primary"
-                              style={{
-                                flex: 1,
-                                height: '34px',
-                                fontSize: '12px',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '6px',
-                                fontWeight: 700,
-                              }}
-                            >
-                              <Download size={13} />
-                              {isImporting ? 'Cadastrando...' : 'Importar ao Estoque'}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleOpenConfigApiCard(card)}
-                              className="btn-outline"
-                              style={{
-                                padding: '0 10px',
-                                height: '34px',
-                                fontSize: '11px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}
-                              title="Configurar categoria, estoque mínimo e detalhes antes de importar"
-                            >
-                              <SlidersHorizontal size={13} />
-                            </button>
-                          </div>
-                        </div>
+                        <>
+                          <Plus size={15} /> Carregar Mais 24 Cartas da Coleção (Página {apiPage + 1})
+                        </>
                       )}
-                    </div>
-                  );
-                })}
-              </div>
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
