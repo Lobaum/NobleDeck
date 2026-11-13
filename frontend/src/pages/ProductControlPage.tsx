@@ -1580,72 +1580,6 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
       </div>
 
       {/* =========================================================================
-          TCG GAME HUB TABS (SELEÇÃO RÁPIDA DE CARD GAMES)
-         ========================================================================= */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '8px',
-          overflowX: 'auto',
-          paddingBottom: '6px',
-          marginBottom: '16px',
-          scrollbarWidth: 'none',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setGameFilter('all')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '10px',
-            fontSize: '12px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            border: gameFilter === 'all' ? '1px solid var(--color-primary)' : '1px solid var(--card-border)',
-            backgroundColor: gameFilter === 'all' ? 'rgba(168, 85, 247, 0.18)' : 'var(--card-bg, #13101c)',
-            color: gameFilter === 'all' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
-        >
-          <span>Todos os TCGs</span>
-          <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', opacity: 0.8 }}>({products.length})</span>
-        </button>
-
-        {GAME_OPTIONS.map((g) => {
-          const isSelected = gameFilter === g.value;
-          const count = gameCounts[g.value] || 0;
-          return (
-            <button
-              key={g.value}
-              type="button"
-              onClick={() => setGameFilter(g.value)}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '10px',
-                fontSize: '12px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                border: isSelected ? `1px solid ${g.color}` : '1px solid var(--card-border)',
-                backgroundColor: isSelected ? `${g.color}25` : 'var(--card-bg, #13101c)',
-                color: isSelected ? g.color : 'var(--color-on-surface-variant)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}
-            >
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: g.color }} />
-              <span>{g.label}</span>
-              <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', opacity: 0.8 }}>({count})</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* =========================================================================
           OMNIBAR INTEGRADA: STATUS PILLS + SEARCH + FILTERS + VIEW SWITCHER
          ========================================================================= */}
       <div
@@ -1786,6 +1720,31 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
               </button>
             )}
           </div>
+
+          {/* Jogo TCG */}
+          <SystemSelect
+            value={gameFilter}
+            onChange={(val) => setGameFilter(val as any)}
+            options={[
+              { value: 'all', label: `Todos os TCGs (${products.length})` },
+              ...GAME_OPTIONS.map((g) => ({
+                value: g.value,
+                label: `${g.label} (${gameCounts[g.value] || 0})`,
+                icon: (
+                  <span
+                    style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: g.color,
+                      display: 'inline-block',
+                    }}
+                  />
+                ),
+              })),
+            ]}
+            placeholder="Filtrar Jogo TCG"
+          />
 
           {/* Categoria */}
           <SystemSelect
