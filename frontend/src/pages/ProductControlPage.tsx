@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import {
   Package,
@@ -479,14 +480,43 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
   stockMovements,
   isStaffOrAdmin,
 }) => {
-  if (!product) return null;
-
-  const [priceInput, setPriceInput] = useState(formatMoneyInput(product.preco));
+  const [priceInput, setPriceInput] = useState(() => formatMoneyInput(product?.preco ?? 0));
 
   // Sincroniza o preço digitado caso o produto selecionado mude
-  React.useEffect(() => {
-    setPriceInput(formatMoneyInput(product.preco));
-  }, [product.id, product.preco]);
+  useEffect(() => {
+    if (product) {
+      setPriceInput(formatMoneyInput(product.preco));
+    }
+  }, [product?.id, product?.preco]);
+
+  // Trava o scroll da página e fecha com Escape, igual aos modais do sistema
+  useEffect(() => {
+    if (!product) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [product, onClose]);
+
+  const productMovements = useMemo(() => {
+    if (!product) return [];
+    return stockMovements
+      .filter((m) => m.produto_id === product.id)
+      .slice(0, 5);
+  }, [stockMovements, product?.id]);
+
+  if (!product) return null;
 
   const currentDraftPrice = parseMoneyToFloat(priceInput);
   const hasPriceChange = currentDraftPrice > 0 && Math.abs(currentDraftPrice - product.preco) > 0.009;
@@ -499,12 +529,6 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
   const isInactive = product.ativo === false;
   const isSealedBox = product.categoria === 'Booster Box';
   const gameOption = GAME_OPTIONS.find((g) => g.value === product.jogo);
-
-  const productMovements = useMemo(() => {
-    return stockMovements
-      .filter((m) => m.produto_id === product.id)
-      .slice(0, 5);
-  }, [stockMovements, product.id]);
 
   const handleApplyPrice = async () => {
     const val = parseMoneyToFloat(priceInput);
@@ -520,8 +544,8 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
     setPriceInput(formatMoneyInput(newPrice));
   };
 
-  return (
-    <div className="side-inspector-overlay" onClick={onClose}>
+  return createPortal(
+    <div className="side-inspector-overlay" onClick={onClose} role="dialog" aria-modal="true">
       <div className="side-inspector-pane" onClick={(e) => e.stopPropagation()}>
         {/* Drawer Header */}
         <div
@@ -1057,11 +1081,12 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
-export const ProductControlPage: React.FC = () => {
+export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const {
     products,
     addProduct,
@@ -1346,7 +1371,7 @@ export const ProductControlPage: React.FC = () => {
   };
 
   return (
-    <div className="workstation-canvas">
+    <div className={embedded ? undefined : 'workstation-canvas'}>
       {/* =========================================================================
           BARRA DE COMANDO DA WORKSTATION 2.0 (FULL WIDTH GLASS COMMAND BAR)
          ========================================================================= */}
@@ -1364,15 +1389,17 @@ export const ProductControlPage: React.FC = () => {
         {/* Linha Superior: Título + Ações Primárias */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <span style={{ fontSize: '12px', color: 'var(--color-outline)' }}>
-                {currentUser.role === 'admin' ? 'Painel de Administrador' : 'Painel de Funcionário'}
-              </span>
-            </div>
+            {!embedded && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--color-outline)' }}>
+                  {currentUser.role === 'admin' ? 'Painel de Administrador' : 'Painel de Funcionário'}
+                </span>
+              </div>
+            )}
 
             <h1
               style={{
-                fontSize: '24px',
+                fontSize: embedded ? '20px' : '24px',
                 fontWeight: 800,
                 color: 'var(--color-headline)',
                 margin: 0,
