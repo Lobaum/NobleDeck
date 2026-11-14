@@ -1,4 +1,5 @@
-from pydantic import BaseModel, ConfigDict, Field
+import math
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class UsuarioCadastro(BaseModel):
@@ -28,6 +29,10 @@ class UsuarioResposta(BaseModel):
     cargo: str | None = None
 
 
+class UsuarioAutenticadoResposta(UsuarioResposta):
+    token: str
+
+
 class UsuarioAtualizacaoPerfil(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -37,6 +42,7 @@ class UsuarioAtualizacaoPerfil(BaseModel):
 
 class UsuarioAlterarSenha(BaseModel):
     nova_senha: str
+    senha_atual: str | None = None
 
 
 class ProdutoRegistro(BaseModel):
@@ -58,6 +64,34 @@ class ProdutoRegistro(BaseModel):
     idioma: str = "Português"
     ano: int = 2024
 
+    @field_validator("nome")
+    @classmethod
+    def validar_nome(cls, v: str) -> str:
+        if not isinstance(v, str) or not v.strip():
+            raise ValueError("O nome do produto não pode estar vazio.")
+        return v.strip()
+
+    @field_validator("preco")
+    @classmethod
+    def validar_preco(cls, v: float) -> float:
+        if v is None or not math.isfinite(float(v)) or float(v) <= 0:
+            raise ValueError("O preço do produto deve ser maior que zero.")
+        return round(float(v), 2)
+
+    @field_validator("quantidade")
+    @classmethod
+    def validar_quantidade(cls, v: int) -> int:
+        if v is None or int(v) < 0:
+            raise ValueError("A quantidade em estoque não pode ser negativa.")
+        return int(v)
+
+    @field_validator("estoque_minimo")
+    @classmethod
+    def validar_estoque_minimo(cls, v: int) -> int:
+        if v is None or int(v) < 0:
+            raise ValueError("O estoque mínimo não pode ser negativo.")
+        return int(v)
+
 
 class ProdutoAlteracao(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -78,6 +112,42 @@ class ProdutoAlteracao(BaseModel):
     is_destaque: bool | None = None
     idioma: str | None = None
     ano: int | None = None
+
+    @field_validator("nome")
+    @classmethod
+    def validar_nome(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        if not isinstance(v, str) or not v.strip():
+            raise ValueError("O nome do produto não pode estar vazio.")
+        return v.strip()
+
+    @field_validator("preco")
+    @classmethod
+    def validar_preco(cls, v: float | None) -> float | None:
+        if v is None:
+            return None
+        if not math.isfinite(float(v)) or float(v) <= 0:
+            raise ValueError("O preço do produto deve ser maior que zero.")
+        return round(float(v), 2)
+
+    @field_validator("quantidade")
+    @classmethod
+    def validar_quantidade(cls, v: int | None) -> int | None:
+        if v is None:
+            return None
+        if int(v) < 0:
+            raise ValueError("A quantidade em estoque não pode ser negativa.")
+        return int(v)
+
+    @field_validator("estoque_minimo")
+    @classmethod
+    def validar_estoque_minimo(cls, v: int | None) -> int | None:
+        if v is None:
+            return None
+        if int(v) < 0:
+            raise ValueError("O estoque mínimo não pode ser negativo.")
+        return int(v)
 
 
 class ProdutoResposta(BaseModel):
@@ -118,6 +188,13 @@ class EstoqueSaida(BaseModel):
 
 class EstoqueMinimoAtualizacao(BaseModel):
     estoque_minimo: int
+
+    @field_validator("estoque_minimo")
+    @classmethod
+    def validar_estoque_minimo(cls, v: int) -> int:
+        if v is None or int(v) < 0:
+            raise ValueError("O estoque mínimo não pode ser negativo.")
+        return int(v)
 
 
 class MovimentacaoEstoqueResposta(BaseModel):
@@ -160,6 +237,8 @@ class ItemPedidoResposta(BaseModel):
     precoUnitario: float = Field(alias="preco_unitario")
     subtotal: float
     produto_nome: str = ""
+    jogo_nome: str = ""
+    imagem_url: str = ""
 
 
 PedidoItemRegistro = ItemPedidoRegistro
@@ -170,13 +249,16 @@ class PedidoRegistro(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     cliente_id: int | None = None
-    cliente_nome: str
-    cliente_email: str
+    cliente_nome: str = ""
+    cliente_email: str = ""
+    cliente_telefone: str = ""
+    endereco_entrega: str = ""
     itens: list[ItemPedidoRegistro]
 
 
 class PedidoStatusAlteracao(BaseModel):
     status: str
+    codigo_rastreio: str | None = None
 
 
 class PedidoResposta(BaseModel):
@@ -190,4 +272,8 @@ class PedidoResposta(BaseModel):
     cliente_id: int | None = None
     cliente_nome: str
     cliente_email: str
+    cliente_telefone: str = ""
+    endereco_entrega: str = ""
+    codigo_rastreio: str = ""
+    atualizado_em: str = ""
     itens: list[ItemPedidoResposta] = []

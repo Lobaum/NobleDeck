@@ -9,7 +9,7 @@ class Estoque:
     ):
         self.id_estoque = id_estoque
         self.quantidade = int(quantidade or 0)
-        self.estoqueMinimo = int(estoqueMinimo or 5)
+        self.estoqueMinimo = int(estoqueMinimo if estoqueMinimo is not None else 5)
         self.produto = produto
         self.produto_id = getattr(produto, "id_produto", produto_id) if produto else produto_id
 

@@ -10,12 +10,18 @@ class ItemPedido:
         id_item=None,
         pedido_id=None,
         produto_id=None,
+        produto_nome="",
+        jogo_nome="",
+        imagem_url="",
     ):
         self.id_item = id_item
         self.pedido_id = pedido_id
         self.produto = produto
         self.produto_id = getattr(produto, "id_produto", produto_id) if produto else produto_id
         self.quantidade = int(quantidade or 1)
+        self.produto_nome = produto_nome or (getattr(produto, "nome", "") if produto else "")
+        self.jogo_nome = jogo_nome or (getattr(produto, "jogo_nome", "") if produto else "")
+        self.imagem_url = imagem_url or (getattr(produto, "imagem_url", "") if produto else "")
 
         if precoUnitario and float(precoUnitario) > 0:
             self.precoUnitario = float(precoUnitario)
@@ -43,6 +49,10 @@ class Pedido:
         cliente_id=None,
         cliente_nome="",
         cliente_email="",
+        cliente_telefone="",
+        endereco_entrega="",
+        codigo_rastreio="",
+        atualizado_em="",
     ):
         self.id_pedido = id_pedido
         self.numero = numero or id_pedido
@@ -55,11 +65,16 @@ class Pedido:
             self.cliente_id = getattr(cliente, "id_usuario", cliente_id)
             self.cliente_nome = getattr(cliente, "nome", cliente_nome)
             self.cliente_email = getattr(cliente, "email", cliente_email)
+            self.cliente_telefone = cliente_telefone or getattr(cliente, "telefone", "")
         else:
             self.cliente_id = cliente_id
             self.cliente_nome = cliente_nome
             self.cliente_email = cliente_email
+            self.cliente_telefone = cliente_telefone or ""
 
+        self.endereco_entrega = endereco_entrega or ""
+        self.codigo_rastreio = codigo_rastreio or ""
+        self.atualizado_em = atualizado_em or ""
         self.itens = []
 
     def adicionarItem(self, produto, quantidade=1):

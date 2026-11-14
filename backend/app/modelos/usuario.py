@@ -14,13 +14,19 @@ class Usuario:
         self.tipoUsuario = tipoUsuario
 
     def fazerLogin(self, email="", senha=""):
-        return self.email == email and self.senha == senha
+        if not email or not senha or not self.email or not self.senha:
+            return False
+        if self.email.strip().lower() != email.strip().lower():
+            return False
+        from app.seguranca import verificar_senha
+
+        return verificar_senha(senha, self.senha)
 
     def alterarDados(self, nome=None, email=None, senha=None):
         if nome is not None and nome.strip():
-            self.nome = nome
+            self.nome = nome.strip()
         if email is not None and email.strip():
-            self.email = email
+            self.email = email.strip().lower()
         if senha is not None and senha.strip():
             self.senha = senha
 
@@ -72,11 +78,11 @@ class Funcionario(Usuario):
             senha=senha,
             tipoUsuario="funcionario",
         )
-        self.cargo = cargo
+        self.cargo = cargo or "Atendente de Loja"
 
     def atualizarCargo(self, novo_cargo):
         if novo_cargo and novo_cargo.strip():
-            self.cargo = novo_cargo
+            self.cargo = novo_cargo.strip()
 
 
 class Administrador(Funcionario):
@@ -86,12 +92,13 @@ class Administrador(Funcionario):
         nome="",
         email="",
         senha="",
+        cargo="Administrador Geral",
     ):
         super().__init__(
             id_usuario=id_usuario,
             nome=nome,
             email=email,
             senha=senha,
-            cargo="Administrador Geral",
+            cargo=cargo or "Administrador Geral",
         )
         self.tipoUsuario = "administrador"

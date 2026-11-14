@@ -48,8 +48,10 @@ class Produto:
         return True
 
     def atualizarPreco(self, novo_preco):
-        if novo_preco is not None and novo_preco >= 0:
-            self.preco = float(novo_preco)
+        if novo_preco is not None and float(novo_preco) > 0:
+            self.preco = round(float(novo_preco), 2)
+            return True
+        return False
 
     def inativar(self):
         self.ativo = False

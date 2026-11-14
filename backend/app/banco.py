@@ -1,3 +1,5 @@
+import random
+import secrets
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -9,8 +11,9 @@ from app.modelos.pedido import Pedido, ItemPedido
 
 DB_PATH = Path(__file__).resolve().parent.parent / "nobledeck.db"
 
+
 def obter_conexao_direta():
-    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+    conn = sqlite3.connect(str(DB_PATH), timeout=10.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -85,6 +88,10 @@ def inicializar_banco():
                 cliente_id INTEGER,
                 cliente_nome TEXT DEFAULT '',
                 cliente_email TEXT DEFAULT '',
+                cliente_telefone TEXT DEFAULT '',
+                endereco_entrega TEXT DEFAULT '',
+                codigo_rastreio TEXT DEFAULT '',
+                atualizado_em TEXT DEFAULT '',
                 FOREIGN KEY (cliente_id) REFERENCES usuarios (id_usuario)
             );
         """)
@@ -97,6 +104,9 @@ def inicializar_banco():
                 quantidade INTEGER NOT NULL DEFAULT 1,
                 preco_unitario REAL NOT NULL DEFAULT 0.0,
                 subtotal REAL NOT NULL DEFAULT 0.0,
+                produto_nome TEXT DEFAULT '',
+                jogo_nome TEXT DEFAULT '',
+                imagem_url TEXT DEFAULT '',
                 FOREIGN KEY (pedido_id) REFERENCES pedidos (id_pedido) ON DELETE CASCADE,
                 FOREIGN KEY (produto_id) REFERENCES produtos (id_produto)
             );
@@ -118,18 +128,68 @@ def inicializar_banco():
         """)
 
         cursor.execute("""
+            CREATE TABLE IF NOT EXISTS _config (
+                chave TEXT PRIMARY KEY,
+                valor TEXT NOT NULL
+            );
+        """)
+
+        migracoes = [
+            "ALTER TABLE pedidos ADD COLUMN cliente_telefone TEXT DEFAULT ''",
+            "ALTER TABLE pedidos ADD COLUMN endereco_entrega TEXT DEFAULT ''",
+            "ALTER TABLE pedidos ADD COLUMN codigo_rastreio TEXT DEFAULT ''",
+            "ALTER TABLE pedidos ADD COLUMN atualizado_em TEXT DEFAULT ''",
+            "ALTER TABLE itens_pedido ADD COLUMN produto_nome TEXT DEFAULT ''",
+            "ALTER TABLE itens_pedido ADD COLUMN jogo_nome TEXT DEFAULT ''",
+            "ALTER TABLE itens_pedido ADD COLUMN imagem_url TEXT DEFAULT ''",
+        ]
+        for sql_migracao in migracoes:
+            try:
+                cursor.execute(sql_migracao)
+            except sqlite3.OperationalError:
+                pass
+
+        cursor.execute(
+            "INSERT OR IGNORE INTO _config (chave, valor) VALUES (?, ?)",
+            ("token_secret", secrets.token_hex(32)),
+        )
+
+        cursor.execute("""
             INSERT OR IGNORE INTO estoques (produto_id, quantidade, estoque_minimo)
             SELECT id_produto, quantidade, 3 FROM produtos;
         """)
 
 
+def obter_segredo_auth() -> str:
+    with obter_conexao() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS _config (
+                chave TEXT PRIMARY KEY,
+                valor TEXT NOT NULL
+            );
+        """)
+        cursor.execute("SELECT valor FROM _config WHERE chave = ?", ("token_secret",))
+        row = cursor.fetchone()
+        if row and row["valor"]:
+            return row["valor"]
+        novo_segredo = secrets.token_hex(32)
+        cursor.execute(
+            "INSERT OR IGNORE INTO _config (chave, valor) VALUES (?, ?)",
+            ("token_secret", novo_segredo),
+        )
+        cursor.execute("SELECT valor FROM _config WHERE chave = ?", ("token_secret",))
+        row = cursor.fetchone()
+        return row["valor"]
+
 
 def atualizar_usuario_perfil(id_usuario, tipo_usuario, cargo=None):
+    cargo_atualizar = cargo.strip() if cargo is not None else ("" if tipo_usuario == "cliente" else None)
     with obter_conexao() as conn:
         cursor = conn.cursor()
         cursor.execute(
             "UPDATE usuarios SET tipo_usuario = ?, cargo = COALESCE(?, cargo) WHERE id_usuario = ?",
-            (tipo_usuario, cargo, id_usuario),
+            (tipo_usuario, cargo_atualizar, id_usuario),
         )
         cursor.execute("SELECT * FROM usuarios WHERE id_usuario = ?", (id_usuario,))
         row = cursor.fetchone()
@@ -160,6 +220,7 @@ def instanciar_usuario_da_linha(row):
             nome=row["nome"],
             email=row["email"],
             senha=row["senha"],
+            cargo=row["cargo"] or "Administrador Geral",
         )
     elif tipo == "funcionario":
         return Funcionario(
@@ -180,6 +241,7 @@ def instanciar_usuario_da_linha(row):
 
 
 def salvar_usuario(usuario):
+    usuario.email = (usuario.email or "").strip().lower()
     telefone = getattr(usuario, "telefone", "")
     cargo = getattr(usuario, "cargo", "")
     with obter_conexao() as conn:
@@ -196,9 +258,11 @@ def salvar_usuario(usuario):
 
 
 def obter_usuario_por_email(email):
+    if not email:
+        return None
     with obter_conexao() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM usuarios WHERE email = ?", (email,))
+        cursor.execute("SELECT * FROM usuarios WHERE LOWER(email) = LOWER(?)", (email.strip(),))
         row = cursor.fetchone()
         if row:
             return instanciar_usuario_da_linha(row)
@@ -519,12 +583,28 @@ def listar_movimentacoes_estoque(limite: int = 100):
         return [dict(row) for row in cursor.fetchall()]
 
 def salvar_pedido(pedido):
+    agora = datetime.now().strftime("%d/%m/%Y %H:%M")
     with obter_conexao() as conn:
         cursor = conn.cursor()
+
+        numero = pedido.numero
+        if numero is not None:
+            cursor.execute("SELECT 1 FROM pedidos WHERE numero = ?", (numero,))
+            if cursor.fetchone():
+                numero = None
+        while numero is None:
+            candidato = random.randint(1000, 999999)
+            cursor.execute("SELECT 1 FROM pedidos WHERE numero = ?", (candidato,))
+            if not cursor.fetchone():
+                numero = candidato
+        pedido.numero = numero
+
         cursor.execute(
             """
-            INSERT INTO pedidos (numero, data, valor_total, status, cliente_id, cliente_nome, cliente_email)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO pedidos (
+                numero, data, valor_total, status, cliente_id, cliente_nome, cliente_email,
+                cliente_telefone, endereco_entrega, codigo_rastreio, atualizado_em
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 pedido.numero,
@@ -534,15 +614,48 @@ def salvar_pedido(pedido):
                 pedido.cliente_id,
                 pedido.cliente_nome,
                 pedido.cliente_email,
+                getattr(pedido, "cliente_telefone", "") or "",
+                getattr(pedido, "endereco_entrega", "") or "",
+                getattr(pedido, "codigo_rastreio", "") or "",
+                getattr(pedido, "atualizado_em", "") or agora,
             ),
         )
         pedido.id_pedido = cursor.lastrowid
+        pedido.atualizado_em = getattr(pedido, "atualizado_em", "") or agora
 
         for item in pedido.itens:
             cursor.execute(
                 """
-                INSERT INTO itens_pedido (pedido_id, produto_id, quantidade, preco_unitario, subtotal)
-                VALUES (?, ?, ?, ?, ?)
+                SELECT quantidade, nome, ativo, jogo_nome, imagem_url
+                FROM produtos
+                WHERE id_produto = ?
+                """,
+                (item.produto_id,),
+            )
+            prod_row = cursor.fetchone()
+            if not prod_row or not bool(prod_row["ativo"]):
+                raise ValueError(f"Produto ID {item.produto_id} não encontrado ou inativo.")
+
+            saldo_anterior = int(prod_row["quantidade"])
+            if saldo_anterior < item.quantidade:
+                raise ValueError(
+                    f"Estoque insuficiente para o produto '{prod_row['nome']}'. Disponível: {saldo_anterior}"
+                )
+            saldo_posterior = saldo_anterior - item.quantidade
+
+            snap_nome = getattr(item, "produto_nome", "") or prod_row["nome"] or ""
+            snap_jogo = getattr(item, "jogo_nome", "") or prod_row["jogo_nome"] or ""
+            snap_img = getattr(item, "imagem_url", "") or prod_row["imagem_url"] or ""
+            item.produto_nome = snap_nome
+            item.jogo_nome = snap_jogo
+            item.imagem_url = snap_img
+
+            cursor.execute(
+                """
+                INSERT INTO itens_pedido (
+                    pedido_id, produto_id, quantidade, preco_unitario, subtotal,
+                    produto_nome, jogo_nome, imagem_url
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     pedido.id_pedido,
@@ -550,19 +663,108 @@ def salvar_pedido(pedido):
                     item.quantidade,
                     item.precoUnitario,
                     item.subtotal,
+                    snap_nome,
+                    snap_jogo,
+                    snap_img,
                 ),
             )
             item.id_item = cursor.lastrowid
             item.pedido_id = pedido.id_pedido
 
             cursor.execute(
-                "UPDATE produtos SET quantidade = quantidade - ? WHERE id_produto = ?",
-                (item.quantidade, item.produto_id),
+                "UPDATE produtos SET quantidade = quantidade - ? WHERE id_produto = ? AND quantidade >= ?",
+                (item.quantidade, item.produto_id, item.quantidade),
             )
+            if cursor.rowcount != 1:
+                raise ValueError(f"Estoque insuficiente para o produto '{snap_nome}'.")
+
             cursor.execute(
-                "UPDATE estoques SET quantidade = quantidade - ? WHERE produto_id = ?",
-                (item.quantidade, item.produto_id),
+                """
+                INSERT INTO estoques (produto_id, quantidade, estoque_minimo)
+                VALUES (?, ?, 3)
+                ON CONFLICT(produto_id) DO UPDATE SET
+                    quantidade = excluded.quantidade
+                """,
+                (item.produto_id, saldo_posterior),
             )
+
+            cursor.execute(
+                """
+                INSERT INTO movimentacoes_estoque (
+                    produto_id, produto_nome, tipo, quantidade,
+                    saldo_anterior, saldo_posterior, motivo, responsavel, data_hora
+                ) VALUES (?, ?, 'saida', ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    item.produto_id,
+                    snap_nome,
+                    int(item.quantidade),
+                    saldo_anterior,
+                    saldo_posterior,
+                    f"Pedido #{pedido.id_pedido}",
+                    pedido.cliente_nome or "Cliente",
+                    agora,
+                ),
+            )
+
+    return pedido
+
+
+def _carregar_pedido_com_cursor(cursor, row):
+    chaves = row.keys()
+    pedido = Pedido(
+        id_pedido=row["id_pedido"],
+        numero=row["numero"],
+        data=row["data"],
+        valorTotal=float(row["valor_total"]),
+        status=row["status"],
+        cliente_id=row["cliente_id"],
+        cliente_nome=row["cliente_nome"] or "",
+        cliente_email=row["cliente_email"] or "",
+        cliente_telefone=row["cliente_telefone"] if "cliente_telefone" in chaves and row["cliente_telefone"] else "",
+        endereco_entrega=row["endereco_entrega"] if "endereco_entrega" in chaves and row["endereco_entrega"] else "",
+        codigo_rastreio=row["codigo_rastreio"] if "codigo_rastreio" in chaves and row["codigo_rastreio"] else "",
+        atualizado_em=row["atualizado_em"] if "atualizado_em" in chaves and row["atualizado_em"] else "",
+    )
+
+    cursor.execute("SELECT * FROM itens_pedido WHERE pedido_id = ?", (pedido.id_pedido,))
+    itens_rows = cursor.fetchall()
+    for linha_item in itens_rows:
+        cursor.execute(
+            """
+            SELECT p.*, COALESCE(e.estoque_minimo, 3) AS estoque_minimo
+            FROM produtos p
+            LEFT JOIN estoques e ON e.produto_id = p.id_produto
+            WHERE p.id_produto = ?
+            """,
+            (linha_item["produto_id"],),
+        )
+        prod_row = cursor.fetchone()
+        produto = instanciar_produto_da_linha(prod_row) if prod_row else None
+
+        chaves_item = linha_item.keys()
+        snap_nome = (linha_item["produto_nome"] if "produto_nome" in chaves_item else "") or (
+            produto.nome if produto else ""
+        )
+        snap_jogo = (linha_item["jogo_nome"] if "jogo_nome" in chaves_item else "") or (
+            produto.jogo_nome if produto else ""
+        )
+        snap_img = (linha_item["imagem_url"] if "imagem_url" in chaves_item else "") or (
+            produto.imagem_url if produto else ""
+        )
+
+        item = ItemPedido(
+            id_item=linha_item["id_item"],
+            pedido_id=linha_item["pedido_id"],
+            produto_id=linha_item["produto_id"],
+            produto=produto,
+            quantidade=linha_item["quantidade"],
+            precoUnitario=linha_item["preco_unitario"],
+            produto_nome=snap_nome,
+            jogo_nome=snap_jogo,
+            imagem_url=snap_img,
+        )
+        pedido.itens.append(item)
 
     return pedido
 
@@ -574,48 +776,125 @@ def obter_pedido_por_id(id_pedido):
         row = cursor.fetchone()
         if not row:
             return None
-
-        pedido = Pedido(
-            id_pedido=row["id_pedido"],
-            numero=row["numero"],
-            data=row["data"],
-            valorTotal=float(row["valor_total"]),
-            status=row["status"],
-            cliente_id=row["cliente_id"],
-            cliente_nome=row["cliente_nome"] or "",
-            cliente_email=row["cliente_email"] or "",
-        )
-
-        cursor.execute("SELECT * FROM itens_pedido WHERE pedido_id = ?", (id_pedido,))
-        for linha_item in cursor.fetchall():
-            produto = obter_produto_por_id(linha_item["produto_id"])
-            item = ItemPedido(
-                id_item=linha_item["id_item"],
-                pedido_id=linha_item["pedido_id"],
-                produto_id=linha_item["produto_id"],
-                produto=produto,
-                quantidade=linha_item["quantidade"],
-                precoUnitario=linha_item["preco_unitario"],
-            )
-            pedido.itens.append(item)
-
-        return pedido
+        return _carregar_pedido_com_cursor(cursor, row)
 
 
 def listar_pedidos(cliente_id=None):
     with obter_conexao() as conn:
         cursor = conn.cursor()
-        if cliente_id:
-            cursor.execute("SELECT id_pedido FROM pedidos WHERE cliente_id = ? ORDER BY id_pedido DESC", (cliente_id,))
+        if cliente_id is not None:
+            cursor.execute("SELECT * FROM pedidos WHERE cliente_id = ? ORDER BY id_pedido DESC", (cliente_id,))
         else:
-            cursor.execute("SELECT id_pedido FROM pedidos ORDER BY id_pedido DESC")
-        ids = [row["id_pedido"] for row in cursor.fetchall()]
+            cursor.execute("SELECT * FROM pedidos ORDER BY id_pedido DESC")
+        rows = cursor.fetchall()
+        return [_carregar_pedido_com_cursor(cursor, row) for row in rows]
 
-    return [obter_pedido_por_id(id_do_pedido) for id_do_pedido in ids if id_do_pedido is not None]
 
+def atualizar_status_pedido(
+    id_pedido: int,
+    novo_status: str,
+    codigo_rastreio: str | None = None,
+    responsavel: str = "Sistema",
+):
+    agora = datetime.now().strftime("%d/%m/%Y %H:%M")
+    codigo_limpo = codigo_rastreio.strip() if codigo_rastreio is not None else None
 
-def atualizar_status_pedido(id_pedido, novo_status):
     with obter_conexao() as conn:
         cursor = conn.cursor()
-        cursor.execute("UPDATE pedidos SET status = ? WHERE id_pedido = ?", (novo_status, id_pedido))
-    return obter_pedido_por_id(id_pedido)
+        cursor.execute("SELECT status FROM pedidos WHERE id_pedido = ?", (id_pedido,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+
+        if novo_status == "Cancelado":
+            cursor.execute(
+                """
+                UPDATE pedidos
+                SET status = 'Cancelado',
+                    codigo_rastreio = COALESCE(?, codigo_rastreio),
+                    atualizado_em = ?
+                WHERE id_pedido = ? AND status != 'Cancelado'
+                """,
+                (codigo_limpo, agora, id_pedido),
+            )
+            if cursor.rowcount == 1:
+                cursor.execute("SELECT * FROM itens_pedido WHERE pedido_id = ?", (id_pedido,))
+                itens_rows = cursor.fetchall()
+                for item_row in itens_rows:
+                    prod_id = item_row["produto_id"]
+                    qtd_estorno = int(item_row["quantidade"])
+                    if qtd_estorno <= 0:
+                        continue
+                    cursor.execute(
+                        "SELECT quantidade, nome FROM produtos WHERE id_produto = ?",
+                        (prod_id,),
+                    )
+                    prod_row = cursor.fetchone()
+                    if not prod_row:
+                        continue
+
+                    saldo_anterior = int(prod_row["quantidade"])
+                    saldo_posterior = saldo_anterior + qtd_estorno
+                    chaves_item = item_row.keys()
+                    nome_prod = prod_row["nome"] or (
+                        item_row["produto_nome"] if "produto_nome" in chaves_item else f"Produto #{prod_id}"
+                    )
+
+                    cursor.execute(
+                        "UPDATE produtos SET quantidade = quantidade + ? WHERE id_produto = ?",
+                        (qtd_estorno, prod_id),
+                    )
+                    cursor.execute(
+                        """
+                        INSERT INTO estoques (produto_id, quantidade, estoque_minimo)
+                        VALUES (?, ?, 3)
+                        ON CONFLICT(produto_id) DO UPDATE SET
+                            quantidade = estoques.quantidade + ?
+                        """,
+                        (prod_id, saldo_posterior, qtd_estorno),
+                    )
+                    cursor.execute(
+                        """
+                        INSERT INTO movimentacoes_estoque (
+                            produto_id, produto_nome, tipo, quantidade,
+                            saldo_anterior, saldo_posterior, motivo, responsavel, data_hora
+                        ) VALUES (?, ?, 'entrada', ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            prod_id,
+                            nome_prod,
+                            qtd_estorno,
+                            saldo_anterior,
+                            saldo_posterior,
+                            f"Estorno - Cancelamento Pedido #{id_pedido}",
+                            responsavel or "Sistema",
+                            agora,
+                        ),
+                    )
+            else:
+                cursor.execute(
+                    """
+                    UPDATE pedidos
+                    SET codigo_rastreio = COALESCE(?, codigo_rastreio),
+                        atualizado_em = ?
+                    WHERE id_pedido = ?
+                    """,
+                    (codigo_limpo, agora, id_pedido),
+                )
+        else:
+            cursor.execute(
+                """
+                UPDATE pedidos
+                SET status = ?,
+                    codigo_rastreio = COALESCE(?, codigo_rastreio),
+                    atualizado_em = ?
+                WHERE id_pedido = ?
+                """,
+                (novo_status, codigo_limpo, agora, id_pedido),
+            )
+
+        cursor.execute("SELECT * FROM pedidos WHERE id_pedido = ?", (id_pedido,))
+        atualizado_row = cursor.fetchone()
+        if not atualizado_row:
+            return None
+        return _carregar_pedido_com_cursor(cursor, atualizado_row)
