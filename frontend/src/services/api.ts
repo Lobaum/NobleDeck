@@ -9,6 +9,107 @@ import type {
 } from '../types';
 
 const API_BASE = '/api';
+const TOKEN_STORAGE_KEY = 'noble_token';
+
+type UnauthorizedHandler = () => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+export function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(TOKEN_STORAGE_KEY);
+}
+
+export function setAuthToken(token: string | null): void {
+  if (typeof window === 'undefined') return;
+  if (token) {
+    localStorage.setItem(TOKEN_STORAGE_KEY, token);
+  } else {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+  }
+}
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  unauthorizedHandler = handler;
+}
+
+function handleUnauthorizedResponse(): void {
+  const hadToken = Boolean(getAuthToken());
+  setAuthToken(null);
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('noble_user');
+  }
+  if (hadToken) {
+    unauthorizedHandler?.();
+  }
+}
+
+async function extractErrorMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const data = await res.json();
+    if (typeof data?.detail === 'string' && data.detail.trim()) {
+      return data.detail;
+    }
+    if (Array.isArray(data?.detail) && data.detail.length > 0) {
+      const messages = data.detail
+        .map((item: any) => (typeof item?.msg === 'string' ? item.msg : null))
+        .filter(Boolean);
+      if (messages.length > 0) {
+        return messages.join(' • ');
+      }
+    }
+    if (typeof data?.message === 'string' && data.message.trim()) {
+      return data.message;
+    }
+  } catch {
+    // Resposta sem JSON válido
+  }
+  return fallback;
+}
+
+async function fetchWithAuth(
+  input: string,
+  init: RequestInit = {},
+  options: { handle401?: boolean } = {}
+): Promise<Response> {
+  const token = getAuthToken();
+  const headers = new Headers(init.headers);
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  const res = await fetch(input, { ...init, headers });
+  if (res.status === 401 && options.handle401 !== false) {
+    handleUnauthorizedResponse();
+  }
+  return res;
+}
+
+export function formatBRL(value: number | null | undefined): string {
+  const num = Number(value);
+  const safe = Number.isFinite(num) ? num : 0;
+  return safe.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function mapBackendRole(tipoUsuario: unknown): UserRole {
+  if (tipoUsuario === 'administrador' || tipoUsuario === 'admin') return 'admin';
+  if (tipoUsuario === 'funcionario') return 'funcionario';
+  return 'cliente';
+}
+
+function adaptarUsuarioDoBackend(u: any): UserProfile {
+  const role = mapBackendRole(u?.tipo_usuario);
+  return {
+    id: u.id_usuario,
+    nome: u.nome,
+    email: u.email,
+    role,
+    cargo: u.cargo ?? undefined,
+    telefone: u.telefone || undefined,
+    token: u.token || undefined,
+  };
+}
 
 function hashCardUidToNegativeId(uid: string): number {
   let hash = 0;
@@ -88,20 +189,28 @@ export function adaptarProdutoParaBackend(p: Omit<Product, 'id'>) {
 
 export function adaptarPedidoDoBackend(p: any, produtosCatalogo: Product[] = []): Order {
   const itens: CartItem[] = (p.itens || []).map((item: any) => {
-    const prodRef = produtosCatalogo.find((prod) => prod.id === item.produto_id) || {
-      id: item.produto_id,
-      nome: item.produto_nome || `Produto #${item.produto_id}`,
-      preco: item.preco_unitario,
-      estoque: 10,
-      jogo: 'outros',
-      jogoNome: 'Geral',
-      categoria: 'Geral',
-      subtitulo: '',
-      descricao: '',
-      imagemUrl: '',
-    };
+    const catalogProd = produtosCatalogo.find((prod) => prod.id === item.produto_id);
+    const prodRef: Product = catalogProd
+      ? {
+          ...catalogProd,
+          nome: catalogProd.nome || item.produto_nome || `Produto #${item.produto_id}`,
+          jogoNome: catalogProd.jogoNome || item.jogo_nome || 'Geral',
+          imagemUrl: catalogProd.imagemUrl || item.imagem_url || '',
+        }
+      : {
+          id: item.produto_id,
+          nome: item.produto_nome || `Produto #${item.produto_id}`,
+          preco: item.preco_unitario,
+          estoque: 0,
+          jogo: 'outros',
+          jogoNome: item.jogo_nome || 'Geral',
+          categoria: 'Carta Avulsa',
+          subtitulo: '',
+          descricao: '',
+          imagemUrl: item.imagem_url || '',
+        };
     return {
-      produto: prodRef as Product,
+      produto: prodRef,
       quantidade: item.quantidade,
       subtotal: item.subtotal,
     };
@@ -109,8 +218,14 @@ export function adaptarPedidoDoBackend(p: any, produtosCatalogo: Product[] = [])
 
   return {
     id_pedido: p.id_pedido,
+    numero: typeof p.numero === 'number' ? p.numero : undefined,
+    cliente_id: typeof p.cliente_id === 'number' ? p.cliente_id : undefined,
     cliente_nome: p.cliente_nome,
     cliente_email: p.cliente_email,
+    cliente_telefone: p.cliente_telefone || undefined,
+    endereco_entrega: p.endereco_entrega || undefined,
+    codigo_rastreio: p.codigo_rastreio || undefined,
+    atualizado_em: p.atualizado_em || undefined,
     itens,
     valor_total: p.valor_total,
     data: p.data,
@@ -123,21 +238,22 @@ export const api = {
   async obterProdutos(apenasAtivos: boolean = false): Promise<Product[]> {
     const query = apenasAtivos ? '?apenas_ativos=true' : '?apenas_ativos=false';
     const res = await fetch(`${API_BASE}/produtos${query}`);
-    if (!res.ok) throw new Error('Falha ao carregar produtos da API');
+    if (!res.ok) {
+      throw new Error(await extractErrorMessage(res, 'Falha ao carregar produtos da API'));
+    }
     const dados = await res.json();
     return dados.map(adaptarProdutoDoBackend);
   },
 
   async cadastrarProduto(produto: Omit<Product, 'id'>): Promise<Product> {
     const payload = adaptarProdutoParaBackend(produto);
-    const res = await fetch(`${API_BASE}/produtos`, {
+    const res = await fetchWithAuth(`${API_BASE}/produtos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Erro ao cadastrar produto' }));
-      throw new Error(err.detail || 'Erro ao cadastrar produto');
+      throw new Error(await extractErrorMessage(res, 'Erro ao cadastrar produto'));
     }
     const dados = await res.json();
     return adaptarProdutoDoBackend(dados);
@@ -149,12 +265,14 @@ export const api = {
   },
 
   async definirEstoque(produtoId: number, novaQuantidade: number): Promise<Product> {
-    const res = await fetch(`${API_BASE}/produtos/${produtoId}`, {
+    const res = await fetchWithAuth(`${API_BASE}/produtos/${produtoId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ quantidade: Math.max(0, novaQuantidade) }),
     });
-    if (!res.ok) throw new Error('Falha ao atualizar estoque no backend');
+    if (!res.ok) {
+      throw new Error(await extractErrorMessage(res, 'Falha ao atualizar estoque no backend'));
+    }
     const dados = await res.json();
     return adaptarProdutoDoBackend(dados);
   },
@@ -177,44 +295,46 @@ export const api = {
     if (dadosAtualizados.idioma !== undefined) payload.idioma = dadosAtualizados.idioma;
     if (dadosAtualizados.ano !== undefined) payload.ano = dadosAtualizados.ano;
 
-    const res = await fetch(`${API_BASE}/produtos/${produtoId}`, {
+    const res = await fetchWithAuth(`${API_BASE}/produtos/${produtoId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Erro ao atualizar produto' }));
-      throw new Error(err.detail || 'Erro ao atualizar produto');
+      throw new Error(await extractErrorMessage(res, 'Erro ao atualizar produto'));
     }
     const dados = await res.json();
     return adaptarProdutoDoBackend(dados);
   },
 
   async inativarProduto(produtoId: number): Promise<Product> {
-    const res = await fetch(`${API_BASE}/produtos/${produtoId}/inativar`, {
+    const res = await fetchWithAuth(`${API_BASE}/produtos/${produtoId}/inativar`, {
       method: 'PATCH',
     });
-    if (!res.ok) throw new Error('Falha ao inativar produto no backend');
+    if (!res.ok) {
+      throw new Error(await extractErrorMessage(res, 'Falha ao inativar produto no backend'));
+    }
     const dados = await res.json();
     return adaptarProdutoDoBackend(dados);
   },
 
   async reativarProduto(produtoId: number): Promise<Product> {
-    const res = await fetch(`${API_BASE}/produtos/${produtoId}/ativar`, {
+    const res = await fetchWithAuth(`${API_BASE}/produtos/${produtoId}/ativar`, {
       method: 'PATCH',
     });
-    if (!res.ok) throw new Error('Falha ao reativar produto no backend');
+    if (!res.ok) {
+      throw new Error(await extractErrorMessage(res, 'Falha ao reativar produto no backend'));
+    }
     const dados = await res.json();
     return adaptarProdutoDoBackend(dados);
   },
 
   async excluirProduto(produtoId: number): Promise<void> {
-    const res = await fetch(`${API_BASE}/produtos/${produtoId}`, {
+    const res = await fetchWithAuth(`${API_BASE}/produtos/${produtoId}`, {
       method: 'DELETE',
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Falha ao excluir produto' }));
-      throw new Error(err.detail || 'Falha ao excluir produto');
+      throw new Error(await extractErrorMessage(res, 'Falha ao excluir produto'));
     }
   },
 
@@ -225,14 +345,13 @@ export const api = {
     motivo: string = 'Reposição de Estoque',
     responsavel: string = 'Administrador'
   ) {
-    const res = await fetch(`${API_BASE}/estoque/entrada`, {
+    const res = await fetchWithAuth(`${API_BASE}/estoque/entrada`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ produto_id: produtoId, quantidade, motivo, responsavel }),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Falha ao registrar entrada de estoque' }));
-      throw new Error(err.detail || 'Falha ao registrar entrada de estoque');
+      throw new Error(await extractErrorMessage(res, 'Falha ao registrar entrada de estoque'));
     }
     return res.json();
   },
@@ -243,107 +362,115 @@ export const api = {
     motivo: string = 'Baixa Operacional',
     responsavel: string = 'Administrador'
   ) {
-    const res = await fetch(`${API_BASE}/estoque/saida`, {
+    const res = await fetchWithAuth(`${API_BASE}/estoque/saida`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ produto_id: produtoId, quantidade, motivo, responsavel }),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Quantidade indisponível ou erro na baixa de estoque' }));
-      throw new Error(err.detail || 'Quantidade indisponível ou erro na baixa de estoque');
+      throw new Error(await extractErrorMessage(res, 'Quantidade indisponível ou erro na baixa de estoque'));
     }
     return res.json();
   },
 
   async definirEstoqueMinimo(produtoId: number, estoqueMinimo: number) {
-    const res = await fetch(`${API_BASE}/estoque/${produtoId}/minimo`, {
+    const res = await fetchWithAuth(`${API_BASE}/estoque/${produtoId}/minimo`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ estoque_minimo: Math.max(0, estoqueMinimo) }),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Erro ao definir estoque mínimo' }));
-      throw new Error(err.detail || 'Erro ao definir estoque mínimo');
+      throw new Error(await extractErrorMessage(res, 'Erro ao definir estoque mínimo'));
     }
     return res.json();
   },
 
   async obterMovimentacoesEstoque(limite: number = 100): Promise<StockMovement[]> {
-    const res = await fetch(`${API_BASE}/estoque/movimentacoes?limite=${limite}`);
-    if (!res.ok) throw new Error('Falha ao consultar movimentações de estoque');
+    const res = await fetchWithAuth(`${API_BASE}/estoque/movimentacoes?limite=${limite}`);
+    if (!res.ok) {
+      throw new Error(await extractErrorMessage(res, 'Falha ao consultar movimentações de estoque'));
+    }
     return res.json();
   },
 
   async obterEstoqueEmFalta() {
-    const res = await fetch(`${API_BASE}/estoque/falta`);
-    if (!res.ok) throw new Error('Falha ao consultar estoque em falta');
+    const res = await fetchWithAuth(`${API_BASE}/estoque/falta`);
+    if (!res.ok) {
+      throw new Error(await extractErrorMessage(res, 'Falha ao consultar estoque em falta'));
+    }
     return res.json();
   },
 
   // PEDIDOS
   async obterPedidos(produtosCatalogo: Product[] = []): Promise<Order[]> {
-    const res = await fetch(`${API_BASE}/pedidos`);
-    if (!res.ok) throw new Error('Falha ao carregar pedidos da API');
+    const res = await fetchWithAuth(`${API_BASE}/pedidos`);
+    if (!res.ok) {
+      throw new Error(await extractErrorMessage(res, 'Falha ao carregar pedidos da API'));
+    }
     const dados = await res.json();
     return dados.map((p: any) => adaptarPedidoDoBackend(p, produtosCatalogo));
   },
 
-  async criarPedido(dados: {
-    cliente_id?: number;
-    cliente_nome: string;
-    cliente_email: string;
-    itens: { produto_id: number; quantidade: number }[];
-  }, produtosCatalogo: Product[] = []): Promise<Order> {
-    const res = await fetch(`${API_BASE}/pedidos`, {
+  async criarPedido(
+    dados: {
+      cliente_id?: number;
+      cliente_nome: string;
+      cliente_email: string;
+      cliente_telefone?: string;
+      endereco_entrega?: string;
+      itens: { produto_id: number; quantidade: number }[];
+    },
+    produtosCatalogo: Product[] = []
+  ): Promise<Order> {
+    const res = await fetchWithAuth(`${API_BASE}/pedidos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dados),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Erro ao criar pedido' }));
-      throw new Error(err.detail || 'Erro ao criar pedido');
+      throw new Error(await extractErrorMessage(res, 'Erro ao criar pedido'));
     }
     const pedidoCriado = await res.json();
     return adaptarPedidoDoBackend(pedidoCriado, produtosCatalogo);
   },
 
-  async atualizarStatusPedido(pedidoId: number, status: Order['status'], produtosCatalogo: Product[] = []): Promise<Order> {
-    const res = await fetch(`${API_BASE}/pedidos/${pedidoId}/status`, {
+  async atualizarStatusPedido(
+    pedidoId: number,
+    status: Order['status'],
+    produtosCatalogo: Product[] = [],
+    codigoRastreio?: string
+  ): Promise<Order> {
+    const payload: Record<string, string> = { status };
+    if (codigoRastreio !== undefined) {
+      payload.codigo_rastreio = codigoRastreio;
+    }
+    const res = await fetchWithAuth(`${API_BASE}/pedidos/${pedidoId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(payload),
     });
-    if (!res.ok) throw new Error('Erro ao atualizar status do pedido');
+    if (!res.ok) {
+      throw new Error(await extractErrorMessage(res, 'Erro ao atualizar status do pedido'));
+    }
     const dados = await res.json();
     return adaptarPedidoDoBackend(dados, produtosCatalogo);
   },
 
   // AUTENTICAÇÃO
-  async login(email: string, senha: string): Promise<UserProfile> {
+  async login(email: string, senha: string, persistirSessao: boolean = true): Promise<UserProfile> {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, senha }),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Credenciais inválidas' }));
-      throw new Error(err.detail || 'Credenciais inválidas');
+      throw new Error(await extractErrorMessage(res, 'Credenciais inválidas'));
     }
     const dados = await res.json();
-    const role: UserRole =
-      dados.tipo_usuario === 'administrador'
-        ? 'admin'
-        : dados.tipo_usuario === 'funcionario'
-          ? 'funcionario'
-          : 'cliente';
-
-    return {
-      id: dados.id_usuario,
-      nome: dados.nome,
-      email: dados.email,
-      role,
-      cargo: dados.cargo,
-    };
+    if (dados.token && persistirSessao) {
+      setAuthToken(dados.token);
+    }
+    return adaptarUsuarioDoBackend(dados);
   },
 
   async cadastrarUsuario(
@@ -352,7 +479,8 @@ export const api = {
     senha: string,
     tipoUsuario: UserRole = 'cliente',
     telefone: string = '',
-    cargo?: string
+    cargo?: string,
+    persistirSessao?: boolean
   ): Promise<UserProfile> {
     const backendTipo =
       tipoUsuario === 'admin'
@@ -361,9 +489,15 @@ export const api = {
           ? 'funcionario'
           : 'cliente';
 
+    const existingToken = getAuthToken();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (existingToken) {
+      headers.Authorization = `Bearer ${existingToken}`;
+    }
+
     const res = await fetch(`${API_BASE}/auth/cadastro`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         nome,
         email,
@@ -374,42 +508,46 @@ export const api = {
       }),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Erro no cadastro' }));
-      throw new Error(err.detail || 'Erro no cadastro');
+      throw new Error(await extractErrorMessage(res, 'Erro no cadastro'));
     }
     const dados = await res.json();
-    return {
-      id: dados.id_usuario,
-      nome: dados.nome,
-      email: dados.email,
-      role: tipoUsuario,
-      cargo: dados.cargo,
-    };
+    if (
+      dados.token &&
+      (persistirSessao === true || (persistirSessao !== false && !existingToken))
+    ) {
+      setAuthToken(dados.token);
+    }
+    return adaptarUsuarioDoBackend(dados);
   },
 
   async excluirUsuario(idUsuario: number): Promise<void> {
-    const res = await fetch(`${API_BASE}/auth/usuarios/${idUsuario}`, {
+    const res = await fetchWithAuth(`${API_BASE}/auth/usuarios/${idUsuario}`, {
       method: 'DELETE',
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Falha ao excluir usuário' }));
-      throw new Error(err.detail || 'Falha ao excluir usuário');
+      throw new Error(await extractErrorMessage(res, 'Falha ao excluir usuário'));
     }
   },
 
   async obterUsuarios(): Promise<UserProfile[]> {
-    const res = await fetch(`${API_BASE}/auth/usuarios`);
+    const res = await fetchWithAuth(`${API_BASE}/auth/usuarios`);
     if (!res.ok) {
-      throw new Error('Falha ao obter usuários');
+      throw new Error(await extractErrorMessage(res, 'Falha ao obter usuários'));
     }
     const dados = await res.json();
-    return dados.map((u: any) => ({
-      id: u.id_usuario,
-      nome: u.nome,
-      email: u.email,
-      role: (u.tipo_usuario === 'administrador' ? 'admin' : u.tipo_usuario === 'funcionario' ? 'funcionario' : 'cliente') as UserRole,
-      cargo: u.cargo || (u.tipo_usuario === 'administrador' ? 'Administrador' : u.tipo_usuario === 'funcionario' ? 'Atendente' : 'Cliente'),
-    }));
+    return dados.map((u: any) => {
+      const adaptado = adaptarUsuarioDoBackend(u);
+      return {
+        ...adaptado,
+        cargo:
+          adaptado.cargo ||
+          (adaptado.role === 'admin'
+            ? 'Administrador'
+            : adaptado.role === 'funcionario'
+              ? 'Atendente'
+              : 'Cliente'),
+      };
+    });
   },
 
   async atualizarPerfilUsuario(idUsuario: number, tipoUsuario: UserRole, cargo?: string): Promise<UserProfile> {
@@ -420,7 +558,7 @@ export const api = {
           ? 'funcionario'
           : 'cliente';
 
-    const res = await fetch(`${API_BASE}/auth/usuarios/${idUsuario}/perfil`, {
+    const res = await fetchWithAuth(`${API_BASE}/auth/usuarios/${idUsuario}/perfil`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -429,30 +567,34 @@ export const api = {
       }),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Falha ao atualizar perfil' }));
-      throw new Error(err.detail || 'Falha ao atualizar perfil');
+      throw new Error(await extractErrorMessage(res, 'Falha ao atualizar perfil'));
     }
     const dados = await res.json();
-    return {
-      id: dados.id_usuario,
-      nome: dados.nome,
-      email: dados.email,
-      role: tipoUsuario,
-      cargo: dados.cargo,
-    };
+    return adaptarUsuarioDoBackend(dados);
   },
 
-  async alterarSenhaUsuario(idUsuario: number, novaSenha: string) {
-    const res = await fetch(`${API_BASE}/auth/usuarios/${idUsuario}/senha`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nova_senha: novaSenha,
-      }),
-    });
+  async alterarSenhaUsuario(idUsuario: number, novaSenha: string, senhaAtual?: string) {
+    const payload: { nova_senha: string; senha_atual?: string } = {
+      nova_senha: novaSenha,
+    };
+    if (senhaAtual !== undefined) {
+      payload.senha_atual = senhaAtual;
+    }
+    const res = await fetchWithAuth(
+      `${API_BASE}/auth/usuarios/${idUsuario}/senha`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      { handle401: false }
+    );
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Falha ao alterar senha' }));
-      throw new Error(err.detail || 'Falha ao alterar senha');
+      const msg = await extractErrorMessage(res, 'Falha ao alterar senha');
+      if (res.status === 401 && !msg.toLowerCase().includes('senha atual')) {
+        handleUnauthorizedResponse();
+      }
+      throw new Error(msg);
     }
     return await res.json();
   },

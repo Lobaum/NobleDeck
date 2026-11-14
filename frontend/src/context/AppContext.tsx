@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import type {
   Product,
   CartItem,
@@ -9,7 +9,13 @@ import type {
   ExternalCard,
   StockMovement,
 } from '../types';
-import { api, externalCardToProduct } from '../services/api';
+import {
+  api,
+  externalCardToProduct,
+  getAuthToken,
+  setAuthToken,
+  setUnauthorizedHandler,
+} from '../services/api';
 
 export type NavigationTab = 'home' | 'products' | 'about' | 'dashboard' | 'admin' | 'product-control';
 
@@ -18,6 +24,63 @@ const GUEST_USER: UserProfile = {
   nome: '',
   email: '',
   role: 'cliente',
+};
+
+const findMatchingStoreProduct = (target: Product, catalog: Product[]): Product | undefined => {
+  const cleanName = target.nome.toLowerCase().trim();
+  const candidates = catalog.filter(
+    (p) =>
+      p.ativo !== false &&
+      Number.isFinite(p.preco) &&
+      p.preco > 0 &&
+      p.estoque > 0 &&
+      p.jogo === target.jogo &&
+      p.nome.toLowerCase().trim() === cleanName
+  );
+  if (candidates.length === 0) return undefined;
+  if (candidates.length === 1) return candidates[0];
+  const sub = (target.subtitulo || '').toLowerCase().trim();
+  return candidates.find((p) => (p.subtitulo || '').toLowerCase().trim() === sub) || candidates[0];
+};
+
+const reconcileCartWithProducts = (prevCart: CartItem[], liveProducts: Product[]): CartItem[] => {
+  return prevCart.reduce<CartItem[]>((acc, item) => {
+    if (!item?.produto) return acc;
+
+    const live =
+      item.produto.id > 0 && !item.produto.externalCard
+        ? liveProducts.find((dp) => dp.id === item.produto.id)
+        : findMatchingStoreProduct(item.produto, liveProducts);
+
+    if (
+      !live ||
+      live.ativo === false ||
+      !Number.isFinite(live.preco) ||
+      live.preco <= 0 ||
+      live.estoque <= 0
+    ) {
+      return acc;
+    }
+
+    const requestedQty = Math.max(1, Math.floor(item.quantidade || 1));
+    const existingIdx = acc.findIndex((entry) => entry.produto.id === live.id);
+    if (existingIdx >= 0) {
+      const combinedQty = Math.min(acc[existingIdx].quantidade + requestedQty, live.estoque);
+      acc[existingIdx] = {
+        produto: live,
+        quantidade: combinedQty,
+        subtotal: Math.round(combinedQty * live.preco * 100) / 100,
+      };
+    } else {
+      const clampedQty = Math.min(requestedQty, live.estoque);
+      acc.push({
+        produto: live,
+        quantidade: clampedQty,
+        subtotal: Math.round(clampedQty * live.preco * 100) / 100,
+      });
+    }
+    return acc;
+  }, []);
 };
 
 interface AppContextType {
@@ -54,16 +117,23 @@ interface AppContextType {
   cartItemsCount: number;
 
   orders: Order[];
+  refreshOrders: () => Promise<void>;
   createOrder: () => Promise<Order | null>;
   updateOrderStatus: (orderId: number, status: Order['status']) => Promise<void> | void;
 
   currentUser: UserProfile;
-  switchRole: (role: UserRole) => void;
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
   authModalMode: 'login' | 'register';
   setAuthModalMode: (mode: 'login' | 'register') => void;
-  loginUser: (nome: string, email: string, role: UserRole, senha?: string, telefone?: string) => Promise<boolean>;
+  loginUser: (
+    nome: string,
+    email: string,
+    role: UserRole,
+    senha?: string,
+    telefone?: string,
+    mode?: 'login' | 'register'
+  ) => Promise<boolean>;
   logoutUser: () => void;
 
   toastMessage: string | null;
@@ -107,7 +177,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [currentTab, setCurrentTabState] = useState<NavigationTab>(getInitialTab);
 
-  const setCurrentTab = (tab: NavigationTab) => {
+  const setCurrentTab = useCallback((tab: NavigationTab) => {
     setCurrentTabState(tab);
     if (typeof window !== 'undefined') {
       if (tab === 'admin') {
@@ -124,7 +194,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
     }
-  };
+  }, []);
 
   useEffect(() => {
     const handlePop = () => {
@@ -151,6 +221,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedGameFilter, setSelectedGameFilter] = useState<GameId | 'all'>('all');
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [hasInitializedProducts, setHasInitializedProducts] = useState(false);
+  const productsRef = useRef<Product[]>(products);
   const [orders, setOrders] = useState<Order[]>([]);
 
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -166,15 +238,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('noble_user');
+    const token = getAuthToken();
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (!parsed?.email || !parsed?.id || parsed.id <= 0) {
+        if (!parsed?.email || !parsed?.id || parsed.id <= 0 || !token) {
           localStorage.removeItem('noble_user');
+          setAuthToken(null);
           return GUEST_USER;
         }
         return parsed;
       } catch {
+        localStorage.removeItem('noble_user');
+        setAuthToken(null);
         return GUEST_USER;
       }
     }
@@ -194,44 +270,117 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     onConfirm: () => void;
   } | null>(null);
 
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
+  const showToast = useCallback((msg: string) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    setToastMessage(msg);
+    toastTimerRef.current = setTimeout(() => {
+      setToastMessage((prev) => (prev === msg ? null : prev));
+    }, 3200);
+  }, []);
+
+  const showToastConfirm = useCallback((options: {
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm: () => void;
+  }) => {
+    setToastConfirm(options);
+  }, []);
+
+  const closeToastConfirm = useCallback(() => {
+    setToastConfirm(null);
+  }, []);
+
+  const syncProductsAndCart = useCallback((nextProducts: Product[]) => {
+    productsRef.current = nextProducts;
+    setProducts(nextProducts);
+    setCart((prev) => reconcileCartWithProducts(prev, nextProducts));
+  }, []);
+
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
+
   useEffect(() => {
     localStorage.setItem('noble_cart', JSON.stringify(cart));
   }, [cart]);
 
   useEffect(() => {
-    if (currentUser.email && currentUser.id > 0) {
-      localStorage.setItem('noble_user', JSON.stringify(currentUser));
+    if (currentUser.email && currentUser.id > 0 && getAuthToken()) {
+      const { token: _omitToken, ...userToStore } = currentUser;
+      localStorage.setItem('noble_user', JSON.stringify(userToStore));
     } else {
       localStorage.removeItem('noble_user');
     }
   }, [currentUser]);
 
-  // Carregamento inicial exclusivo do backend FastAPI
+  // Trata expiração/invalidez de token Bearer (401) em requisições protegidas
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setCurrentUser(GUEST_USER);
+      setOrders([]);
+      setStockMovements([]);
+      showToast('Sua sessão expirou ou é inválida. Faça login novamente.');
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  // Carregamento inicial público do catálogo de produtos + reconciliação do carrinho
   useEffect(() => {
     let active = true;
 
-    async function loadFromBackend() {
-      let loadedProducts: Product[] = [];
+    async function loadInitialProducts() {
       try {
         const dadosProdutos = await api.obterProdutos(false);
         if (active && Array.isArray(dadosProdutos)) {
-          loadedProducts = dadosProdutos;
-          setProducts(dadosProdutos);
-          setCart((prev) =>
-            prev.filter(
-              (item) =>
-                item.produto.id < 0 ||
-                Boolean(item.produto.externalCard) ||
-                dadosProdutos.some((dp) => dp.id === item.produto.id && dp.ativo !== false)
-            )
-          );
+          syncProductsAndCart(dadosProdutos);
         }
       } catch (err: any) {
-        console.warn('Não foi possível carregar produtos do backend:', err?.message);
+        console.error('Erro ao carregar produtos do backend:', err);
+        if (active) {
+          showToast(err?.message || 'Não foi possível carregar o catálogo de produtos do servidor.');
+        }
+      } finally {
+        if (active) {
+          setHasInitializedProducts(true);
+        }
       }
+    }
 
+    loadInitialProducts();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Carrega pedidos e movimentações apenas quando autenticado (e movimentações apenas para equipe)
+  useEffect(() => {
+    if (!hasInitializedProducts) return;
+
+    if (currentUser.id <= 0 || !currentUser.email || !getAuthToken()) {
+      setOrders([]);
+      setStockMovements([]);
+      return;
+    }
+
+    let active = true;
+    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+
+    async function loadAuthenticatedData() {
       try {
-        const dadosPedidos = await api.obterPedidos(loadedProducts);
+        const dadosPedidos = await api.obterPedidos(productsRef.current);
         if (active && Array.isArray(dadosPedidos)) {
           setOrders(dadosPedidos);
         }
@@ -239,81 +388,146 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn('Não foi possível carregar pedidos do backend:', err?.message);
       }
 
-      try {
-        const dadosMovimentacoes = await api.obterMovimentacoesEstoque(100);
-        if (active && Array.isArray(dadosMovimentacoes)) {
-          setStockMovements(dadosMovimentacoes);
+      if (isStaffOrAdmin) {
+        try {
+          const dadosMovimentacoes = await api.obterMovimentacoesEstoque(100);
+          if (active && Array.isArray(dadosMovimentacoes)) {
+            setStockMovements(dadosMovimentacoes);
+          }
+        } catch (err: any) {
+          console.warn('Não foi possível carregar movimentações de estoque:', err?.message);
         }
-      } catch {
-        // Ignora silenciosamente na carga inicial
+      } else {
+        setStockMovements([]);
       }
     }
 
-    loadFromBackend();
+    loadAuthenticatedData();
     return () => {
       active = false;
     };
-  }, []);
+  }, [hasInitializedProducts, currentUser.id, currentUser.email, currentUser.role]);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage((prev) => (prev === msg ? null : prev));
-    }, 3200);
-  };
+  const refreshProducts = useCallback(async (): Promise<Product[] | null> => {
+    try {
+      const dadosProdutos = await api.obterProdutos(false);
+      if (Array.isArray(dadosProdutos)) {
+        syncProductsAndCart(dadosProdutos);
+        return dadosProdutos;
+      }
+      return null;
+    } catch (err: any) {
+      console.warn('Erro ao recarregar produtos:', err?.message);
+      return null;
+    }
+  }, [syncProductsAndCart]);
 
-  const showToastConfirm = (options: {
-    message: string;
-    confirmText?: string;
-    cancelText?: string;
-    onConfirm: () => void;
-  }) => {
-    setToastConfirm(options);
-  };
+  const refreshOrders = useCallback(async (): Promise<void> => {
+    if (!currentUser.email || currentUser.id <= 0 || !getAuthToken()) {
+      setOrders([]);
+      return;
+    }
+    try {
+      const dadosPedidos = await api.obterPedidos(productsRef.current);
+      if (Array.isArray(dadosPedidos)) {
+        setOrders(dadosPedidos);
+      }
+    } catch (err: any) {
+      console.warn('Erro ao atualizar pedidos:', err?.message);
+      showToast(err?.message || 'Não foi possível atualizar os pedidos do servidor.');
+    }
+  }, [currentUser.email, currentUser.id, showToast]);
 
-  const closeToastConfirm = () => {
-    setToastConfirm(null);
-  };
+  const refreshStockMovements = useCallback(async () => {
+    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+    if (!currentUser.email || currentUser.id <= 0 || !isStaffOrAdmin || !getAuthToken()) {
+      setStockMovements([]);
+      return;
+    }
+    try {
+      const movs = await api.obterMovimentacoesEstoque(100);
+      if (Array.isArray(movs)) {
+        setStockMovements(movs);
+      }
+    } catch (err: any) {
+      console.warn('Erro ao atualizar movimentações de estoque:', err?.message);
+    }
+  }, [currentUser.email, currentUser.id, currentUser.role]);
 
   const addToCart = (product: Product, quantity = 1) => {
-    if (!currentUser.email || currentUser.id <= 0) {
+    if (!currentUser.email || currentUser.id <= 0 || !getAuthToken()) {
       showToast('Faça login para adicionar produtos ao carrinho!');
       setAuthModalMode('login');
       setIsAuthModalOpen(true);
       return;
     }
 
-    if (product.estoque <= 0) {
+    let targetProduct = product;
+    if (product.id < 0 || product.externalCard) {
+      const matched = findMatchingStoreProduct(product, productsRef.current);
+      if (!matched) {
+        showToast('Este card precisa ser importado ao estoque da loja antes da compra.');
+        return;
+      }
+      targetProduct = matched;
+    }
+
+    if (targetProduct.ativo === false) {
+      showToast('Este produto não está disponível no momento.');
+      return;
+    }
+
+    if (!Number.isFinite(targetProduct.preco) || targetProduct.preco <= 0) {
+      showToast('Este produto está sem preço definido e não pode ser adicionado ao carrinho.');
+      return;
+    }
+
+    if (targetProduct.estoque <= 0) {
       showToast('Produto sem estoque disponível no momento!');
       return;
     }
 
+    const safeQty = Math.max(1, Math.floor(quantity));
+    if (safeQty > targetProduct.estoque) {
+      showToast(`Quantidade máxima em estoque atingida (${targetProduct.estoque})`);
+      return;
+    }
+
+    let exceeded = false;
     setCart((prevCart) => {
-      const existing = prevCart.find((item) => item.produto.id === product.id);
+      const existing = prevCart.find((item) => item.produto.id === targetProduct.id);
       if (existing) {
-        const nextQty = existing.quantidade + quantity;
-        if (nextQty > product.estoque) {
-          showToast(`Quantidade máxima em estoque atingida (${product.estoque})`);
+        const nextQty = existing.quantidade + safeQty;
+        if (nextQty > targetProduct.estoque) {
+          exceeded = true;
           return prevCart;
         }
         return prevCart.map((item) =>
-          item.produto.id === product.id
-            ? { ...item, quantidade: nextQty, subtotal: nextQty * product.preco }
+          item.produto.id === targetProduct.id
+            ? {
+                produto: targetProduct,
+                quantidade: nextQty,
+                subtotal: Math.round(nextQty * targetProduct.preco * 100) / 100,
+              }
             : item
         );
-      } else {
-        return [
-          ...prevCart,
-          {
-            produto: product,
-            quantidade: quantity,
-            subtotal: quantity * product.preco,
-          },
-        ];
       }
+      return [
+        ...prevCart,
+        {
+          produto: targetProduct,
+          quantidade: safeQty,
+          subtotal: Math.round(safeQty * targetProduct.preco * 100) / 100,
+        },
+      ];
     });
 
-    showToast(`"${product.nome}" adicionado ao carrinho!`);
+    if (exceeded) {
+      showToast(`Quantidade máxima em estoque atingida (${targetProduct.estoque})`);
+      return;
+    }
+
+    showToast(`"${targetProduct.nome}" adicionado ao carrinho!`);
   };
 
   const removeFromCart = (productId: number) => {
@@ -329,11 +543,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCart((prev) =>
       prev.map((item) => {
         if (item.produto.id === productId) {
-          const clampedQty = Math.min(quantity, item.produto.estoque);
+          const live = productsRef.current.find((p) => p.id === productId) || item.produto;
+          const clampedQty = Math.min(Math.floor(quantity), live.estoque);
+          if (clampedQty <= 0) return item;
           return {
-            ...item,
+            produto: live,
             quantidade: clampedQty,
-            subtotal: clampedQty * item.produto.preco,
+            subtotal: Math.round(clampedQty * live.preco * 100) / 100,
           };
         }
         return item;
@@ -349,7 +565,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const cartItemsCount = cart.reduce((acc, item) => acc + item.quantidade, 0);
 
   const createOrder = async (): Promise<Order | null> => {
-    if (!currentUser.email || currentUser.id <= 0) {
+    if (!currentUser.email || currentUser.id <= 0 || !getAuthToken()) {
       showToast('Faça login para finalizar seu pedido!');
       setAuthModalMode('login');
       setIsAuthModalOpen(true);
@@ -362,12 +578,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
-      let currentCatalog = [...products];
+      const currentCatalog = [...productsRef.current];
       const resolvedItems: { produto_id: number; quantidade: number }[] = [];
 
       for (const item of cart) {
-        // Caso o item venha diretamente de uma API pública de cartas (id < 0),
-        // vincula ao produto equivalente no banco ou cadastra automaticamente antes de fechar o pedido
         if (item.produto.id < 0 || item.produto.externalCard) {
           const existingInStore = currentCatalog.find(
             (p) =>
@@ -376,30 +590,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               p.jogo === item.produto.jogo
           );
 
-          if (existingInStore) {
-            if (existingInStore.estoque < item.quantidade) {
-              showToast(`Estoque insuficiente na loja para ${existingInStore.nome}`);
-              return null;
-            }
-            resolvedItems.push({
-              produto_id: existingInStore.id,
-              quantidade: item.quantidade,
-            });
-          } else {
-            const { id: _ignoreId, externalCard: _ignoreExt, ...prodData } = item.produto;
-            const criado = await api.cadastrarProduto({
-              ...prodData,
-              estoque: Math.max(item.produto.estoque, item.quantidade),
-            });
-            currentCatalog = [criado, ...currentCatalog];
-            resolvedItems.push({
-              produto_id: criado.id,
-              quantidade: item.quantidade,
-            });
+          if (!existingInStore) {
+            showToast('Este card precisa ser importado ao estoque da loja antes da compra');
+            return null;
           }
+          if (!Number.isFinite(existingInStore.preco) || existingInStore.preco <= 0) {
+            showToast(`Produto "${existingInStore.nome}" está com preço indisponível.`);
+            return null;
+          }
+          if (existingInStore.estoque < item.quantidade) {
+            showToast(`Estoque insuficiente na loja para ${existingInStore.nome}`);
+            return null;
+          }
+          resolvedItems.push({
+            produto_id: existingInStore.id,
+            quantidade: item.quantidade,
+          });
         } else {
           const p = currentCatalog.find((prod) => prod.id === item.produto.id && prod.ativo !== false);
-          if (!p || p.estoque < item.quantidade) {
+          if (!p) {
+            showToast(`Produto "${item.produto.nome}" não está mais disponível no catálogo.`);
+            return null;
+          }
+          if (!Number.isFinite(p.preco) || p.preco <= 0) {
+            showToast(`Produto "${p.nome}" está com preço indisponível.`);
+            return null;
+          }
+          if (p.estoque < item.quantidade) {
             showToast(`Estoque insuficiente para ${item.produto.nome}`);
             return null;
           }
@@ -414,19 +631,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cliente_id: currentUser.id > 0 ? currentUser.id : undefined,
         cliente_nome: currentUser.nome,
         cliente_email: currentUser.email,
+        cliente_telefone: currentUser.telefone || undefined,
         itens: resolvedItems,
       };
 
       const pedidoBackend = await api.criarPedido(payload, currentCatalog);
       setOrders((prev) => [pedidoBackend, ...prev]);
 
-      // Recarrega o estoque real do banco após o pedido
-      const produtosAtualizados = await api.obterProdutos(false).catch(() => null);
-      if (produtosAtualizados) {
-        setProducts(produtosAtualizados);
-      } else {
-        setProducts(currentCatalog);
-      }
+      await Promise.all([refreshProducts(), refreshStockMovements()]);
 
       clearCart();
       setIsCartOpen(false);
@@ -440,25 +652,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateOrderStatus = async (orderId: number, status: Order['status']) => {
     try {
-      const atualizado = await api.atualizarStatusPedido(orderId, status, products);
-      setOrders((prev) =>
-        prev.map((o) => (o.id_pedido === orderId ? atualizado : o))
-      );
+      const atualizado = await api.atualizarStatusPedido(orderId, status, productsRef.current);
+      setOrders((prev) => prev.map((o) => (o.id_pedido === orderId ? atualizado : o)));
+      if (status === 'Cancelado') {
+        await Promise.all([refreshProducts(), refreshStockMovements()]);
+      }
       showToast(`Status do pedido #${orderId} atualizado para ${status}`);
     } catch (err: any) {
       showToast(err?.message || 'Erro ao atualizar status do pedido no servidor.');
-    }
-  };
-
-
-  const refreshStockMovements = async () => {
-    try {
-      const movs = await api.obterMovimentacoesEstoque(100);
-      if (Array.isArray(movs)) {
-        setStockMovements(movs);
-      }
-    } catch {
-      // Ignora erro
     }
   };
 
@@ -472,7 +673,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast('Apenas funcionários ou administradores podem registrar entradas!');
       return;
     }
-    const prod = products.find((p) => p.id === productId);
+    const prod = productsRef.current.find((p) => p.id === productId);
     try {
       const resp = await api.registrarEntradaEstoque(
         productId,
@@ -480,17 +681,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         motivo,
         currentUser.nome || 'Administrador'
       );
-      setProducts((prev) =>
-        prev.map((p) =>
-          p.id === productId
-            ? {
-                ...p,
-                estoque: resp.quantidade ?? p.estoque + quantity,
-                estoqueMinimo: resp.estoque_minimo ?? p.estoqueMinimo,
-              }
-            : p
-        )
+      const nextProducts = productsRef.current.map((p) =>
+        p.id === productId
+          ? {
+              ...p,
+              estoque: resp.quantidade ?? p.estoque + quantity,
+              estoqueMinimo: resp.estoque_minimo ?? p.estoqueMinimo,
+            }
+          : p
       );
+      syncProductsAndCart(nextProducts);
       await refreshStockMovements();
       showToast(`Entrada de +${quantity} un. registrada para "${prod?.nome || 'Produto'}"!`);
     } catch (err: any) {
@@ -509,7 +709,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast('Apenas funcionários ou administradores podem registrar saídas!');
       return;
     }
-    const prod = products.find((p) => p.id === productId);
+    const prod = productsRef.current.find((p) => p.id === productId);
     try {
       const resp = await api.registrarSaidaEstoque(
         productId,
@@ -517,17 +717,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         motivo,
         currentUser.nome || 'Administrador'
       );
-      setProducts((prev) =>
-        prev.map((p) =>
-          p.id === productId
-            ? {
-                ...p,
-                estoque: resp.quantidade ?? Math.max(0, p.estoque - quantity),
-                estoqueMinimo: resp.estoque_minimo ?? p.estoqueMinimo,
-              }
-            : p
-        )
+      const nextProducts = productsRef.current.map((p) =>
+        p.id === productId
+          ? {
+              ...p,
+              estoque: resp.quantidade ?? Math.max(0, p.estoque - quantity),
+              estoqueMinimo: resp.estoque_minimo ?? p.estoqueMinimo,
+            }
+          : p
       );
+      syncProductsAndCart(nextProducts);
       await refreshStockMovements();
       showToast(`Saída de -${quantity} un. registrada para "${prod?.nome || 'Produto'}"!`);
     } catch (err: any) {
@@ -542,16 +741,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast('Apenas funcionários ou administradores podem configurar o estoque mínimo!');
       return;
     }
-    const prod = products.find((p) => p.id === productId);
+    const prod = productsRef.current.find((p) => p.id === productId);
     try {
       const resp = await api.definirEstoqueMinimo(productId, minStock);
-      setProducts((prev) =>
-        prev.map((p) =>
-          p.id === productId
-            ? { ...p, estoqueMinimo: resp.estoque_minimo ?? minStock }
-            : p
-        )
+      const nextProducts = productsRef.current.map((p) =>
+        p.id === productId
+          ? { ...p, estoqueMinimo: resp.estoque_minimo ?? minStock }
+          : p
       );
+      syncProductsAndCart(nextProducts);
       showToast(`Estoque mínimo de "${prod?.nome || 'Produto'}" definido para ${minStock} un.!`);
     } catch (err: any) {
       showToast(err?.message || 'Erro ao atualizar estoque mínimo.');
@@ -559,10 +757,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addProduct = async (p: Omit<Product, 'id'>) => {
+    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+    if (!isStaffOrAdmin) {
+      showToast('Apenas funcionários ou administradores podem cadastrar produtos!');
+      return;
+    }
+    if (!Number.isFinite(p.preco) || p.preco <= 0) {
+      showToast('Informe um preço de venda válido maior que R$ 0,00.');
+      return;
+    }
     try {
       const criado = await api.cadastrarProduto(p);
-      setProducts((prev) => [criado, ...prev]);
-      await refreshStockMovements();
+      syncProductsAndCart([criado, ...productsRef.current.filter((item) => item.id !== criado.id)]);
+      await Promise.all([refreshProducts(), refreshStockMovements()]);
       showToast(`Produto "${criado.nome}" cadastrado com sucesso!`);
     } catch (err: any) {
       showToast(err?.message || 'Erro ao cadastrar produto no servidor.');
@@ -580,7 +787,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return null;
     }
 
-    const existing = products.find(
+    const existing = productsRef.current.find(
       (p) => p.nome.toLowerCase().trim() === card.nome.toLowerCase().trim() && p.jogo === card.jogo
     );
     if (existing) {
@@ -588,14 +795,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return existing;
     }
 
+    const resolvedPrice = preco !== undefined ? preco : card.precoMercadoBrl;
+    if (!Number.isFinite(resolvedPrice) || resolvedPrice <= 0) {
+      showToast('Informe um preço de venda válido maior que R$ 0,00 antes de importar.');
+      return null;
+    }
+
+    if (!Number.isFinite(estoque) || estoque < 0) {
+      showToast('Informe uma quantidade de estoque válida.');
+      return null;
+    }
+
     try {
-      const mapped = externalCardToProduct(card, estoque);
+      const mapped = externalCardToProduct(card, Math.floor(estoque));
       const { id: _ignoreId, externalCard: _ignoreExt, ...payload } = mapped;
-      if (preco !== undefined && preco > 0) {
-        payload.preco = preco;
-      }
+      payload.preco = resolvedPrice;
       const criado = await api.cadastrarProduto(payload);
-      setProducts((prev) => [criado, ...prev]);
+      syncProductsAndCart([criado, ...productsRef.current.filter((item) => item.id !== criado.id)]);
+      await Promise.all([refreshProducts(), refreshStockMovements()]);
       showToast(`Carta "${criado.nome}" adicionada com sucesso ao estoque!`);
       return criado;
     } catch (err: any) {
@@ -611,12 +828,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    const prod = products.find((p) => p.id === productId);
+    const prod = productsRef.current.find((p) => p.id === productId);
     if (!prod) return;
 
     try {
       const atualizado = await api.atualizarEstoque(productId, change, prod.estoque);
-      setProducts((prev) => prev.map((p) => (p.id === productId ? atualizado : p)));
+      syncProductsAndCart(productsRef.current.map((p) => (p.id === productId ? atualizado : p)));
+      await refreshStockMovements();
       showToast('Estoque atualizado!');
     } catch (err: any) {
       showToast(err?.message || 'Falha ao atualizar estoque no servidor.');
@@ -630,14 +848,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    const prod = products.find((p) => p.id === productId);
+    const prod = productsRef.current.find((p) => p.id === productId);
     if (!prod) return;
 
     const clampedStock = Math.max(0, Math.floor(newStock));
 
     try {
       const atualizado = await api.definirEstoque(productId, clampedStock);
-      setProducts((prev) => prev.map((p) => (p.id === productId ? atualizado : p)));
+      syncProductsAndCart(productsRef.current.map((p) => (p.id === productId ? atualizado : p)));
+      await refreshStockMovements();
       showToast(`Estoque de "${prod.nome}" atualizado para ${clampedStock} unidades!`);
     } catch (err: any) {
       showToast(err?.message || 'Falha ao definir estoque no servidor.');
@@ -651,11 +870,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
+    if (
+      updatedFields.preco !== undefined &&
+      (!Number.isFinite(updatedFields.preco) || updatedFields.preco <= 0)
+    ) {
+      showToast('Informe um preço válido maior que R$ 0,00.');
+      return;
+    }
+
     try {
       const atualizado = await api.atualizarProduto(productId, updatedFields);
-      setProducts((prev) =>
-        prev.map((p) => (p.id === productId ? atualizado : p))
-      );
+      syncProductsAndCart(productsRef.current.map((p) => (p.id === productId ? atualizado : p)));
+      await Promise.all([refreshProducts(), refreshStockMovements()]);
       showToast(`Produto "${atualizado.nome}" atualizado com sucesso!`);
     } catch (err: any) {
       showToast(err?.message || 'Falha ao atualizar produto no servidor.');
@@ -669,12 +895,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    const prod = products.find((p) => p.id === productId);
+    const prod = productsRef.current.find((p) => p.id === productId);
     try {
       const inativado = await api.inativarProduto(productId);
-      setProducts((prev) =>
-        prev.map((p) => (p.id === productId ? inativado : p))
-      );
+      syncProductsAndCart(productsRef.current.map((p) => (p.id === productId ? inativado : p)));
+      await Promise.all([refreshProducts(), refreshStockMovements()]);
       showToast(`Produto "${prod?.nome || ''}" inativado com sucesso!`);
     } catch (err: any) {
       showToast(err?.message || 'Falha ao inativar produto no servidor.');
@@ -688,12 +913,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    const prod = products.find((p) => p.id === productId);
+    const prod = productsRef.current.find((p) => p.id === productId);
     try {
       const reativado = await api.reativarProduto(productId);
-      setProducts((prev) =>
-        prev.map((p) => (p.id === productId ? reativado : p))
-      );
+      syncProductsAndCart(productsRef.current.map((p) => (p.id === productId ? reativado : p)));
+      await Promise.all([refreshProducts(), refreshStockMovements()]);
       showToast(`Produto "${prod?.nome || ''}" reativado com sucesso!`);
     } catch (err: any) {
       showToast(err?.message || 'Falha ao reativar produto no servidor.');
@@ -707,10 +931,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    const prod = products.find((p) => p.id === productId);
+    const prod = productsRef.current.find((p) => p.id === productId);
     try {
       await api.excluirProduto(productId);
-      setProducts((prev) => prev.filter((p) => p.id !== productId));
+      syncProductsAndCart(productsRef.current.filter((p) => p.id !== productId));
+      await Promise.all([refreshProducts(), refreshStockMovements()]);
       showToast(`Produto "${prod?.nome || ''}" excluído permanentemente!`);
     } catch (err: any) {
       showToast(err?.message || 'Falha ao excluir produto no servidor.');
@@ -718,31 +943,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const switchRole = (role: UserRole) => {
-    setCurrentUser((prev) => ({
-      ...prev,
-      role,
-      cargo:
-        role === 'admin'
-          ? 'Administrador Geral'
-          : role === 'funcionario'
-          ? 'Especialista em TCG'
-          : undefined,
-    }));
-    if (role === 'admin') {
-      setCurrentTab('admin');
-    }
-    showToast(`Perfil alternado para: ${role.toUpperCase()}`);
-  };
-
   const loginUser = async (
     nome: string,
     email: string,
     role: UserRole,
     senha?: string,
-    telefone?: string
+    telefone?: string,
+    mode?: 'login' | 'register'
   ): Promise<boolean> => {
     const emailLimpo = email.trim().toLowerCase();
+    const effectiveMode = mode ?? authModalMode;
 
     if (!senha) {
       showToast('Informe sua senha para autenticar.');
@@ -750,8 +960,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
-      if (authModalMode === 'register') {
-        const cadastrado = await api.cadastrarUsuario(nome, emailLimpo, senha, role, telefone || '');
+      if (effectiveMode === 'register') {
+        const cadastrado = await api.cadastrarUsuario(
+          nome,
+          emailLimpo,
+          senha,
+          role,
+          telefone || '',
+          undefined,
+          true
+        );
+        const token = cadastrado.token || getAuthToken();
+        if (!token) {
+          showToast('Erro de autenticação: token de sessão não recebido.');
+          return false;
+        }
+        setAuthToken(token);
         setCurrentUser(cadastrado);
         setIsAuthModalOpen(false);
         showToast(`Cadastro realizado! Bem-vindo, ${cadastrado.nome}!`);
@@ -761,6 +985,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return true;
       } else {
         const logado = await api.login(emailLimpo, senha);
+        const token = logado.token || getAuthToken();
+        if (!token) {
+          showToast('Erro de autenticação: token de sessão não recebido.');
+          return false;
+        }
+        setAuthToken(token);
         setCurrentUser(logado);
         setIsAuthModalOpen(false);
         showToast(`Bem-vindo de volta, ${logado.nome}!`);
@@ -777,7 +1007,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logoutUser = () => {
     setCurrentUser(GUEST_USER);
+    setOrders([]);
+    setStockMovements([]);
     localStorage.removeItem('noble_user');
+    setAuthToken(null);
     showToast('Sessão encerrada.');
     setCurrentTab('home');
   };
@@ -833,10 +1066,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cartTotal,
         cartItemsCount,
         orders,
+        refreshOrders,
         createOrder,
         updateOrderStatus,
         currentUser,
-        switchRole,
         isAuthModalOpen,
         setIsAuthModalOpen,
         authModalMode,

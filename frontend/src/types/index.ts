@@ -73,12 +73,18 @@ export interface CartItem {
 
 export interface Order {
   id_pedido: number;
+  numero?: number;
+  cliente_id?: number;
   cliente_nome: string;
   cliente_email: string;
+  cliente_telefone?: string;
+  endereco_entrega?: string;
+  codigo_rastreio?: string;
+  atualizado_em?: string;
   itens: CartItem[];
   valor_total: number;
   data: string;
-  status: 'Pendente' | 'Processando' | 'Finalizado' | 'Cancelado';
+  status: 'Pendente' | 'Processando' | 'Enviado' | 'Finalizado' | 'Cancelado';
 }
 
 export type UserRole = 'cliente' | 'funcionario' | 'admin';
@@ -89,5 +95,7 @@ export interface UserProfile {
   email: string;
   role: UserRole;
   cargo?: string;
+  telefone?: string;
   avatarUrl?: string;
+  token?: string;
 }
