@@ -1,9 +1,13 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/ThemeContext';
+import { formatBRL } from '../services/api';
 import { X, ShoppingBag, PackagePlus } from 'lucide-react';
 import nobleLogo from '../assets/noble-logo.png';
 
 export const ProductModal: React.FC = () => {
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
   const {
     selectedProductForModal,
     setSelectedProductForModal,
@@ -11,6 +15,8 @@ export const ProductModal: React.FC = () => {
     currentUser,
     importExternalCard,
   } = useApp();
+
+  const [isImporting, setIsImporting] = useState(false);
 
   useEffect(() => {
     if (!selectedProductForModal) return;
@@ -25,6 +31,9 @@ export const ProductModal: React.FC = () => {
 
   const product = selectedProductForModal;
   const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+  const isExternalUnstocked = Boolean(product.externalCard) || product.id < 0;
+  const isUnpriced = product.preco <= 0;
+  const isUnavailable = isExternalUnstocked || isUnpriced || product.estoque <= 0;
 
   return (
     <div
@@ -66,6 +75,8 @@ export const ProductModal: React.FC = () => {
         }}
       >
         <button
+          type="button"
+          aria-label="Fechar detalhes do produto"
           onClick={() => setSelectedProductForModal(null)}
           style={{
             position: 'absolute',
@@ -127,6 +138,10 @@ export const ProductModal: React.FC = () => {
             <img
               src={product.imagemUrl || nobleLogo}
               alt={product.nome}
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = nobleLogo;
+              }}
               style={{
                 width: '100%',
                 height: '100%',
@@ -157,7 +172,7 @@ export const ProductModal: React.FC = () => {
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: '12px',
-                color: 'var(--color-primary)',
+                color: isLight ? '#7A4B00' : 'var(--color-primary)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.08em',
               }}
@@ -182,33 +197,49 @@ export const ProductModal: React.FC = () => {
                 alignItems: 'baseline',
                 gap: '12px',
                 marginBottom: '20px',
+                flexWrap: 'wrap',
               }}
             >
               <span
                 style={{
                   fontFamily: 'var(--font-mono)',
-                  fontSize: '32px',
+                  fontSize: isUnpriced ? '24px' : '32px',
                   fontWeight: 800,
-                  color: 'var(--color-primary)',
+                  color: isUnpriced
+                    ? 'var(--color-on-surface-variant)'
+                    : isLight
+                      ? '#7A4B00'
+                      : 'var(--color-primary)',
                 }}
               >
-                R$ {product.preco.toFixed(2)}
+                {!isUnpriced ? `R$ ${formatBRL(product.preco)}` : 'Sob consulta'}
               </span>
               <span
                 style={{
                   fontSize: '12px',
-                  color:
-                    product.estoque > 5
-                      ? 'var(--color-accent-yellow)'
+                  color: isExternalUnstocked
+                    ? isLight
+                      ? '#7A4B00'
+                      : 'var(--color-primary)'
+                    : product.estoque > 5
+                      ? isLight
+                        ? '#166534'
+                        : 'var(--color-accent-yellow)'
                       : product.estoque > 0
-                      ? 'var(--color-tertiary)'
-                      : 'var(--color-error)',
+                        ? isLight
+                          ? '#92400e'
+                          : 'var(--color-tertiary)'
+                        : isLight
+                          ? '#b91c1c'
+                          : 'var(--color-error)',
                   fontFamily: 'var(--font-mono)',
                 }}
               >
-                {product.estoque > 0
-                  ? `● ${product.estoque} em estoque`
-                  : '● Estoque esgotado'}
+                {isExternalUnstocked
+                  ? '● Sob Encomenda (Acervo Oficial)'
+                  : product.estoque > 0
+                    ? `● ${product.estoque} em estoque`
+                    : '● Estoque esgotado'}
               </span>
             </div>
 
@@ -252,7 +283,12 @@ export const ProductModal: React.FC = () => {
                 <span style={{ color: 'var(--color-outline)', display: 'block' }}>
                   Garantia
                 </span>
-                <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>
+                <span
+                  style={{
+                    fontWeight: 600,
+                    color: isLight ? '#7A4B00' : 'var(--color-primary)',
+                  }}
+                >
                   100% Autêntico
                 </span>
               </div>
@@ -263,40 +299,56 @@ export const ProductModal: React.FC = () => {
             {product.externalCard && isStaffOrAdmin && (
               <button
                 type="button"
+                disabled={isImporting}
                 onClick={async () => {
-                  const imported = await importExternalCard(product.externalCard!);
-                  if (imported) {
-                    setSelectedProductForModal(imported);
+                  if (isImporting) return;
+                  setIsImporting(true);
+                  try {
+                    const imported = await importExternalCard(product.externalCard!);
+                    if (imported) {
+                      setSelectedProductForModal(imported);
+                    }
+                  } finally {
+                    setIsImporting(false);
                   }
                 }}
                 className="btn-outline"
                 style={{
                   padding: '14px 18px',
                   fontSize: '13px',
+                  opacity: isImporting ? 0.6 : 1,
                 }}
               >
                 <PackagePlus size={16} />
-                <span>Importar p/ Estoque</span>
+                <span>{isImporting ? 'Importando...' : 'Importar p/ Estoque'}</span>
               </button>
             )}
             <button
+              type="button"
               onClick={() => {
+                if (isUnavailable) return;
                 addToCart(product);
                 setSelectedProductForModal(null);
               }}
-              disabled={product.estoque <= 0}
+              disabled={isUnavailable}
               className="btn-primary"
               style={{
                 flex: 1,
                 padding: '16px',
                 fontSize: '14px',
-                opacity: product.estoque <= 0 ? 0.4 : 1,
-                cursor: product.estoque <= 0 ? 'not-allowed' : 'pointer',
+                opacity: isUnavailable ? 0.45 : 1,
+                cursor: isUnavailable ? 'not-allowed' : 'pointer',
               }}
             >
               <ShoppingBag size={18} />
               <span>
-                {product.estoque > 0 ? 'Adicionar ao Carrinho' : 'Esgotado'}
+                {isExternalUnstocked
+                  ? 'Sob Encomenda'
+                  : isUnpriced
+                    ? 'Sob Consulta'
+                    : product.estoque > 0
+                      ? 'Adicionar ao Carrinho'
+                      : 'Esgotado'}
               </span>
             </button>
           </div>

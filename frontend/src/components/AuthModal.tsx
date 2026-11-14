@@ -132,6 +132,7 @@ export const AuthModal: React.FC = () => {
 
   const handleClose = () => {
     setIsAuthModalOpen(false);
+    setAuthModalMode('login');
     setNome('');
     setEmail('');
     setSenha('');
@@ -163,6 +164,11 @@ export const AuthModal: React.FC = () => {
       return;
     }
 
+    if (authModalMode === 'register' && senha.trim().length < 8) {
+      showToast('A senha deve possuir pelo menos 8 caracteres.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const sucesso = await loginUser(
@@ -170,7 +176,8 @@ export const AuthModal: React.FC = () => {
         email,
         'cliente',
         senha,
-        telefone
+        telefone,
+        authModalMode
       );
       if (sucesso) {
         handleClose();
@@ -738,7 +745,8 @@ export const AuthModal: React.FC = () => {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     className="system-input"
-                    placeholder="Digite sua senha"
+                    placeholder={authModalMode === 'register' ? 'Mínimo de 8 caracteres' : 'Digite sua senha'}
+                    minLength={authModalMode === 'register' ? 8 : undefined}
                     value={senha}
                     onChange={(e) => setSenha(e.target.value)}
                     style={{

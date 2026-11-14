@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/ThemeContext';
+import { formatBRL } from '../services/api';
 import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight, CheckCircle2 } from 'lucide-react';
 import nobleLogo from '../assets/noble-logo.png';
 
 export const CartDrawer: React.FC = () => {
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
   const {
     isCartOpen,
     setIsCartOpen,
@@ -20,10 +24,12 @@ export const CartDrawer: React.FC = () => {
   } = useApp();
 
   const [lastCompletedOrder, setLastCompletedOrder] = useState<number | null>(null);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   if (!isCartOpen) return null;
 
   const handleCheckout = async () => {
+    if (isCheckingOut) return;
     if (!currentUser.email || currentUser.id === 0) {
       showToast('Faça login ou crie uma conta para finalizar seu pedido!');
       setIsCartOpen(false);
@@ -32,9 +38,14 @@ export const CartDrawer: React.FC = () => {
       return;
     }
 
-    const order = await createOrder();
-    if (order) {
-      setLastCompletedOrder(order.id_pedido);
+    setIsCheckingOut(true);
+    try {
+      const order = await createOrder();
+      if (order) {
+        setLastCompletedOrder(order.id_pedido);
+      }
+    } finally {
+      setIsCheckingOut(false);
     }
   };
 
@@ -94,6 +105,8 @@ export const CartDrawer: React.FC = () => {
             <span className="badge badge-purple">{cart.length} itens</span>
           </div>
           <button
+            type="button"
+            aria-label="Fechar carrinho"
             onClick={() => {
               setIsCartOpen(false);
               setLastCompletedOrder(null);
@@ -155,6 +168,7 @@ export const CartDrawer: React.FC = () => {
               você pode acompanhar este pedido no seu Painel.
             </p>
             <button
+              type="button"
               onClick={() => {
                 setIsCartOpen(false);
                 setLastCompletedOrder(null);
@@ -254,6 +268,10 @@ export const CartDrawer: React.FC = () => {
                   <img
                     src={item.produto.imagemUrl || nobleLogo}
                     alt={item.produto.nome}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = nobleLogo;
+                    }}
                     style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                   />
                 </div>
@@ -286,11 +304,11 @@ export const CartDrawer: React.FC = () => {
                       fontFamily: 'var(--font-mono)',
                       fontSize: '14px',
                       fontWeight: 700,
-                      color: 'var(--color-primary)',
+                      color: isLight ? '#7A4B00' : 'var(--color-primary)',
                       marginBottom: '8px',
                     }}
                   >
-                    R$ {item.produto.preco.toFixed(2)}
+                    {item.produto.preco > 0 ? `R$ ${formatBRL(item.produto.preco)}` : 'Sob consulta'}
                   </span>
 
                   <div
@@ -313,6 +331,8 @@ export const CartDrawer: React.FC = () => {
                       }}
                     >
                       <button
+                        type="button"
+                        aria-label={`Diminuir quantidade de ${item.produto.nome}`}
                         onClick={() =>
                           updateCartQuantity(item.produto.id, item.quantidade - 1)
                         }
@@ -339,6 +359,8 @@ export const CartDrawer: React.FC = () => {
                         {item.quantidade}
                       </span>
                       <button
+                        type="button"
+                        aria-label={`Aumentar quantidade de ${item.produto.nome}`}
                         onClick={() =>
                           updateCartQuantity(item.produto.id, item.quantidade + 1)
                         }
@@ -363,6 +385,8 @@ export const CartDrawer: React.FC = () => {
                     </div>
 
                     <button
+                      type="button"
+                      aria-label={`Remover ${item.produto.nome} do carrinho`}
                       onClick={() => removeFromCart(item.produto.id)}
                       title="Remover produto"
                       style={{
@@ -405,7 +429,7 @@ export const CartDrawer: React.FC = () => {
             >
               <span>Subtotal</span>
               <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-headline)' }}>
-                R$ {cartTotal.toFixed(2)}
+                R$ {formatBRL(cartTotal)}
               </span>
             </div>
             <div
@@ -421,7 +445,7 @@ export const CartDrawer: React.FC = () => {
               <span
                 style={{
                   fontFamily: 'var(--font-mono)',
-                  color: 'var(--color-accent-yellow)',
+                  color: isLight ? '#7A4B00' : 'var(--color-accent-yellow)',
                   fontWeight: 600,
                 }}
               >
@@ -443,16 +467,18 @@ export const CartDrawer: React.FC = () => {
               <span
                 style={{
                   fontFamily: 'var(--font-mono)',
-                  color: 'var(--color-primary)',
+                  color: isLight ? '#7A4B00' : 'var(--color-primary)',
                   fontSize: '22px',
                 }}
               >
-                R$ {cartTotal.toFixed(2)}
+                R$ {formatBRL(cartTotal)}
               </span>
             </div>
 
             <button
+              type="button"
               onClick={handleCheckout}
+              disabled={isCheckingOut}
               className="btn-primary"
               style={{
                 width: '100%',
@@ -462,10 +488,12 @@ export const CartDrawer: React.FC = () => {
                 justifyContent: 'center',
                 alignItems: 'center',
                 gap: '8px',
+                opacity: isCheckingOut ? 0.65 : 1,
+                cursor: isCheckingOut ? 'not-allowed' : 'pointer',
               }}
             >
-              <span>Finalizar Pedido</span>
-              <ArrowRight size={18} />
+              <span>{isCheckingOut ? 'Processando...' : 'Finalizar Pedido'}</span>
+              {!isCheckingOut && <ArrowRight size={18} />}
             </button>
             <p
               style={{

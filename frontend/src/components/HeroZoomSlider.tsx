@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import type { Product, ExternalCard } from '../types';
 import { externalCardToProduct } from '../services/api';
+import nobleLogo from '../assets/noble-logo.png';
 
 export interface ZoomCardItem {
   id: number | string;
@@ -304,9 +305,13 @@ export const HeroZoomSlider: React.FC<HeroZoomSliderProps> = ({ cards }) => {
               title={`${card.name} - Clique para ver detalhes`}
             >
               <img
-                src={card.image}
+                src={card.image || nobleLogo}
                 alt={card.name}
                 draggable={false}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = nobleLogo;
+                }}
                 style={{
                   width: '100%',
                   height: '100%',
@@ -458,7 +463,6 @@ export const HeroZoomSlider: React.FC<HeroZoomSliderProps> = ({ cards }) => {
           display: 'flex',
           alignItems: 'center',
           gap: '6px',
-          opacity: 0.8,
         }}
       >
         <span>

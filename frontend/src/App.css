@@ -159,7 +159,7 @@ html.light .noble-toast {
 
   .admin-actions-bar {
     width: 100%;
-    justifyContent: flex-start;
+    justify-content: flex-start;
   }
 
   .admin-tabs-scroller {
@@ -441,7 +441,7 @@ html.light .access-denied-icon-box {
 
 :root[data-theme="light"] .access-denied-pill,
 html.light .access-denied-pill {
-  color: #B86E00;
+  color: #7A4B00;
   background-color: rgba(255, 196, 0, 0.14);
   border-color: rgba(255, 157, 0, 0.28);
 }

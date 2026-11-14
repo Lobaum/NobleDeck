@@ -11,7 +11,7 @@
   --color-on-surface-variant: #9E9E9E;
   --color-inverse-surface: #FAFAFA;
   --color-inverse-on-surface: #171717;
-  --color-outline: #777777;
+  --color-outline: #949494;
   --color-outline-variant: #2E2E2E;
   --color-surface-tint: #FFC400;
 
@@ -111,10 +111,10 @@ html.light {
   --color-surface-container-high: #E5E5E5;
   --color-surface-container-highest: #DCDCDC;
   --color-on-surface: #171717;
-  --color-on-surface-variant: #666666;
+  --color-on-surface-variant: #525252;
   --color-inverse-surface: #171717;
   --color-inverse-on-surface: #FAFAFA;
-  --color-outline: #777777;
+  --color-outline: #595959;
   --color-outline-variant: #D4D4D4;
   --color-surface-tint: #FFC400;
 
@@ -787,7 +787,7 @@ html.light .system-select-trigger.is-open {
   border-radius: 12px;
   padding: 6px;
   animation: dropdownEnter 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  
+
   /* Modo Escuro */
   background: rgba(23, 23, 23, 0.97);
   backdrop-filter: blur(24px);
@@ -850,7 +850,7 @@ html.light .system-select-option:hover:not(:disabled) {
 :root[data-theme="light"] .system-select-option.selected,
 html.light .system-select-option.selected {
   background: rgba(255, 196, 0, 0.22) !important;
-  color: #B86E00 !important;
+  color: #7A4B00 !important;
   font-weight: 700;
 }
 
@@ -862,16 +862,20 @@ html.light .system-select-option.selected {
 .system-select-dropdown::-webkit-scrollbar {
   width: 6px;
 }
+
 .system-select-dropdown::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .system-select-dropdown::-webkit-scrollbar-thumb {
   background: rgba(255, 196, 0, 0.3);
   border-radius: 4px;
 }
+
 .system-select-dropdown::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 210, 26, 0.55);
 }
+
 :root[data-theme="light"] .system-select-dropdown::-webkit-scrollbar-thumb,
 html.light .system-select-dropdown::-webkit-scrollbar-thumb {
   background: rgba(119, 119, 119, 0.35);
@@ -883,6 +887,7 @@ select.system-input option {
   background-color: #171717;
   color: #FAFAFA;
 }
+
 :root[data-theme="light"] select.system-input,
 :root[data-theme="light"] select.system-input option,
 html.light select.system-input,
@@ -895,6 +900,7 @@ html.light select.system-input option {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -905,6 +911,7 @@ html.light select.system-input option {
     opacity: 0;
     transform: translateY(14px) scale(0.97);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -958,16 +965,20 @@ html.light .system-modal-card {
 .system-modal-card::-webkit-scrollbar {
   width: 6px;
 }
+
 .system-modal-card::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .system-modal-card::-webkit-scrollbar-thumb {
   background: rgba(255, 196, 0, 0.3);
   border-radius: 4px;
 }
+
 .system-modal-card::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 210, 26, 0.55);
 }
+
 :root[data-theme="light"] .system-modal-card::-webkit-scrollbar-thumb,
 html.light .system-modal-card::-webkit-scrollbar-thumb {
   background: rgba(119, 119, 119, 0.35);
@@ -1110,6 +1121,7 @@ html.light .side-inspector-pane {
   from {
     transform: translateX(100%);
   }
+
   to {
     transform: translateX(0);
   }
@@ -1181,6 +1193,7 @@ html.light .workstation-table-header th {
     transform: scale(0.6);
     opacity: 0.9;
   }
+
   100% {
     transform: scale(2.2);
     opacity: 0;

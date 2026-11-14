@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, type NavigationTab } from '../context/AppContext';
 import nobleLogo from '../assets/noble-logo.png';
 import { ShoppingBag, Menu, X, Shield, User, LogOut, Boxes } from 'lucide-react';
 import { CurtainThemeToggle } from './CurtainThemeToggle';
@@ -18,7 +18,7 @@ export const Navbar: React.FC = () => {
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const handleNavClick = (tab: any) => {
+  const handleNavClick = (tab: NavigationTab) => {
     setCurrentTab(tab);
     setIsMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -198,7 +198,10 @@ export const Navbar: React.FC = () => {
           <CurtainThemeToggle buttonSize={42} />
 
           <button
+            type="button"
             onClick={() => setIsCartOpen(true)}
+            aria-label="Abrir carrinho"
+            title="Abrir carrinho"
             style={{
               position: 'relative',
               background: 'var(--input-bg)',
@@ -213,7 +216,6 @@ export const Navbar: React.FC = () => {
               color: 'var(--color-primary)',
               transition: 'all 0.2s ease',
             }}
-            title="Abrir carrinho"
           >
             <ShoppingBag size={18} />
             {cartItemsCount > 0 && (
@@ -258,7 +260,9 @@ export const Navbar: React.FC = () => {
                 <span>{currentUser.nome.split(' ')[0]}</span>
               </button>
               <button
+                type="button"
                 onClick={logoutUser}
+                aria-label="Sair da conta"
                 title="Sair da conta"
                 style={{
                   background: 'none',
@@ -311,7 +315,10 @@ export const Navbar: React.FC = () => {
           )}
 
           <button
+            type="button"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label={isMobileMenuOpen ? 'Fechar menu de navegação' : 'Abrir menu de navegação'}
+            aria-expanded={isMobileMenuOpen}
             style={{
               background: 'none',
               border: 'none',
@@ -447,28 +454,59 @@ export const Navbar: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-            <button
-              onClick={() => {
-                setAuthModalMode('login');
-                setIsAuthModalOpen(true);
-                setIsMobileMenuOpen(false);
-              }}
-              className="btn-outline"
-              style={{ flex: 1 }}
-            >
-              Entrar
-            </button>
-            <button
-              onClick={() => {
-                setAuthModalMode('register');
-                setIsAuthModalOpen(true);
-                setIsMobileMenuOpen(false);
-              }}
-              className="btn-primary"
-              style={{ flex: 1 }}
-            >
-              Criar conta
-            </button>
+            {currentUser.email ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleNavClick(currentUser.role === 'admin' ? 'admin' : 'dashboard')}
+                  className="btn-outline"
+                  style={{ flex: 1 }}
+                >
+                  <User size={14} />
+                  <span>{currentUser.nome.split(' ')[0]}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    logoutUser();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="btn-outline"
+                  aria-label="Sair da conta"
+                  style={{ flex: 1 }}
+                >
+                  <LogOut size={14} />
+                  <span>Sair da conta</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthModalMode('login');
+                    setIsAuthModalOpen(true);
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="btn-outline"
+                  style={{ flex: 1 }}
+                >
+                  Entrar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthModalMode('register');
+                    setIsAuthModalOpen(true);
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="btn-primary"
+                  style={{ flex: 1 }}
+                >
+                  Criar conta
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
