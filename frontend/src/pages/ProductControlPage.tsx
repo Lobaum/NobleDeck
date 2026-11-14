@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/ThemeContext';
 import {
   Package,
   Plus,
@@ -31,13 +32,82 @@ import type {
 import { SystemSelect } from '../components/SystemSelect';
 import { SystemModal } from '../components/SystemModal';
 import { searchLiveCards, getPokemonSets, type PokemonSetOption } from '../services/tcgApi';
+import { formatBRL } from '../services/api';
+import nobleLogo from '../assets/noble-logo.png';
 
-const GAME_OPTIONS: { value: GameId; label: string; badge: string; color: string }[] = [
-  { value: 'pokemon', label: 'Pokémon TCG', badge: 'POKÉMON', color: '#FFC400' },
-  { value: 'magic', label: 'Magic: The Gathering', badge: 'MTG', color: '#FF9D00' },
-  { value: 'yugioh', label: 'Yu-Gi-Oh!', badge: 'YGO', color: '#FFD21A' },
-  { value: 'onepiece', label: 'One Piece Card Game', badge: 'OP', color: '#ef4444' },
-  { value: 'outros', label: 'Acessórios / Geral', badge: 'GERAL', color: '#38bdf8' },
+interface ControlSemanticTones {
+  successText: string;
+  successBg: string;
+  successBorder: string;
+  dangerText: string;
+  dangerBg: string;
+  dangerBorder: string;
+  warningText: string;
+  warningBg: string;
+  warningBorder: string;
+  infoText: string;
+  infoBg: string;
+  infoBorder: string;
+  accentText: string;
+  accentBg: string;
+  accentBorder: string;
+  inactiveText: string;
+  inactiveBg: string;
+  inactiveBorder: string;
+  goldLabel: string;
+}
+
+const getControlTones = (isLight: boolean): ControlSemanticTones =>
+  isLight
+    ? {
+      successText: '#166534',
+      successBg: 'rgba(22, 163, 74, 0.10)',
+      successBorder: 'rgba(22, 163, 74, 0.34)',
+      dangerText: '#b91c1c',
+      dangerBg: 'rgba(220, 38, 38, 0.09)',
+      dangerBorder: 'rgba(220, 38, 38, 0.32)',
+      warningText: '#92400e',
+      warningBg: 'rgba(217, 119, 6, 0.11)',
+      warningBorder: 'rgba(217, 119, 6, 0.36)',
+      infoText: '#0369a1',
+      infoBg: 'rgba(2, 132, 199, 0.10)',
+      infoBorder: 'rgba(2, 132, 199, 0.32)',
+      accentText: '#7A4B00',
+      accentBg: 'rgba(255, 196, 0, 0.22)',
+      accentBorder: 'rgba(212, 128, 0, 0.45)',
+      inactiveText: '#475569',
+      inactiveBg: 'rgba(100, 116, 139, 0.12)',
+      inactiveBorder: 'rgba(100, 116, 139, 0.30)',
+      goldLabel: '#7A5900',
+    }
+    : {
+      successText: '#4ade80',
+      successBg: 'rgba(34, 197, 94, 0.14)',
+      successBorder: 'rgba(74, 222, 128, 0.35)',
+      dangerText: '#f87171',
+      dangerBg: 'rgba(239, 68, 68, 0.14)',
+      dangerBorder: 'rgba(248, 113, 113, 0.38)',
+      warningText: '#fbbf24',
+      warningBg: 'rgba(245, 158, 11, 0.14)',
+      warningBorder: 'rgba(251, 191, 36, 0.38)',
+      infoText: '#38bdf8',
+      infoBg: 'rgba(56, 189, 248, 0.14)',
+      infoBorder: 'rgba(56, 189, 248, 0.35)',
+      accentText: 'var(--color-primary)',
+      accentBg: 'rgba(255, 196, 0, 0.15)',
+      accentBorder: 'rgba(255, 210, 26, 0.35)',
+      inactiveText: '#94a3b8',
+      inactiveBg: 'rgba(148, 163, 184, 0.15)',
+      inactiveBorder: 'rgba(148, 163, 184, 0.30)',
+      goldLabel: '#facc15',
+    };
+
+const GAME_OPTIONS: { value: GameId; label: string; badge: string; color: string; lightColor: string }[] = [
+  { value: 'pokemon', label: 'Pokémon TCG', badge: 'POKÉMON', color: '#FFC400', lightColor: '#8F5A00' },
+  { value: 'magic', label: 'Magic: The Gathering', badge: 'MTG', color: '#FF9D00', lightColor: '#9A4D00' },
+  { value: 'yugioh', label: 'Yu-Gi-Oh!', badge: 'YGO', color: '#FFD21A', lightColor: '#7A5900' },
+  { value: 'onepiece', label: 'One Piece Card Game', badge: 'OP', color: '#ef4444', lightColor: '#b91c1c' },
+  { value: 'outros', label: 'Acessórios / Geral', badge: 'GERAL', color: '#38bdf8', lightColor: '#0369a1' },
 ];
 
 const CATEGORY_OPTIONS: { value: ProductCategory; label: string }[] = [
@@ -48,11 +118,6 @@ const CATEGORY_OPTIONS: { value: ProductCategory; label: string }[] = [
   { value: 'Starter Deck', label: 'Starter Deck' },
   { value: 'Acessórios', label: 'Acessórios & Sleeves' },
 ];
-
-export const formatBRL = (value: number | null | undefined): string => {
-  const num = Number(value) || 0;
-  return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
 
 export const formatMoneyInput = (value: string | number | null | undefined): string => {
   if (value === null || value === undefined || value === '') return '';
@@ -83,6 +148,8 @@ interface HolographicTiltCardProps {
   onEdit: () => void;
   onStockChange: (delta: number, e: React.MouseEvent) => void;
   isStaffOrAdmin: boolean;
+  tones: ControlSemanticTones;
+  isLight: boolean;
 }
 
 const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
@@ -93,6 +160,8 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
   onEdit,
   onStockChange,
   isStaffOrAdmin,
+  tones,
+  isLight,
 }) => {
   const [tilt, setTilt] = useState<{ rx: number; ry: number; gx: number; gy: number; active: boolean }>({
     rx: 0,
@@ -127,7 +196,8 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
   const isSealedBox = product.categoria === 'Booster Box';
 
   const gameOption = GAME_OPTIONS.find((g) => g.value === product.jogo);
-  const gameBadgeColor = gameOption?.color || '#FFC400';
+  const gameBadgeColor = isLight ? (gameOption?.lightColor || '#7A4B00') : (gameOption?.color || '#FFC400');
+  const gameBadgeRawColor = gameOption?.color || '#FFC400';
 
   return (
     <div
@@ -147,9 +217,9 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
         border: isSelected
           ? '2px solid var(--color-primary)'
           : isCriticalStock
-            ? '1px solid rgba(251, 191, 36, 0.5)'
+            ? `1px solid ${tones.warningBorder}`
             : isOutOfStock
-              ? '1px solid rgba(239, 68, 68, 0.4)'
+              ? `1px solid ${tones.dangerBorder}`
               : '1px solid var(--card-border)',
         borderRadius: '16px',
         padding: '14px',
@@ -161,8 +231,12 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
         width: '100%',
         margin: '0 auto',
         boxShadow: tilt.active
-          ? '0 18px 40px -10px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 210, 26, 0.2)'
-          : '0 4px 14px rgba(0, 0, 0, 0.15)',
+          ? isLight
+            ? '0 14px 28px rgba(0, 0, 0, 0.14)'
+            : '0 18px 40px -10px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 210, 26, 0.2)'
+          : isLight
+            ? '0 4px 12px rgba(0, 0, 0, 0.08)'
+            : '0 4px 14px rgba(0, 0, 0, 0.15)',
       }}
     >
       {/* Glare foil overlay */}
@@ -184,13 +258,14 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
             border: 'none',
             cursor: 'pointer',
             padding: '2px',
-            color: isSelected ? 'var(--color-primary)' : 'var(--color-outline)',
+            color: isSelected ? tones.accentText : 'var(--color-on-surface-variant)',
             display: 'flex',
             alignItems: 'center',
           }}
           title={isSelected ? 'Desmarcar' : 'Selecionar'}
+          aria-label={isSelected ? `Desmarcar ${product.nome}` : `Selecionar ${product.nome}`}
         >
-          {isSelected ? <CheckSquare size={18} color="var(--color-primary)" /> : <Square size={18} />}
+          {isSelected ? <CheckSquare size={18} color={tones.accentText} /> : <Square size={18} />}
         </button>
 
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -201,7 +276,7 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
               fontWeight: 800,
               padding: '2px 7px',
               borderRadius: '6px',
-              backgroundColor: `${gameBadgeColor}20`,
+              backgroundColor: isLight ? `${gameBadgeColor}18` : `${gameBadgeRawColor}20`,
               color: gameBadgeColor,
               border: `1px solid ${gameBadgeColor}40`,
             }}
@@ -234,14 +309,16 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
           position: 'relative',
           marginBottom: '12px',
           borderRadius: '12px',
-          background: 'radial-gradient(circle, rgba(255, 196, 0, 0.08) 0%, rgba(0,0,0,0.25) 100%)',
+          background: isLight
+            ? 'radial-gradient(circle, rgba(255, 196, 0, 0.14) 0%, var(--color-surface-container-high) 100%)'
+            : 'radial-gradient(circle, rgba(255, 196, 0, 0.08) 0%, rgba(0,0,0,0.25) 100%)',
           overflow: 'hidden',
           zIndex: 6,
           padding: '4px',
         }}
       >
         <img
-          src={product.imagemUrl}
+          src={product.imagemUrl || nobleLogo}
           alt={product.nome}
           style={{
             height: '100%',
@@ -250,13 +327,13 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
             width: 'auto',
             objectFit: 'contain',
             borderRadius: '6px',
-            filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.5))',
+            filter: isLight ? 'drop-shadow(0 6px 12px rgba(0,0,0,0.22))' : 'drop-shadow(0 8px 16px rgba(0,0,0,0.5))',
             transform: tilt.active ? 'scale(1.04)' : 'scale(1)',
             transition: 'transform 0.2s ease-out',
           }}
           onError={(e) => {
-            (e.currentTarget as HTMLImageElement).src =
-              'https://images.unsplash.com/photo-1613771404784-3a5686aa2be3?w=400&auto=format&fit=crop&q=60';
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = nobleLogo;
           }}
         />
 
@@ -301,7 +378,7 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
           style={{
             margin: '0 0 12px',
             fontSize: '11px',
-            color: 'var(--color-outline)',
+            color: 'var(--color-on-surface-variant)',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -323,16 +400,16 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
           }}
         >
           <div>
-            <span style={{ fontSize: '10px', color: 'var(--color-outline)', display: 'block', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: '10px', color: 'var(--color-on-surface-variant)', display: 'block', textTransform: 'uppercase' }}>
               Preço
             </span>
-            <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--color-primary)', fontFamily: 'var(--font-mono)' }}>
-              R$ {formatBRL(product.preco)}
+            <span style={{ fontSize: '15px', fontWeight: 800, color: tones.accentText, fontFamily: 'var(--font-mono)' }}>
+              {product.preco > 0 ? `R$ ${formatBRL(product.preco)}` : 'Sob consulta'}
             </span>
           </div>
 
           <div style={{ textAlign: 'right' }}>
-            <span style={{ fontSize: '10px', color: 'var(--color-outline)', display: 'block', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: '10px', color: 'var(--color-on-surface-variant)', display: 'block', textTransform: 'uppercase' }}>
               Estoque
             </span>
             <span
@@ -340,7 +417,7 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
                 fontSize: '14px',
                 fontWeight: 800,
                 fontFamily: 'var(--font-mono)',
-                color: isOutOfStock ? '#f87171' : isCriticalStock ? '#fbbf24' : '#4ade80',
+                color: isOutOfStock ? tones.dangerText : isCriticalStock ? tones.warningText : tones.successText,
               }}
             >
               {product.estoque} un.
@@ -380,6 +457,7 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
                   borderRadius: '6px',
                 }}
                 title="Diminuir 1 un."
+                aria-label={`Diminuir 1 unidade de ${product.nome}`}
               >
                 -
               </button>
@@ -404,6 +482,7 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
                   borderRadius: '6px',
                 }}
                 title="Aumentar 1 un."
+                aria-label={`Aumentar 1 unidade de ${product.nome}`}
               >
                 +
               </button>
@@ -444,6 +523,7 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
                 borderRadius: '8px',
               }}
               title="Editar Produto"
+              aria-label={`Editar ${product.nome}`}
             >
               <Edit size={12} />
             </button>
@@ -467,6 +547,8 @@ interface SideInspectorDrawerProps {
   onToggleActive: (product: Product) => Promise<void>;
   stockMovements: any[];
   isStaffOrAdmin: boolean;
+  tones: ControlSemanticTones;
+  isLight: boolean;
 }
 
 const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
@@ -479,6 +561,8 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
   onToggleActive,
   stockMovements,
   isStaffOrAdmin,
+  tones,
+  isLight,
 }) => {
   const [priceInput, setPriceInput] = useState(() => formatMoneyInput(product?.preco ?? 0));
 
@@ -570,8 +654,8 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                 fontWeight: 800,
                 padding: '3px 8px',
                 borderRadius: '6px',
-                backgroundColor: 'rgba(255, 196, 0, 0.15)',
-                color: 'var(--color-primary)',
+                backgroundColor: tones.accentBg,
+                color: tones.accentText,
               }}
             >
               #{product.id}
@@ -583,19 +667,19 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                 padding: '3px 8px',
                 borderRadius: '6px',
                 backgroundColor: isInactive
-                  ? 'rgba(148, 163, 184, 0.2)'
+                  ? tones.inactiveBg
                   : isOutOfStock
-                    ? 'rgba(239, 68, 68, 0.15)'
+                    ? tones.dangerBg
                     : isCriticalStock
-                      ? 'rgba(251, 191, 36, 0.15)'
-                      : 'rgba(34, 197, 94, 0.15)',
+                      ? tones.warningBg
+                      : tones.successBg,
                 color: isInactive
-                  ? '#94a3b8'
+                  ? tones.inactiveText
                   : isOutOfStock
-                    ? '#f87171'
+                    ? tones.dangerText
                     : isCriticalStock
-                      ? '#fbbf24'
-                      : '#4ade80',
+                      ? tones.warningText
+                      : tones.successText,
               }}
             >
               {isInactive ? 'Inativo' : isOutOfStock ? 'Zerado' : isCriticalStock ? 'Estoque Crítico' : 'Ativo & Disponível'}
@@ -605,11 +689,12 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Fechar painel de inspeção"
             style={{
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              color: 'var(--color-outline)',
+              color: 'var(--color-on-surface-variant)',
               padding: '6px',
               borderRadius: '8px',
               display: 'flex',
@@ -643,28 +728,32 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                 justifyContent: 'center',
                 padding: '10px',
                 borderRadius: '16px',
-                background: 'radial-gradient(circle, rgba(255, 196, 0, 0.15) 0%, rgba(0,0,0,0.35) 100%)',
+                background: isLight
+                  ? 'radial-gradient(circle, rgba(255, 196, 0, 0.16) 0%, var(--color-surface-container-high) 100%)'
+                  : 'radial-gradient(circle, rgba(255, 196, 0, 0.15) 0%, rgba(0,0,0,0.35) 100%)',
                 border: '1px solid var(--card-border)',
-                boxShadow: '0 16px 36px -10px rgba(0,0,0,0.55), 0 0 20px rgba(255, 196, 0, 0.15)',
+                boxShadow: isLight
+                  ? '0 10px 24px rgba(0,0,0,0.10)'
+                  : '0 16px 36px -10px rgba(0,0,0,0.55), 0 0 20px rgba(255, 196, 0, 0.15)',
                 maxWidth: isSealedBox ? '340px' : '230px',
                 width: 'fit-content',
                 margin: '0 auto',
               }}
             >
               <img
-                src={product.imagemUrl}
+                src={product.imagemUrl || nobleLogo}
                 alt={product.nome}
                 style={{
                   height: isSealedBox ? '190px' : '290px',
                   width: 'auto',
                   maxWidth: '100%',
                   objectFit: 'contain',
-                  filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.6))',
+                  filter: isLight ? 'drop-shadow(0 8px 14px rgba(0,0,0,0.22))' : 'drop-shadow(0 10px 20px rgba(0,0,0,0.6))',
                   borderRadius: isSealedBox ? '8px' : '10px',
                 }}
                 onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src =
-                    'https://images.unsplash.com/photo-1613771404784-3a5686aa2be3?w=400&auto=format&fit=crop&q=60';
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = nobleLogo;
                 }}
               />
             </div>
@@ -674,7 +763,7 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
               <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 4px', color: 'var(--color-headline)' }}>
                 {product.nome}
               </h2>
-              <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--color-outline)' }}>
+              <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--color-on-surface-variant)' }}>
                 {product.subtitulo || 'Coleção Regular'}
               </p>
             </div>
@@ -689,28 +778,28 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
             }}
           >
             <div style={{ padding: '10px 14px', borderRadius: '10px', backgroundColor: 'var(--color-surface-container-low)', border: '1px solid var(--card-border)' }}>
-              <span style={{ fontSize: '10px', color: 'var(--color-outline)', textTransform: 'uppercase', display: 'block' }}>Jogo TCG</span>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: gameOption?.color || 'var(--color-headline)' }}>
+              <span style={{ fontSize: '10px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', display: 'block' }}>Jogo TCG</span>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: gameOption ? (isLight ? gameOption.lightColor : gameOption.color) : 'var(--color-headline)' }}>
                 {gameOption?.label || product.jogo}
               </span>
             </div>
 
             <div style={{ padding: '10px 14px', borderRadius: '10px', backgroundColor: 'var(--color-surface-container-low)', border: '1px solid var(--card-border)' }}>
-              <span style={{ fontSize: '10px', color: 'var(--color-outline)', textTransform: 'uppercase', display: 'block' }}>Categoria</span>
+              <span style={{ fontSize: '10px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', display: 'block' }}>Categoria</span>
               <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-headline)' }}>
                 {product.categoria || 'Carta Avulsa'}
               </span>
             </div>
 
             <div style={{ padding: '10px 14px', borderRadius: '10px', backgroundColor: 'var(--color-surface-container-low)', border: '1px solid var(--card-border)' }}>
-              <span style={{ fontSize: '10px', color: 'var(--color-outline)', textTransform: 'uppercase', display: 'block' }}>Raridade</span>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: '#facc15' }}>
+              <span style={{ fontSize: '10px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', display: 'block' }}>Raridade</span>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: tones.goldLabel }}>
                 {product.raridade || 'Comum'}
               </span>
             </div>
 
             <div style={{ padding: '10px 14px', borderRadius: '10px', backgroundColor: 'var(--color-surface-container-low)', border: '1px solid var(--card-border)' }}>
-              <span style={{ fontSize: '10px', color: 'var(--color-outline)', textTransform: 'uppercase', display: 'block' }}>Estoque Mínimo</span>
+              <span style={{ fontSize: '10px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', display: 'block' }}>Estoque Mínimo</span>
               <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-headline)', fontFamily: 'var(--font-mono)' }}>
                 {product.estoqueMinimo ?? 3} un.
               </span>
@@ -729,14 +818,14 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-headline)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Package size={14} color="var(--color-primary)" /> Estoque em Tempo Real
+                  <Package size={14} color={tones.accentText} /> Estoque em Tempo Real
                 </span>
                 <span
                   style={{
                     fontSize: '18px',
                     fontWeight: 800,
                     fontFamily: 'var(--font-mono)',
-                    color: isOutOfStock ? '#f87171' : isCriticalStock ? '#fbbf24' : '#4ade80',
+                    color: isOutOfStock ? tones.dangerText : isCriticalStock ? tones.warningText : tones.successText,
                   }}
                 >
                   {product.estoque} un.
@@ -794,23 +883,23 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--color-headline)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <TrendingUp size={14} color="var(--color-primary)" /> Precificação Rápida
+                  <TrendingUp size={14} color={tones.accentText} /> Precificação Rápida
                 </span>
 
                 <div style={{ textAlign: 'right' }}>
                   {hasPriceChange ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '12px', textDecoration: 'line-through', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)' }}>
+                      <span style={{ fontSize: '12px', textDecoration: 'line-through', color: 'var(--color-on-surface-variant)', fontFamily: 'var(--font-mono)' }}>
                         R$ {formatBRL(product.preco)}
                       </span>
-                      <span style={{ fontSize: '12px', color: 'var(--color-outline)' }}>➔</span>
-                      <span style={{ fontSize: '17px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: percentDiff < 0 ? '#4ade80' : 'var(--color-primary)' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--color-on-surface-variant)' }}>➔</span>
+                      <span style={{ fontSize: '17px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: percentDiff < 0 ? tones.successText : tones.accentText }}>
                         R$ {formatBRL(currentDraftPrice)}
                       </span>
                     </div>
                   ) : (
-                    <span style={{ fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--color-primary)' }}>
-                      R$ {formatBRL(product.preco)}
+                    <span style={{ fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: tones.accentText }}>
+                      {product.preco > 0 ? `R$ ${formatBRL(product.preco)}` : 'Sob consulta'}
                     </span>
                   )}
                 </div>
@@ -827,9 +916,9 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                     fontSize: '11px',
                     fontWeight: 700,
                     fontFamily: 'var(--font-mono)',
-                    backgroundColor: percentDiff === -10 ? 'rgba(74, 222, 128, 0.15)' : undefined,
-                    borderColor: percentDiff === -10 ? '#4ade80' : undefined,
-                    color: percentDiff === -10 ? '#4ade80' : undefined,
+                    backgroundColor: percentDiff === -10 ? tones.successBg : undefined,
+                    borderColor: percentDiff === -10 ? tones.successBorder : undefined,
+                    color: percentDiff === -10 ? tones.successText : undefined,
                   }}
                   title="Calcular desconto de 10%"
                 >
@@ -844,9 +933,9 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                     fontSize: '11px',
                     fontWeight: 700,
                     fontFamily: 'var(--font-mono)',
-                    backgroundColor: percentDiff === -5 ? 'rgba(74, 222, 128, 0.15)' : undefined,
-                    borderColor: percentDiff === -5 ? '#4ade80' : undefined,
-                    color: percentDiff === -5 ? '#4ade80' : undefined,
+                    backgroundColor: percentDiff === -5 ? tones.successBg : undefined,
+                    borderColor: percentDiff === -5 ? tones.successBorder : undefined,
+                    color: percentDiff === -5 ? tones.successText : undefined,
                   }}
                   title="Calcular desconto de 5%"
                 >
@@ -861,9 +950,9 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                     fontSize: '11px',
                     fontWeight: 700,
                     fontFamily: 'var(--font-mono)',
-                    backgroundColor: percentDiff === 5 ? 'rgba(255, 196, 0, 0.15)' : undefined,
-                    borderColor: percentDiff === 5 ? 'var(--color-primary)' : undefined,
-                    color: percentDiff === 5 ? 'var(--color-primary)' : undefined,
+                    backgroundColor: percentDiff === 5 ? tones.accentBg : undefined,
+                    borderColor: percentDiff === 5 ? tones.accentBorder : undefined,
+                    color: percentDiff === 5 ? tones.accentText : undefined,
                   }}
                   title="Calcular aumento de 5%"
                 >
@@ -878,9 +967,9 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                     fontSize: '11px',
                     fontWeight: 700,
                     fontFamily: 'var(--font-mono)',
-                    backgroundColor: percentDiff === 10 ? 'rgba(255, 196, 0, 0.15)' : undefined,
-                    borderColor: percentDiff === 10 ? 'var(--color-primary)' : undefined,
-                    color: percentDiff === 10 ? 'var(--color-primary)' : undefined,
+                    backgroundColor: percentDiff === 10 ? tones.accentBg : undefined,
+                    borderColor: percentDiff === 10 ? tones.accentBorder : undefined,
+                    color: percentDiff === 10 ? tones.accentText : undefined,
                   }}
                   title="Calcular aumento de 10%"
                 >
@@ -894,8 +983,8 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                   style={{
                     padding: '8px 12px',
                     borderRadius: '8px',
-                    backgroundColor: percentDiff < 0 ? 'rgba(74, 222, 128, 0.1)' : 'rgba(255, 196, 0, 0.12)',
-                    border: percentDiff < 0 ? '1px solid rgba(74, 222, 128, 0.35)' : '1px solid rgba(255, 210, 26, 0.38)',
+                    backgroundColor: percentDiff < 0 ? tones.successBg : tones.accentBg,
+                    border: percentDiff < 0 ? `1px solid ${tones.successBorder}` : `1px solid ${tones.accentBorder}`,
                     marginBottom: '10px',
                     display: 'flex',
                     alignItems: 'center',
@@ -909,8 +998,8 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                         fontWeight: 800,
                         padding: '2px 6px',
                         borderRadius: '4px',
-                        backgroundColor: percentDiff < 0 ? '#4ade80' : 'var(--color-primary)',
-                        color: '#0B0B0B',
+                        backgroundColor: percentDiff < 0 ? (isLight ? '#15803d' : '#4ade80') : 'var(--color-primary)',
+                        color: percentDiff < 0 ? (isLight ? '#ffffff' : '#0B0B0B') : 'var(--color-on-primary)',
                         fontFamily: 'var(--font-mono)',
                       }}
                     >
@@ -929,7 +1018,7 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                       border: 'none',
                       cursor: 'pointer',
                       fontSize: '11px',
-                      color: 'var(--color-outline)',
+                      color: 'var(--color-on-surface-variant)',
                       textDecoration: 'underline',
                       padding: 0,
                     }}
@@ -943,7 +1032,7 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
               {/* Edição Manual de Preço e Botão Salvar */}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <div style={{ position: 'relative', flex: 1 }}>
-                  <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: 'var(--color-outline)' }}>
+                  <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: 'var(--color-on-surface-variant)' }}>
                     R$
                   </span>
                   <input
@@ -993,8 +1082,8 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
-                borderColor: isInactive ? undefined : 'rgba(239, 68, 68, 0.4)',
-                color: isInactive ? undefined : '#f87171',
+                borderColor: isInactive ? undefined : tones.dangerBorder,
+                color: isInactive ? undefined : tones.dangerText,
               }}
             >
               <RotateCcw size={14} />
@@ -1005,7 +1094,7 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
           {/* Histórico Recente de Estoque */}
           {productMovements.length > 0 && (
             <div>
-              <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--color-outline)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--color-on-surface-variant)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                 <History size={13} /> Últimas Movimentações
               </span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -1027,11 +1116,11 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                       <span style={{ fontWeight: 700, color: 'var(--color-headline)' }}>
                         {m.tipo === 'entrada' ? '+' : '-'}{Math.abs(m.quantidade)} un.
                       </span>
-                      <span style={{ color: 'var(--color-outline)', marginLeft: '8px' }}>
+                      <span style={{ color: 'var(--color-on-surface-variant)', marginLeft: '8px' }}>
                         {m.motivo || 'Ajuste manual'}
                       </span>
                     </div>
-                    <span style={{ color: 'var(--color-outline)', fontFamily: 'var(--font-mono)' }}>
+                    <span style={{ color: 'var(--color-on-surface-variant)', fontFamily: 'var(--font-mono)' }}>
                       {new Date(m.created_at || Date.now()).toLocaleDateString('pt-BR')}
                     </span>
                   </div>
@@ -1100,6 +1189,10 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
     showToastConfirm,
     currentUser,
   } = useApp();
+
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
+  const tones = getControlTones(isLight);
 
   // Permissões
   const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
@@ -1270,7 +1363,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
       `"${p.jogoNome || p.jogo}"`,
       `"${p.categoria || ''}"`,
       `"${(p.subtitulo || '').replace(/"/g, '""')}"`,
-      p.preco.toFixed(2),
+      (Number(p.preco) || 0).toFixed(2),
       p.estoque,
       p.estoqueMinimo ?? 3,
       p.ativo === false ? 'INATIVO' : 'ATIVO',
@@ -1325,6 +1418,10 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
 
   // Edição rápida de preço
   const handleQuickPriceChange = async (product: Product, newPrice: number) => {
+    if (newPrice <= 0) {
+      showToast('O preço deve ser maior que R$ 0,00.');
+      return;
+    }
     await editProduct(product.id, { preco: newPrice });
     if (inspectorProduct && inspectorProduct.id === product.id) {
       setInspectorProduct({ ...inspectorProduct, preco: newPrice });
@@ -1360,13 +1457,15 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
   const handleSaveInlinePrice = async (productId: number, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const newPrice = parseMoneyToFloat(inlinePriceInput);
-    if (newPrice > 0) {
-      await editProduct(productId, { preco: newPrice });
-      if (inspectorProduct && inspectorProduct.id === productId) {
-        setInspectorProduct({ ...inspectorProduct, preco: newPrice });
-      }
-      showToast(`Preço atualizado para R$ ${formatBRL(newPrice)}`);
+    if (newPrice <= 0) {
+      showToast('O preço deve ser maior que R$ 0,00.');
+      return;
     }
+    await editProduct(productId, { preco: newPrice });
+    if (inspectorProduct && inspectorProduct.id === productId) {
+      setInspectorProduct({ ...inspectorProduct, preco: newPrice });
+    }
+    showToast(`Preço atualizado para R$ ${formatBRL(newPrice)}`);
     setEditingPriceId(null);
   };
 
@@ -1391,7 +1490,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
           <div>
             {!embedded && (
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                <span style={{ fontSize: '12px', color: 'var(--color-outline)' }}>
+                <span style={{ fontSize: '12px', color: 'var(--color-on-surface-variant)' }}>
                   {currentUser.role === 'admin' ? 'Painel de Administrador' : 'Painel de Funcionário'}
                 </span>
               </div>
@@ -1427,7 +1526,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
               }}
               title="Buscar e importar cards diretamente das bases mundiais oficiais"
             >
-              <Globe size={15} color="var(--color-primary)" /> Catálogo Live
+              <Globe size={15} color={tones.accentText} /> Catálogo Live
             </button>
 
             <button
@@ -1492,15 +1591,15 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
             }}
           >
             <div>
-              <span style={{ fontSize: '10.5px', color: 'var(--color-outline)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', display: 'block' }}>
+              <span style={{ fontSize: '10.5px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', display: 'block' }}>
                 Catálogo Total
               </span>
               <span style={{ fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--color-headline)' }}>
                 {products.length}{' '}
-                <span style={{ fontSize: '11px', color: '#4ade80', fontWeight: 600 }}>({activeProducts.length} ativos)</span>
+                <span style={{ fontSize: '11px', color: tones.successText, fontWeight: 600 }}>({activeProducts.length} ativos)</span>
               </span>
             </div>
-            <Package size={20} color="var(--color-primary)" opacity={0.8} />
+            <Package size={20} color={tones.accentText} opacity={0.85} />
           </div>
 
           {/* Ticker 2: Patrimônio */}
@@ -1516,15 +1615,15 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
             }}
           >
             <div>
-              <span style={{ fontSize: '10.5px', color: 'var(--color-outline)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', display: 'block' }}>
+              <span style={{ fontSize: '10.5px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', display: 'block' }}>
                 Patrimônio em Estoque
               </span>
-              <span style={{ fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--color-primary)' }}>
+              <span style={{ fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: tones.accentText }}>
                 R$ {formatBRL(valorTotalEstoque)}{' '}
-                <span style={{ fontSize: '11px', color: 'var(--color-outline)', fontWeight: 600 }}>({totalUnidadesEstoque} un.)</span>
+                <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)', fontWeight: 600 }}>({totalUnidadesEstoque} un.)</span>
               </span>
             </div>
-            <TrendingUp size={20} color="var(--color-primary)" opacity={0.8} />
+            <TrendingUp size={20} color={tones.accentText} opacity={0.85} />
           </div>
 
           {/* Ticker 3: Reposição Crítica */}
@@ -1533,8 +1632,8 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
             style={{
               padding: '10px 14px',
               borderRadius: '10px',
-              backgroundColor: produtosCriticos.length > 0 ? 'rgba(251, 191, 36, 0.1)' : 'var(--color-surface-container-low)',
-              border: produtosCriticos.length > 0 ? '1px solid rgba(251, 191, 36, 0.4)' : '1px solid var(--card-border)',
+              backgroundColor: produtosCriticos.length > 0 ? tones.warningBg : 'var(--color-surface-container-low)',
+              border: produtosCriticos.length > 0 ? `1px solid ${tones.warningBorder}` : '1px solid var(--card-border)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -1542,14 +1641,14 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
             }}
           >
             <div>
-              <span style={{ fontSize: '10.5px', color: produtosCriticos.length > 0 ? '#fbbf24' : 'var(--color-outline)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', display: 'block' }}>
+              <span style={{ fontSize: '10.5px', color: produtosCriticos.length > 0 ? tones.warningText : 'var(--color-on-surface-variant)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', display: 'block' }}>
                 Reposição Crítica
               </span>
-              <span style={{ fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: produtosCriticos.length > 0 ? '#fbbf24' : 'var(--color-headline)' }}>
+              <span style={{ fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: produtosCriticos.length > 0 ? tones.warningText : 'var(--color-headline)' }}>
                 {produtosCriticos.length} itens
               </span>
             </div>
-            <AlertTriangle size={20} color={produtosCriticos.length > 0 ? '#fbbf24' : 'var(--color-outline)'} opacity={0.8} />
+            <AlertTriangle size={20} color={produtosCriticos.length > 0 ? tones.warningText : 'var(--color-on-surface-variant)'} opacity={0.85} />
           </div>
 
           {/* Ticker 4: Zerados */}
@@ -1558,8 +1657,8 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
             style={{
               padding: '10px 14px',
               borderRadius: '10px',
-              backgroundColor: produtosEsgotados.length > 0 ? 'rgba(239, 68, 68, 0.1)' : 'var(--color-surface-container-low)',
-              border: produtosEsgotados.length > 0 ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid var(--card-border)',
+              backgroundColor: produtosEsgotados.length > 0 ? tones.dangerBg : 'var(--color-surface-container-low)',
+              border: produtosEsgotados.length > 0 ? `1px solid ${tones.dangerBorder}` : '1px solid var(--card-border)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -1567,14 +1666,14 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
             }}
           >
             <div>
-              <span style={{ fontSize: '10.5px', color: produtosEsgotados.length > 0 ? '#f87171' : 'var(--color-outline)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', display: 'block' }}>
+              <span style={{ fontSize: '10.5px', color: produtosEsgotados.length > 0 ? tones.dangerText : 'var(--color-on-surface-variant)', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', display: 'block' }}>
                 Produtos Zerados
               </span>
-              <span style={{ fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: produtosEsgotados.length > 0 ? '#f87171' : 'var(--color-headline)' }}>
+              <span style={{ fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: produtosEsgotados.length > 0 ? tones.dangerText : 'var(--color-headline)' }}>
                 {produtosEsgotados.length} itens
               </span>
             </div>
-            <X size={20} color={produtosEsgotados.length > 0 ? '#f87171' : 'var(--color-outline)'} opacity={0.8} />
+            <X size={20} color={produtosEsgotados.length > 0 ? tones.dangerText : 'var(--color-on-surface-variant)'} opacity={0.85} />
           </div>
         </div>
       </div>
@@ -1615,9 +1714,9 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                   fontSize: '11.5px',
                   fontWeight: 700,
                   cursor: 'pointer',
-                  border: statusFilter === tab.id ? '1px solid var(--color-primary)' : '1px solid transparent',
-                  backgroundColor: statusFilter === tab.id ? 'rgba(255, 196, 0, 0.16)' : 'var(--color-surface-container-low)',
-                  color: statusFilter === tab.id ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+                  border: statusFilter === tab.id ? `1px solid ${tones.accentBorder}` : '1px solid transparent',
+                  backgroundColor: statusFilter === tab.id ? tones.accentBg : 'var(--color-surface-container-low)',
+                  color: statusFilter === tab.id ? tones.accentText : 'var(--color-on-surface-variant)',
                   transition: 'all 0.15s ease',
                 }}
               >
@@ -1690,7 +1789,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                 left: '12px',
                 top: '50%',
                 transform: 'translateY(-50%)',
-                color: 'var(--color-outline)',
+                color: 'var(--color-on-surface-variant)',
               }}
             />
             <input
@@ -1705,6 +1804,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
+                aria-label="Limpar pesquisa"
                 style={{
                   position: 'absolute',
                   right: '8px',
@@ -1713,7 +1813,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',
-                  color: 'var(--color-outline)',
+                  color: 'var(--color-on-surface-variant)',
                 }}
               >
                 <X size={14} />
@@ -1736,7 +1836,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                       width: '8px',
                       height: '8px',
                       borderRadius: '50%',
-                      backgroundColor: g.color,
+                      backgroundColor: isLight ? g.lightColor : g.color,
                       display: 'inline-block',
                     }}
                   />
@@ -1791,11 +1891,11 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
             gap: '12px',
           }}
         >
-          <Package size={44} color="var(--color-outline)" opacity={0.5} />
+          <Package size={44} color="var(--color-on-surface-variant)" opacity={0.5} />
           <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--color-headline)' }}>
             Nenhum produto encontrado com os filtros aplicados
           </h3>
-          <p style={{ margin: 0, fontSize: '13px', color: 'var(--color-outline)', maxWidth: '440px' }}>
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--color-on-surface-variant)', maxWidth: '440px' }}>
             Tente redefinir seus filtros de busca, categoria ou status para visualizar os itens do inventário.
           </p>
           <button
@@ -1840,32 +1940,33 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: allFilteredSelected ? 'var(--color-primary)' : 'var(--color-outline)',
+                        color: allFilteredSelected ? tones.accentText : 'var(--color-on-surface-variant)',
                       }}
                       title={allFilteredSelected ? 'Desmarcar todos' : 'Selecionar todos'}
+                      aria-label={allFilteredSelected ? 'Desmarcar todos os produtos' : 'Selecionar todos os produtos'}
                     >
-                      {allFilteredSelected ? <CheckSquare size={17} color="var(--color-primary)" /> : <Square size={17} />}
+                      {allFilteredSelected ? <CheckSquare size={17} color={tones.accentText} /> : <Square size={17} />}
                     </button>
                   </th>
-                  <th style={{ padding: '14px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-outline)' }}>
+                  <th style={{ padding: '14px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-on-surface-variant)' }}>
                     Produto & TCG
                   </th>
-                  <th style={{ padding: '14px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-outline)' }}>
+                  <th style={{ padding: '14px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-on-surface-variant)' }}>
                     Jogo / Categoria
                   </th>
-                  <th style={{ padding: '14px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-outline)' }}>
+                  <th style={{ padding: '14px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-on-surface-variant)' }}>
                     Preço de Venda
                   </th>
-                  <th style={{ padding: '14px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-outline)' }}>
+                  <th style={{ padding: '14px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-on-surface-variant)' }}>
                     Estoque Atual
                   </th>
-                  <th style={{ padding: '14px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-outline)' }}>
+                  <th style={{ padding: '14px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-on-surface-variant)' }}>
                     Mínimo
                   </th>
-                  <th style={{ padding: '14px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-outline)' }}>
+                  <th style={{ padding: '14px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-on-surface-variant)' }}>
                     Status
                   </th>
-                  <th style={{ padding: '14px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-outline)', textAlign: 'right' }}>
+                  <th style={{ padding: '14px 16px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-on-surface-variant)', textAlign: 'right' }}>
                     Ações
                   </th>
                 </tr>
@@ -1877,6 +1978,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                   const isCriticalStock = p.estoque > 0 && p.estoque <= (p.estoqueMinimo ?? 3);
                   const isInactive = p.ativo === false;
                   const gameOpt = GAME_OPTIONS.find((g) => g.value === p.jogo);
+                  const gameRowColor = gameOpt ? (isLight ? gameOpt.lightColor : gameOpt.color) : 'var(--color-headline)';
 
                   return (
                     <tr
@@ -1886,9 +1988,13 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                         cursor: 'pointer',
                         borderBottom: '1px solid var(--card-border)',
                         backgroundColor: isSelected
-                          ? 'rgba(255, 196, 0, 0.08)'
+                          ? isLight
+                            ? 'rgba(255, 196, 0, 0.14)'
+                            : 'rgba(255, 196, 0, 0.08)'
                           : isInactive
-                            ? 'rgba(0, 0, 0, 0.15)'
+                            ? isLight
+                              ? 'rgba(15, 23, 42, 0.04)'
+                              : 'rgba(0, 0, 0, 0.15)'
                             : 'transparent',
                         opacity: isInactive ? 0.65 : 1,
                         transition: 'background-color 0.15s ease',
@@ -1914,6 +2020,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                       >
                         <button
                           type="button"
+                          aria-label={isSelected ? `Desmarcar ${p.nome}` : `Selecionar ${p.nome}`}
                           style={{
                             background: 'none',
                             border: 'none',
@@ -1922,10 +2029,10 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            color: isSelected ? 'var(--color-primary)' : 'var(--color-outline)',
+                            color: isSelected ? tones.accentText : 'var(--color-on-surface-variant)',
                           }}
                         >
-                          {isSelected ? <CheckSquare size={17} color="var(--color-primary)" /> : <Square size={17} />}
+                          {isSelected ? <CheckSquare size={17} color={tones.accentText} /> : <Square size={17} />}
                         </button>
                       </td>
 
@@ -1938,21 +2045,21 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                               height: '56px',
                               borderRadius: '6px',
                               overflow: 'hidden',
-                              backgroundColor: 'rgba(0,0,0,0.3)',
+                              backgroundColor: isLight ? 'var(--color-surface-container-high)' : 'rgba(0,0,0,0.3)',
                               flexShrink: 0,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                              boxShadow: isLight ? '0 2px 6px rgba(0,0,0,0.12)' : '0 2px 6px rgba(0,0,0,0.3)',
                             }}
                           >
                             <img
-                              src={p.imagemUrl}
+                              src={p.imagemUrl || nobleLogo}
                               alt={p.nome}
                               style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                               onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).src =
-                                  'https://images.unsplash.com/photo-1613771404784-3a5686aa2be3?w=100&auto=format&fit=crop&q=60';
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = nobleLogo;
                               }}
                             />
                           </div>
@@ -1979,15 +2086,15 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                                     fontWeight: 800,
                                     padding: '1px 5px',
                                     borderRadius: '4px',
-                                    backgroundColor: 'rgba(250, 204, 21, 0.15)',
-                                    color: '#facc15',
+                                    backgroundColor: tones.accentBg,
+                                    color: tones.goldLabel,
                                   }}
                                 >
                                   {p.raridade}
                                 </span>
                               )}
                             </div>
-                            <span style={{ fontSize: '11px', color: 'var(--color-outline)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {p.subtitulo || `ID #${p.id}`}
                             </span>
                           </div>
@@ -2002,13 +2109,13 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                               fontSize: '10.5px',
                               fontFamily: 'var(--font-mono)',
                               fontWeight: 800,
-                              color: gameOpt?.color || 'var(--color-headline)',
+                              color: gameRowColor,
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '5px',
                             }}
                           >
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: gameOpt?.color || '#FFC400' }} />
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: gameOpt ? (isLight ? gameOpt.lightColor : gameOpt.color) : '#FFC400' }} />
                             {gameOpt?.label || p.jogo}
                           </span>
                           <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)' }}>
@@ -2030,12 +2137,14 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                                 if (e.key === 'Escape') setEditingPriceId(null);
                               }}
                               autoFocus
+                              aria-label={`Novo preço para ${p.nome}`}
                               className="system-input"
                               style={{ width: '85px', height: '28px', fontSize: '12px', padding: '2px 6px', fontFamily: 'var(--font-mono)' }}
                             />
                             <button
                               type="button"
                               onClick={(e) => handleSaveInlinePrice(p.id, e)}
+                              aria-label="Confirmar preço"
                               style={{
                                 background: 'var(--color-primary)',
                                 color: 'var(--color-on-primary)',
@@ -2052,10 +2161,11 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                             <button
                               type="button"
                               onClick={() => setEditingPriceId(null)}
+                              aria-label="Cancelar edição de preço"
                               style={{
                                 background: 'none',
                                 border: 'none',
-                                color: 'var(--color-outline)',
+                                color: 'var(--color-on-surface-variant)',
                                 cursor: 'pointer',
                                 padding: '4px',
                                 display: 'flex',
@@ -2078,13 +2188,13 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                               transition: 'background-color 0.15s ease',
                             }}
                             title="Clique para editar o preço rapidamente"
-                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 196, 0, 0.12)')}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = tones.accentBg)}
                             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                           >
-                            <span style={{ fontSize: '13px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--color-primary)' }}>
-                              R$ {formatBRL(p.preco)}
+                            <span style={{ fontSize: '13px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: tones.accentText }}>
+                              {p.preco > 0 ? `R$ ${formatBRL(p.preco)}` : 'Sob consulta'}
                             </span>
-                            <Edit size={11} color="var(--color-outline)" opacity={0.6} />
+                            <Edit size={11} color="var(--color-on-surface-variant)" opacity={0.7} />
                           </div>
                         )}
                       </td>
@@ -2097,6 +2207,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                               type="button"
                               onClick={(e) => handleQuickStock(p, -1, e)}
                               disabled={p.estoque <= 0}
+                              aria-label={`Diminuir 1 unidade de ${p.nome}`}
                               style={{
                                 width: '22px',
                                 height: '22px',
@@ -2124,7 +2235,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                               fontSize: '12.5px',
                               fontWeight: 800,
                               fontFamily: 'var(--font-mono)',
-                              color: isOutOfStock ? '#f87171' : isCriticalStock ? '#fbbf24' : 'var(--color-headline)',
+                              color: isOutOfStock ? tones.dangerText : isCriticalStock ? tones.warningText : 'var(--color-headline)',
                             }}
                           >
                             {p.estoque} un.
@@ -2134,6 +2245,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                             <button
                               type="button"
                               onClick={(e) => handleQuickStock(p, 1, e)}
+                              aria-label={`Aumentar 1 unidade de ${p.nome}`}
                               style={{
                                 width: '22px',
                                 height: '22px',
@@ -2157,7 +2269,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                       </td>
 
                       {/* Estoque Mínimo */}
-                      <td style={{ padding: '12px 16px', fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)' }}>
+                      <td style={{ padding: '12px 16px', fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)' }}>
                         {p.estoqueMinimo ?? 3} un.
                       </td>
 
@@ -2168,12 +2280,12 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                             fontSize: '11.5px',
                             fontWeight: 700,
                             color: isInactive
-                              ? '#94a3b8'
+                              ? tones.inactiveText
                               : isOutOfStock
-                                ? '#f87171'
+                                ? tones.dangerText
                                 : isCriticalStock
-                                  ? '#fbbf24'
-                                  : '#4ade80',
+                                  ? tones.warningText
+                                  : tones.successText,
                           }}
                         >
                           {isInactive ? 'Inativo' : isOutOfStock ? 'Esgotado' : isCriticalStock ? 'Reposição' : 'Disponível'}
@@ -2209,13 +2321,14 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                             <button
                               type="button"
                               onClick={(e) => handleToggleActive(p, e)}
+                              aria-label={isInactive ? `Reativar ${p.nome}` : `Inativar ${p.nome}`}
                               style={{
                                 background: 'none',
                                 border: '1px solid var(--card-border)',
                                 borderRadius: '7px',
                                 padding: '5px 7px',
                                 cursor: 'pointer',
-                                color: isInactive ? '#4ade80' : 'var(--color-outline)',
+                                color: isInactive ? tones.successText : 'var(--color-on-surface-variant)',
                                 display: 'inline-flex',
                                 alignItems: 'center',
                               }}
@@ -2260,6 +2373,8 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                 onEdit={() => setEditingProduct(p)}
                 onStockChange={(delta, e) => handleQuickStock(p, delta, e)}
                 isStaffOrAdmin={isStaffOrAdmin}
+                tones={tones}
+                isLight={isLight}
               />
             );
           })}
@@ -2288,7 +2403,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
             type="button"
             onClick={handleBulkInactivate}
             className="btn-outline"
-            style={{ padding: '6px 12px', fontSize: '11.5px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '8px', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#f87171' }}
+            style={{ padding: '6px 12px', fontSize: '11.5px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '8px', borderColor: tones.dangerBorder, color: tones.dangerText }}
           >
             <RotateCcw size={13} /> Inativar
           </button>
@@ -2297,7 +2412,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
             type="button"
             onClick={handleBulkReactivate}
             className="btn-outline"
-            style={{ padding: '6px 12px', fontSize: '11.5px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '8px', borderColor: 'rgba(74, 222, 128, 0.4)', color: '#4ade80' }}
+            style={{ padding: '6px 12px', fontSize: '11.5px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '8px', borderColor: tones.successBorder, color: tones.successText }}
           >
             <RotateCcw size={13} /> Reativar
           </button>
@@ -2314,7 +2429,8 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
           <button
             type="button"
             onClick={() => setSelectedProductIds([])}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-outline)', padding: '4px', display: 'flex', alignItems: 'center' }}
+            aria-label="Limpar seleção"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-on-surface-variant)', padding: '4px', display: 'flex', alignItems: 'center' }}
             title="Limpar seleção"
           >
             <X size={16} />
@@ -2341,6 +2457,8 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
         }}
         stockMovements={stockMovements}
         isStaffOrAdmin={isStaffOrAdmin}
+        tones={tones}
+        isLight={isLight}
       />
 
 
@@ -2410,16 +2528,24 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
           selectedCount={selectedProductIds.length}
           onApply={async (percentage) => {
             const factor = 1 + percentage / 100;
+            if (factor <= 0) {
+              showToast('O desconto não pode ser igual ou inferior a -100%.');
+              return;
+            }
+            let updatedCount = 0;
             for (const id of selectedProductIds) {
               const current = products.find((prod) => prod.id === id);
               if (current) {
-                const updatedPrice = Math.max(0.1, Math.round(current.preco * factor * 100) / 100);
-                await editProduct(id, { preco: updatedPrice });
+                const updatedPrice = Math.round(current.preco * factor * 100) / 100;
+                if (updatedPrice > 0) {
+                  await editProduct(id, { preco: updatedPrice });
+                  updatedCount++;
+                }
               }
             }
             setIsBulkPriceModalOpen(false);
             setSelectedProductIds([]);
-            showToast(`Preços de ${selectedProductIds.length} produtos foram reajustados em ${percentage > 0 ? `+${percentage}%` : `${percentage}%`}!`);
+            showToast(`Preços de ${updatedCount} produtos foram reajustados em ${percentage > 0 ? `+${percentage}%` : `${percentage}%`}!`);
           }}
         />
       )}
@@ -2454,6 +2580,9 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   onEdit,
   stockMovements,
 }) => {
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
+  const tones = getControlTones(isLight);
   const isInactive = product.ativo === false;
 
   return (
@@ -2471,12 +2600,12 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 fontSize: '11px',
                 fontWeight: 800,
                 fontFamily: 'var(--font-mono)',
-                backgroundColor: isInactive ? 'rgba(239, 68, 68, 0.18)' : 'rgba(74, 222, 128, 0.15)',
-                border: isInactive ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid rgba(74, 222, 128, 0.4)',
-                color: isInactive ? '#f87171' : '#4ade80',
+                backgroundColor: isInactive ? tones.dangerBg : tones.successBg,
+                border: isInactive ? `1px solid ${tones.dangerBorder}` : `1px solid ${tones.successBorder}`,
+                color: isInactive ? tones.dangerText : tones.successText,
               }}
             >
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: isInactive ? '#ef4444' : '#22c55e' }} />
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: isInactive ? tones.dangerText : tones.successText }} />
               ID #{product.id} • {isInactive ? 'INATIVO' : 'ATIVO'}
             </span>
             <span className="badge badge-muted">{product.jogoNome || product.jogo}</span>
@@ -2485,7 +2614,12 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             {product.nome}
           </h2>
         </div>
-        <button type="button" onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--color-outline)', cursor: 'pointer' }}>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Fechar ficha técnica"
+          style={{ background: 'transparent', border: 'none', color: 'var(--color-on-surface-variant)', cursor: 'pointer' }}
+        >
           <X size={20} />
         </button>
       </div>
@@ -2504,25 +2638,29 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             justifyContent: 'center',
           }}
         >
-          {product.imagemUrl ? (
-            <img src={product.imagemUrl} alt={product.nome} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-          ) : (
-            <Package size={32} color="var(--color-outline)" />
-          )}
+          <img
+            src={product.imagemUrl || nobleLogo}
+            alt={product.nome}
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = nobleLogo;
+            }}
+          />
         </div>
 
         {/* Metadados */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div style={{ padding: '10px', borderRadius: '8px', backgroundColor: 'var(--color-surface-container-low)', border: '1px solid var(--card-border)' }}>
-              <span style={{ fontSize: '10px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)', display: 'block' }}>PREÇO DE VENDA</span>
-              <span style={{ fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--color-primary)' }}>
-                R$ {formatBRL(product.preco)}
+              <span style={{ fontSize: '10px', color: 'var(--color-on-surface-variant)', fontFamily: 'var(--font-mono)', display: 'block' }}>PREÇO DE VENDA</span>
+              <span style={{ fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: tones.accentText }}>
+                {product.preco > 0 ? `R$ ${formatBRL(product.preco)}` : 'Sob consulta'}
               </span>
             </div>
 
             <div style={{ padding: '10px', borderRadius: '8px', backgroundColor: 'var(--color-surface-container-low)', border: '1px solid var(--card-border)' }}>
-              <span style={{ fontSize: '10px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)', display: 'block' }}>ESTOQUE ATUAL</span>
+              <span style={{ fontSize: '10px', color: 'var(--color-on-surface-variant)', fontFamily: 'var(--font-mono)', display: 'block' }}>ESTOQUE ATUAL</span>
               <span style={{ fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--color-headline)' }}>
                 {product.estoque} un.
               </span>
@@ -2553,7 +2691,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         </h4>
 
         {stockMovements.length === 0 ? (
-          <p style={{ margin: 0, fontSize: '12px', color: 'var(--color-outline)' }}>
+          <p style={{ margin: 0, fontSize: '12px', color: 'var(--color-on-surface-variant)' }}>
             Nenhuma movimentação registrada no log para este item ainda.
           </p>
         ) : (
@@ -2572,12 +2710,12 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 }}
               >
                 <div>
-                  <span style={{ fontWeight: 700, color: m.tipo === 'entrada' ? '#4ade80' : '#f87171', marginRight: '6px' }}>
+                  <span style={{ fontWeight: 700, color: m.tipo === 'entrada' ? tones.successText : tones.dangerText, marginRight: '6px' }}>
                     {m.tipo === 'entrada' ? `+${m.quantidade} un.` : `-${m.quantidade} un.`}
                   </span>
                   <span style={{ color: 'var(--color-on-surface-variant)' }}>{m.motivo}</span>
                 </div>
-                <span style={{ fontSize: '10.5px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)' }}>
+                <span style={{ fontSize: '10.5px', color: 'var(--color-on-surface-variant)', fontFamily: 'var(--font-mono)' }}>
                   {m.data || 'Recente'}
                 </span>
               </div>
@@ -2618,7 +2756,11 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
   onReactivate,
   onPermanentDelete,
 }) => {
-  const { showToastConfirm } = useApp();
+  const { showToast, showToastConfirm } = useApp();
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
+  const tones = getControlTones(isLight);
+
   const [nome, setNome] = useState(product.nome);
   const [subtitulo, setSubtitulo] = useState(product.subtitulo || '');
   const [preco, setPreco] = useState(product.preco ? formatMoneyInput(product.preco) : '');
@@ -2634,6 +2776,28 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedName = nome.trim();
+    const parsedPrice = parseMoneyToFloat(preco);
+    const parsedEstoque = parseInt(estoque, 10);
+    const parsedMin = parseInt(estoqueMinimo, 10);
+
+    if (!trimmedName) {
+      showToast('Informe o nome do produto.');
+      return;
+    }
+    if (parsedPrice <= 0) {
+      showToast('O preço deve ser maior que R$ 0,00.');
+      return;
+    }
+    if (Number.isNaN(parsedEstoque) || parsedEstoque < 0) {
+      showToast('O estoque não pode ser negativo.');
+      return;
+    }
+    if (Number.isNaN(parsedMin) || parsedMin < 0) {
+      showToast('O estoque mínimo não pode ser negativo.');
+      return;
+    }
+
     const gameNames: Record<GameId, string> = {
       pokemon: 'Pokémon TCG',
       magic: 'Magic: The Gathering',
@@ -2643,11 +2807,11 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
     };
 
     await onSave({
-      nome: nome.trim(),
+      nome: trimmedName,
       subtitulo: subtitulo.trim(),
-      preco: parseMoneyToFloat(preco),
-      estoque: parseInt(estoque, 10) || 0,
-      estoqueMinimo: Math.max(0, parseInt(estoqueMinimo, 10) || 3),
+      preco: parsedPrice,
+      estoque: parsedEstoque,
+      estoqueMinimo: parsedMin,
       jogo,
       jogoNome: gameNames[jogo] || 'Geral',
       categoria,
@@ -2672,12 +2836,12 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
                 fontSize: '11px',
                 fontWeight: 800,
                 fontFamily: 'var(--font-mono)',
-                backgroundColor: isInactive ? 'rgba(239, 68, 68, 0.18)' : 'rgba(74, 222, 128, 0.15)',
-                border: isInactive ? '1px solid rgba(239, 68, 68, 0.45)' : '1px solid rgba(74, 222, 128, 0.4)',
-                color: isInactive ? '#f87171' : '#4ade80',
+                backgroundColor: isInactive ? tones.dangerBg : tones.successBg,
+                border: isInactive ? `1px solid ${tones.dangerBorder}` : `1px solid ${tones.successBorder}`,
+                color: isInactive ? tones.dangerText : tones.successText,
               }}
             >
-              <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: isInactive ? '#ef4444' : '#22c55e' }} />
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: isInactive ? tones.dangerText : tones.successText }} />
               ID #{product.id} • {isInactive ? 'PRODUTO INATIVO' : 'PRODUTO ATIVO'}
             </span>
           </div>
@@ -2685,7 +2849,12 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
             Editar Produto no Catálogo
           </h3>
         </div>
-        <button type="button" onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--color-outline)', cursor: 'pointer' }}>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Fechar modal de edição"
+          style={{ background: 'transparent', border: 'none', color: 'var(--color-on-surface-variant)', cursor: 'pointer' }}
+        >
           <X size={20} />
         </button>
       </div>
@@ -2700,14 +2869,14 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: '12px',
-          backgroundColor: isInactive ? 'rgba(239, 68, 68, 0.12)' : 'rgba(74, 222, 128, 0.08)',
-          border: isInactive ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid rgba(74, 222, 128, 0.25)',
+          backgroundColor: isInactive ? tones.dangerBg : tones.successBg,
+          border: isInactive ? `1px solid ${tones.dangerBorder}` : `1px solid ${tones.successBorder}`,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <AlertTriangle size={18} color={isInactive ? '#f87171' : '#4ade80'} />
+          <AlertTriangle size={18} color={isInactive ? tones.dangerText : tones.successText} />
           <div>
-            <div style={{ fontSize: '12px', fontWeight: 800, color: isInactive ? '#f87171' : '#4ade80', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: '12px', fontWeight: 800, color: isInactive ? tones.dangerText : tones.successText, textTransform: 'uppercase' }}>
               {isInactive ? 'Status: Inativo (Oculto da Loja)' : 'Status: Ativo (Visível na Loja)'}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)' }}>
@@ -2728,7 +2897,7 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
                 padding: '6px 12px',
                 borderRadius: '8px',
                 border: 'none',
-                backgroundColor: '#22c55e',
+                backgroundColor: '#15803d',
                 color: '#ffffff',
                 fontSize: '11.5px',
                 fontWeight: 700,
@@ -2747,9 +2916,9 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
               style={{
                 padding: '6px 12px',
                 borderRadius: '8px',
-                border: '1px solid rgba(239, 68, 68, 0.4)',
-                backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                color: '#f87171',
+                border: `1px solid ${tones.dangerBorder}`,
+                backgroundColor: tones.dangerBg,
+                color: tones.dangerText,
                 fontSize: '11.5px',
                 fontWeight: 700,
                 cursor: 'pointer',
@@ -2763,7 +2932,7 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
 
       <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <div>
-          <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+          <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
             Nome do Produto *
           </label>
           <input
@@ -2777,7 +2946,7 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
               Jogo *
             </label>
             <SystemSelect<GameId>
@@ -2792,7 +2961,7 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
               Categoria *
             </label>
             <SystemSelect<ProductCategory>
@@ -2808,7 +2977,7 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
               Subtítulo / Coleção
             </label>
             <input
@@ -2821,7 +2990,7 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
               Raridade
             </label>
             <input
@@ -2836,11 +3005,11 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
               Preço (R$) *
             </label>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <span style={{ position: 'absolute', left: '12px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', pointerEvents: 'none' }}>
+              <span style={{ position: 'absolute', left: '12px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', pointerEvents: 'none' }}>
                 R$
               </span>
               <input
@@ -2857,7 +3026,7 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
               Estoque Atual *
             </label>
             <input
@@ -2871,7 +3040,7 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
               Estoque Mínimo *
             </label>
             <input
@@ -2886,7 +3055,7 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
         </div>
 
         <div>
-          <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+          <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
             URL da Imagem
           </label>
           <input
@@ -2898,7 +3067,7 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
         </div>
 
         <div>
-          <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+          <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
             Descrição
           </label>
           <textarea
@@ -2929,9 +3098,9 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
                 style={{
                   padding: '8px 12px',
                   borderRadius: '8px',
-                  border: '1px solid rgba(239, 68, 68, 0.4)',
-                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                  color: '#f87171',
+                  border: `1px solid ${tones.dangerBorder}`,
+                  backgroundColor: tones.dangerBg,
+                  color: tones.dangerText,
                   fontSize: '11.5px',
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -2966,6 +3135,7 @@ interface CreateProductModal2Props {
 }
 
 const CreateProductModal2: React.FC<CreateProductModal2Props> = ({ isOpen, onClose, onCreate }) => {
+  const { showToast } = useApp();
   const [nome, setNome] = useState('');
   const [subtitulo, setSubtitulo] = useState('');
   const [preco, setPreco] = useState('');
@@ -2981,6 +3151,28 @@ const CreateProductModal2: React.FC<CreateProductModal2Props> = ({ isOpen, onClo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedName = nome.trim();
+    const parsedPrice = parseMoneyToFloat(preco);
+    const parsedEstoque = estoque.trim() === '' ? 0 : parseInt(estoque, 10);
+    const parsedMin = estoqueMinimo.trim() === '' ? 3 : parseInt(estoqueMinimo, 10);
+
+    if (!trimmedName) {
+      showToast('Informe o nome do produto.');
+      return;
+    }
+    if (parsedPrice <= 0) {
+      showToast('O preço deve ser maior que R$ 0,00.');
+      return;
+    }
+    if (Number.isNaN(parsedEstoque) || parsedEstoque < 0) {
+      showToast('O estoque inicial não pode ser negativo.');
+      return;
+    }
+    if (Number.isNaN(parsedMin) || parsedMin < 0) {
+      showToast('O estoque mínimo não pode ser negativo.');
+      return;
+    }
+
     const gameNames: Record<GameId, string> = {
       pokemon: 'Pokémon TCG',
       magic: 'Magic: The Gathering',
@@ -2990,11 +3182,11 @@ const CreateProductModal2: React.FC<CreateProductModal2Props> = ({ isOpen, onClo
     };
 
     await onCreate({
-      nome: nome.trim(),
+      nome: trimmedName,
       subtitulo: subtitulo.trim() || `${categoria} • ${gameNames[jogo]}`,
-      preco: parseMoneyToFloat(preco),
-      estoque: parseInt(estoque, 10) || 0,
-      estoqueMinimo: Math.max(0, parseInt(estoqueMinimo, 10) || 3),
+      preco: parsedPrice,
+      estoque: parsedEstoque,
+      estoqueMinimo: parsedMin,
       jogo,
       jogoNome: gameNames[jogo] || 'Geral',
       categoria,
@@ -3015,14 +3207,19 @@ const CreateProductModal2: React.FC<CreateProductModal2Props> = ({ isOpen, onClo
             Adicionar Novo Produto ao Estoque
           </h3>
         </div>
-        <button type="button" onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--color-outline)', cursor: 'pointer' }}>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Fechar modal de cadastro"
+          style={{ background: 'transparent', border: 'none', color: 'var(--color-on-surface-variant)', cursor: 'pointer' }}
+        >
           <X size={20} />
         </button>
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <div>
-          <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+          <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
             Nome do Produto *
           </label>
           <input
@@ -3037,7 +3234,7 @@ const CreateProductModal2: React.FC<CreateProductModal2Props> = ({ isOpen, onClo
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
               Jogo *
             </label>
             <SystemSelect<GameId>
@@ -3052,7 +3249,7 @@ const CreateProductModal2: React.FC<CreateProductModal2Props> = ({ isOpen, onClo
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
               Categoria *
             </label>
             <SystemSelect<ProductCategory>
@@ -3068,7 +3265,7 @@ const CreateProductModal2: React.FC<CreateProductModal2Props> = ({ isOpen, onClo
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
               Subtítulo / Coleção
             </label>
             <input
@@ -3081,7 +3278,7 @@ const CreateProductModal2: React.FC<CreateProductModal2Props> = ({ isOpen, onClo
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
               Raridade
             </label>
             <input
@@ -3096,11 +3293,11 @@ const CreateProductModal2: React.FC<CreateProductModal2Props> = ({ isOpen, onClo
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
               Preço (R$) *
             </label>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <span style={{ position: 'absolute', left: '12px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', pointerEvents: 'none' }}>
+              <span style={{ position: 'absolute', left: '12px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', pointerEvents: 'none' }}>
                 R$
               </span>
               <input
@@ -3117,7 +3314,7 @@ const CreateProductModal2: React.FC<CreateProductModal2Props> = ({ isOpen, onClo
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
               Estoque Inicial *
             </label>
             <input
@@ -3131,7 +3328,7 @@ const CreateProductModal2: React.FC<CreateProductModal2Props> = ({ isOpen, onClo
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
               Estoque Mínimo *
             </label>
             <input
@@ -3146,7 +3343,7 @@ const CreateProductModal2: React.FC<CreateProductModal2Props> = ({ isOpen, onClo
         </div>
 
         <div>
-          <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+          <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
             URL da Imagem
           </label>
           <input
@@ -3159,7 +3356,7 @@ const CreateProductModal2: React.FC<CreateProductModal2Props> = ({ isOpen, onClo
         </div>
 
         <div>
-          <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '5px', textTransform: 'uppercase' }}>
+          <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '5px', textTransform: 'uppercase' }}>
             Descrição
           </label>
           <textarea
@@ -3201,20 +3398,29 @@ const BulkPriceModal: React.FC<BulkPriceModalProps> = ({
   selectedCount,
   onApply,
 }) => {
+  const { showToast } = useApp();
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
+  const tones = getControlTones(isLight);
+
   const [percentInput, setPercentInput] = useState<string>('10');
   const [isApplying, setIsApplying] = useState(false);
 
   if (!isOpen) return null;
 
+  const parsedPercent = parseFloat(percentInput);
+  const isValidPercent = !Number.isNaN(parsedPercent) && parsedPercent !== 0 && parsedPercent > -100;
+
   const handleApply = async () => {
-    const val = parseFloat(percentInput);
-    if (!isNaN(val) && val !== 0) {
-      setIsApplying(true);
-      try {
-        await onApply(val);
-      } finally {
-        setIsApplying(false);
-      }
+    if (!isValidPercent) {
+      showToast('Informe um percentual diferente de 0% e maior que -100%.');
+      return;
+    }
+    setIsApplying(true);
+    try {
+      await onApply(parsedPercent);
+    } finally {
+      setIsApplying(false);
     }
   };
 
@@ -3227,7 +3433,12 @@ const BulkPriceModal: React.FC<BulkPriceModalProps> = ({
             Reajuste de Preço em Massa
           </h3>
         </div>
-        <button type="button" onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--color-outline)', cursor: 'pointer' }}>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Fechar modal de reajuste"
+          style={{ background: 'transparent', border: 'none', color: 'var(--color-on-surface-variant)', cursor: 'pointer' }}
+        >
           <X size={20} />
         </button>
       </div>
@@ -3237,25 +3448,26 @@ const BulkPriceModal: React.FC<BulkPriceModalProps> = ({
       </div>
 
       <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', marginBottom: '6px', textTransform: 'uppercase' }}>
+        <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', marginBottom: '6px', textTransform: 'uppercase' }}>
           Percentual de Ajuste (%)
         </label>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <input
             type="number"
             step="1"
+            min="-99"
             className="system-input"
             value={percentInput}
             onChange={(e) => setPercentInput(e.target.value)}
             placeholder="Ex: 10 para +10% ou -5 para -5%"
             style={{ fontSize: '14px', fontFamily: 'var(--font-mono)', fontWeight: 700 }}
           />
-          <span style={{ fontSize: '16px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--color-primary)' }}>
+          <span style={{ fontSize: '16px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: tones.accentText }}>
             %
           </span>
         </div>
-        <span style={{ fontSize: '11px', color: 'var(--color-outline)', marginTop: '4px', display: 'block' }}>
-          Dica: Use valores positivos para aumento (ex: +10) ou negativos para desconto (ex: -10).
+        <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)', marginTop: '4px', display: 'block' }}>
+          Dica: Use valores positivos para aumento (ex: +10) ou negativos acima de -100% para desconto (ex: -10).
         </span>
       </div>
 
@@ -3290,7 +3502,7 @@ const BulkPriceModal: React.FC<BulkPriceModalProps> = ({
         <button
           type="button"
           onClick={handleApply}
-          disabled={isApplying || !percentInput || parseFloat(percentInput) === 0}
+          disabled={isApplying || !isValidPercent}
           className="btn-primary"
         >
           {isApplying ? 'Reajustando...' : 'Aplicar Reajuste'}
@@ -3315,12 +3527,17 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
   existingProducts,
 }) => {
   const { importExternalCard, showToast } = useApp();
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
+  const tones = getControlTones(isLight);
+
   const [selectedGame, setSelectedGame] = useState<ActiveGameApi>('pokemon');
   const [searchQuery, setSearchQuery] = useState('');
   const [cards, setCards] = useState<ExternalCard[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [importingUid, setImportingUid] = useState<string | null>(null);
+  const [customPrices, setCustomPrices] = useState<Record<string, string>>({});
   const [pokemonSets, setPokemonSets] = useState<PokemonSetOption[]>([]);
   const [selectedSetId, setSelectedSetId] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -3386,9 +3603,16 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
   };
 
   const handleImport = async (card: ExternalCard) => {
+    const manualPrice = customPrices[card.uid] ? parseMoneyToFloat(customPrices[card.uid]) : 0;
+    const finalPrice = card.precoMercadoBrl > 0 ? card.precoMercadoBrl : manualPrice;
+    if (finalPrice <= 0) {
+      showToast('Informe um preço válido maior que R$ 0,00 para importar este item.');
+      return;
+    }
+    const importQty = card.categoria === 'Booster Box' ? 2 : 5;
     setImportingUid(card.uid);
     try {
-      await importExternalCard(card, 5, card.precoMercadoBrl > 0 ? card.precoMercadoBrl : 19.9);
+      await importExternalCard(card, importQty, finalPrice);
     } finally {
       setImportingUid(null);
     }
@@ -3410,6 +3634,10 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
 
   if (!isOpen) return null;
 
+  const packAccent = isLight ? '#9a3412' : '#FF9D00';
+  const packBg = isLight ? 'rgba(234, 88, 12, 0.10)' : 'rgba(255, 157, 0, 0.18)';
+  const packBorder = isLight ? 'rgba(234, 88, 12, 0.34)' : 'rgba(255, 157, 0, 0.45)';
+
   return (
     <SystemModal onClose={onClose} maxWidth="860px">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -3419,7 +3647,12 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
             Importar Cards & Booster Packs para a Loja
           </h3>
         </div>
-        <button type="button" onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--color-outline)', cursor: 'pointer' }}>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Fechar catálogo live"
+          style={{ background: 'transparent', border: 'none', color: 'var(--color-on-surface-variant)', cursor: 'pointer' }}
+        >
           <X size={20} />
         </button>
       </div>
@@ -3460,7 +3693,7 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
         )}
 
         <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
-          <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-outline)' }} />
+          <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-on-surface-variant)' }} />
           <input
             type="text"
             className="system-input"
@@ -3482,7 +3715,7 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
 
       {/* Filtros Rápidos por Tipo de Produto: Todos / Booster Packs / Cards Avulsos */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-outline)', textTransform: 'uppercase' }}>
+        <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase' }}>
           Filtrar Tipo:
         </span>
         <button
@@ -3495,9 +3728,9 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
             fontFamily: 'var(--font-mono)',
             fontWeight: 700,
             cursor: 'pointer',
-            border: filterType === 'all' ? '1px solid var(--color-primary)' : '1px solid var(--card-border)',
-            backgroundColor: filterType === 'all' ? 'rgba(255, 196, 0, 0.18)' : 'transparent',
-            color: filterType === 'all' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+            border: filterType === 'all' ? `1px solid ${tones.accentBorder}` : '1px solid var(--card-border)',
+            backgroundColor: filterType === 'all' ? tones.accentBg : 'transparent',
+            color: filterType === 'all' ? tones.accentText : 'var(--color-on-surface-variant)',
           }}
         >
           Todos ({cards.length})
@@ -3513,9 +3746,9 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
             fontFamily: 'var(--font-mono)',
             fontWeight: 700,
             cursor: 'pointer',
-            border: filterType === 'sealed' ? '1px solid #FF9D00' : '1px solid var(--card-border)',
-            backgroundColor: filterType === 'sealed' ? 'rgba(255, 157, 0, 0.18)' : 'transparent',
-            color: filterType === 'sealed' ? '#FF9D00' : 'var(--color-on-surface-variant)',
+            border: filterType === 'sealed' ? `1px solid ${packBorder}` : '1px solid var(--card-border)',
+            backgroundColor: filterType === 'sealed' ? packBg : 'transparent',
+            color: filterType === 'sealed' ? packAccent : 'var(--color-on-surface-variant)',
             display: 'inline-flex',
             alignItems: 'center',
             gap: '5px',
@@ -3534,9 +3767,9 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
             fontFamily: 'var(--font-mono)',
             fontWeight: 700,
             cursor: 'pointer',
-            border: filterType === 'singles' ? '1px solid #38bdf8' : '1px solid var(--card-border)',
-            backgroundColor: filterType === 'singles' ? 'rgba(56, 189, 248, 0.18)' : 'transparent',
-            color: filterType === 'singles' ? '#38bdf8' : 'var(--color-on-surface-variant)',
+            border: filterType === 'singles' ? `1px solid ${tones.infoBorder}` : '1px solid var(--card-border)',
+            backgroundColor: filterType === 'singles' ? tones.infoBg : 'transparent',
+            color: filterType === 'singles' ? tones.infoText : 'var(--color-on-surface-variant)',
             display: 'inline-flex',
             alignItems: 'center',
             gap: '5px',
@@ -3546,7 +3779,7 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
         </button>
 
         {totalCount > 0 && (
-          <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)' }}>
+          <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--color-on-surface-variant)', fontFamily: 'var(--font-mono)' }}>
             Exibindo {cards.length} de {totalCount} itens encontrados
           </span>
         )}
@@ -3555,11 +3788,11 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
       {/* Resultados da Busca Live */}
       <div style={{ maxHeight: '420px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {isLoading ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-outline)' }}>
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-on-surface-variant)' }}>
             Consultando catálogo oficial e gerando pacotinhos...
           </div>
         ) : filteredCards.length === 0 ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-outline)' }}>
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-on-surface-variant)' }}>
             Nenhum item encontrado para o filtro selecionado. Tente buscar por outro termo ou selecionar &ldquo;Todos&rdquo;.
           </div>
         ) : (
@@ -3570,6 +3803,7 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
 
             const isSealedPack = c.categoria === 'Booster Pack';
             const isSealedBox = c.categoria === 'Booster Box';
+            const hasMarketPrice = c.precoMercadoBrl > 0;
 
             return (
               <div
@@ -3578,44 +3812,49 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
                   padding: '10px 14px',
                   borderRadius: '10px',
                   backgroundColor: isSealedPack
-                    ? 'rgba(255, 157, 0, 0.08)'
+                    ? packBg
                     : isSealedBox
-                      ? 'rgba(255, 196, 0, 0.08)'
+                      ? tones.accentBg
                       : 'var(--color-surface-container-low)',
                   border: isSealedPack
-                    ? '1px solid rgba(255, 157, 0, 0.38)'
+                    ? `1px solid ${packBorder}`
                     : isSealedBox
-                      ? '1px solid rgba(255, 210, 26, 0.38)'
+                      ? `1px solid ${tones.accentBorder}`
                       : '1px solid var(--card-border)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '12px',
+                  flexWrap: 'wrap',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <img
-                    src={c.imagemUrl}
+                    src={c.imagemUrl || nobleLogo}
                     alt={c.nome}
                     style={{
                       width: '44px',
                       height: '58px',
                       borderRadius: '4px',
                       objectFit: 'contain',
-                      backgroundColor: 'rgba(0,0,0,0.2)',
+                      backgroundColor: isLight ? 'var(--color-surface-container-high)' : 'rgba(0,0,0,0.2)',
+                    }}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = nobleLogo;
                     }}
                   />
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px', flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 700, color: 'var(--color-headline)', fontSize: '13.5px' }}>
                         {c.nome}
                       </span>
                       {isSealedPack && (
                         <span
                           style={{
-                            backgroundColor: 'rgba(255, 157, 0, 0.2)',
-                            border: '1px solid rgba(255, 157, 0, 0.45)',
-                            color: '#FF9D00',
+                            backgroundColor: packBg,
+                            border: `1px solid ${packBorder}`,
+                            color: packAccent,
                             padding: '1px 6px',
                             borderRadius: '4px',
                             fontSize: '9.5px',
@@ -3629,9 +3868,9 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
                       {isSealedBox && (
                         <span
                           style={{
-                            backgroundColor: 'rgba(255, 210, 26, 0.2)',
-                            border: '1px solid rgba(255, 210, 26, 0.45)',
-                            color: '#FFD21A',
+                            backgroundColor: tones.accentBg,
+                            border: `1px solid ${tones.accentBorder}`,
+                            color: tones.goldLabel,
                             padding: '1px 6px',
                             borderRadius: '4px',
                             fontSize: '9.5px',
@@ -3643,19 +3882,54 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)', fontFamily: 'var(--font-mono)' }}>
                       {c.colecao} {c.codigoCarta && `• #${c.codigoCarta}`} • {c.raridade}
                     </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--color-primary)', fontSize: '13.5px' }}>
-                    R$ {formatBRL(c.precoMercadoBrl > 0 ? c.precoMercadoBrl : 19.9)}
-                  </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {hasMarketPrice ? (
+                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: tones.accentText, fontSize: '13.5px' }}>
+                      R$ {formatBRL(c.precoMercadoBrl)}
+                    </span>
+                  ) : alreadyInStock ? (
+                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--color-on-surface-variant)', fontSize: '12px' }}>
+                      Sob consulta
+                    </span>
+                  ) : (
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <span style={{ position: 'absolute', left: '8px', fontSize: '11px', fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--color-on-surface-variant)', pointerEvents: 'none' }}>
+                        R$
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={customPrices[c.uid] || ''}
+                        onChange={(e) =>
+                          setCustomPrices((prev) => ({
+                            ...prev,
+                            [c.uid]: formatMoneyInput(e.target.value),
+                          }))
+                        }
+                        placeholder="Preço"
+                        aria-label={`Preço em reais para importar ${c.nome}`}
+                        className="system-input"
+                        style={{
+                          width: '104px',
+                          height: '30px',
+                          paddingLeft: '28px',
+                          paddingRight: '8px',
+                          fontSize: '12px',
+                          fontFamily: 'var(--font-mono)',
+                          fontWeight: 700,
+                        }}
+                      />
+                    </div>
+                  )}
 
                   {alreadyInStock ? (
-                    <span style={{ fontSize: '11px', color: '#4ade80', fontWeight: 700, fontFamily: 'var(--font-mono)', padding: '4px 8px', borderRadius: '6px', backgroundColor: 'rgba(74, 222, 128, 0.12)' }}>
+                    <span style={{ fontSize: '11px', color: tones.successText, fontWeight: 700, fontFamily: 'var(--font-mono)', padding: '4px 8px', borderRadius: '6px', backgroundColor: tones.successBg }}>
                       Já no Estoque
                     </span>
                   ) : (
