@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/ThemeContext';
 import { HeroZoomSlider, type ZoomCardItem } from '../components/HeroZoomSlider';
 import {
   ArrowRight,
@@ -7,7 +8,7 @@ import {
 } from 'lucide-react';
 import type { ExternalCard, GameId, Product } from '../types';
 import { searchLiveCards } from '../services/tcgApi';
-import { externalCardToProduct } from '../services/api';
+import { externalCardToProduct, formatBRL } from '../services/api';
 import nobleLogo from '../assets/noble-logo.png';
 
 import pokemonLogo from '../assets/games/pokemon.png';
@@ -16,6 +17,8 @@ import yugiohLogo from '../assets/games/yugioh.png';
 import onepieceLogo from '../assets/games/onepiece.png';
 
 export const HomePage: React.FC = () => {
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
   const {
     setCurrentTab,
     setSelectedGameFilter,
@@ -44,7 +47,7 @@ export const HomePage: React.FC = () => {
           setLiveApiCards(cards);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       active = false;
     };
@@ -57,14 +60,19 @@ export const HomePage: React.FC = () => {
   };
 
   const heroSliderCards: ZoomCardItem[] = useMemo(() => {
-    const storeCards = activeProducts.filter((p) => Boolean(p.imagemUrl));
+    const validStoreCards = activeProducts.filter((p) => Boolean(p.imagemUrl) && p.preco > 0);
+    const storeCards = validStoreCards.length > 0
+      ? validStoreCards
+      : activeProducts.filter((p) => Boolean(p.imagemUrl));
 
-    // 1. Prioridade absoluta: produtos cadastrados no estoque da loja
+    // 1. Prioridade absoluta: produtos cadastrados no estoque da loja com preço válido
     if (storeCards.length > 0) {
       const sorted = [...storeCards].sort((a, b) => {
         if (a.isDestaque && !b.isDestaque) return -1;
         if (!a.isDestaque && b.isDestaque) return 1;
-        return 0;
+        const aInStock = a.estoque > 0 ? 1 : 0;
+        const bInStock = b.estoque > 0 ? 1 : 0;
+        return bInStock - aInStock;
       });
 
       return sorted.slice(0, 8).map((p, idx) => ({
@@ -84,7 +92,9 @@ export const HomePage: React.FC = () => {
 
     // 2. Fallback caso a loja ainda não tenha produtos cadastrados
     if (liveApiCards.length > 0) {
-      return liveApiCards.slice(0, 8).map((c, idx) => ({
+      const validApi = liveApiCards.filter((c) => c.precoMercadoBrl > 0);
+      const apiPool = validApi.length > 0 ? validApi : liveApiCards;
+      return apiPool.slice(0, 8).map((c, idx) => ({
         id: c.uid,
         number: String(idx + 1).padStart(2, '0'),
         name: c.nome,
@@ -102,10 +112,14 @@ export const HomePage: React.FC = () => {
   }, [activeProducts, liveApiCards]);
 
   const featuredProducts: Product[] = useMemo(() => {
-    const storeFeatured = activeProducts.filter((p) => p.isDestaque);
+    const pricedProducts = activeProducts.filter((p) => p.preco > 0);
+    const storeFeatured = pricedProducts.filter((p) => p.isDestaque);
     if (storeFeatured.length > 0) return storeFeatured.slice(0, 4);
+    if (pricedProducts.length > 0) return pricedProducts.slice(0, 4);
     if (activeProducts.length > 0) return activeProducts.slice(0, 4);
-    return liveApiCards.slice(0, 4).map((c) => externalCardToProduct(c));
+    const validApi = liveApiCards.filter((c) => c.precoMercadoBrl > 0);
+    const apiPool = validApi.length > 0 ? validApi : liveApiCards;
+    return apiPool.slice(0, 4).map((c) => externalCardToProduct(c));
   }, [activeProducts, liveApiCards]);
 
   return (
@@ -447,6 +461,7 @@ export const HomePage: React.FC = () => {
               Produtos em destaque
             </h2>
             <button
+              type="button"
               onClick={() => {
                 setSelectedGameFilter('all');
                 setCurrentTab('products');
@@ -456,7 +471,8 @@ export const HomePage: React.FC = () => {
                 border: 'none',
                 fontFamily: 'var(--font-mono)',
                 fontSize: '13px',
-                color: 'var(--color-primary)',
+                color: isLight ? '#7A4B00' : 'var(--color-primary)',
+                fontWeight: 600,
                 textTransform: 'uppercase',
                 display: 'flex',
                 alignItems: 'center',
@@ -482,158 +498,204 @@ export const HomePage: React.FC = () => {
               Nenhum produto em destaque disponível no momento.
             </div>
           ) : (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-              gap: '28px',
-            }}
-          >
-            {featuredProducts.map((p) => (
-              <div
-                key={p.id}
-                className="tcg-card"
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  height: '100%',
-                }}
-              >
-                <div
-                  style={{
-                    height: '210px',
-                    width: '100%',
-                    padding: '20px',
-                    position: 'relative',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: 'var(--color-surface-container)',
-                  }}
-                >
-                  <img
-                    src={p.imagemUrl || nobleLogo}
-                    alt={p.nome}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                gap: '28px',
+              }}
+            >
+              {featuredProducts.map((p) => {
+                const isExternalUnstocked = Boolean(p.externalCard) || p.id < 0;
+                const isUnpriced = p.preco <= 0;
+                const isUnavailable = isExternalUnstocked || isUnpriced || p.estoque <= 0;
+
+                return (
+                  <div
+                    key={p.id}
+                    className="tcg-card"
                     style={{
-                      maxHeight: '100%',
-                      maxWidth: '100%',
-                      objectFit: 'contain',
-                      zIndex: 2,
-                      filter: 'drop-shadow(0 10px 18px rgba(0, 0, 0, 0.4))',
-                      transition: 'transform 0.3s ease',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      height: '100%',
                     }}
-                  />
+                  >
+                    <div
+                      style={{
+                        height: '210px',
+                        width: '100%',
+                        padding: '20px',
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: 'var(--color-surface-container)',
+                      }}
+                    >
+                      <img
+                        src={p.imagemUrl || nobleLogo}
+                        alt={p.nome}
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = nobleLogo;
+                        }}
+                        style={{
+                          maxHeight: '100%',
+                          maxWidth: '100%',
+                          objectFit: 'contain',
+                          zIndex: 2,
+                          filter: 'drop-shadow(0 10px 18px rgba(0, 0, 0, 0.4))',
+                          transition: 'transform 0.3s ease',
+                        }}
+                      />
 
-                  {p.isNovo && (
-                    <span
-                      style={{
-                        position: 'absolute',
-                        top: '16px',
-                        right: '16px',
-                        backgroundColor: 'var(--color-primary-container)',
-                        color: 'var(--color-on-primary-container)',
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '10px',
-                        textTransform: 'uppercase',
-                        padding: '3px 8px',
-                        borderRadius: 'var(--radius-sm)',
-                        zIndex: 5,
-                      }}
-                    >
-                      Novo
-                    </span>
-                  )}
+                      {p.isNovo && (
+                        <span
+                          style={{
+                            position: 'absolute',
+                            top: '16px',
+                            right: '16px',
+                            backgroundColor: 'var(--color-primary-container)',
+                            color: 'var(--color-on-primary-container)',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '10px',
+                            textTransform: 'uppercase',
+                            padding: '3px 8px',
+                            borderRadius: 'var(--radius-sm)',
+                            zIndex: 5,
+                          }}
+                        >
+                          Novo
+                        </span>
+                      )}
 
-                  {p.raridade === 'Raro' && (
-                    <span
-                      style={{
-                        position: 'absolute',
-                        top: '16px',
-                        right: '16px',
-                        backgroundColor: 'var(--color-accent-yellow)',
-                        color: '#0B0B0B',
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '10px',
-                        textTransform: 'uppercase',
-                        padding: '3px 8px',
-                        borderRadius: 'var(--radius-sm)',
-                        fontWeight: 700,
-                        zIndex: 5,
-                      }}
-                    >
-                      Raro
-                    </span>
-                  )}
-                </div>
+                      {p.raridade === 'Raro' && (
+                        <span
+                          style={{
+                            position: 'absolute',
+                            top: '16px',
+                            right: '16px',
+                            backgroundColor: 'var(--color-accent-yellow)',
+                            color: '#0B0B0B',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '10px',
+                            textTransform: 'uppercase',
+                            padding: '3px 8px',
+                            borderRadius: 'var(--radius-sm)',
+                            fontWeight: 700,
+                            zIndex: 5,
+                          }}
+                        >
+                          Raro
+                        </span>
+                      )}
+                    </div>
 
-                <div
-                  style={{
-                    padding: '20px',
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    borderTop: '1px solid var(--card-border)',
-                    backgroundColor: 'var(--card-bg)',
-                  }}
-                >
-                  <div>
-                    <span
+                    <div
                       style={{
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '11px',
-                        color: 'var(--color-on-surface-variant)',
-                        display: 'block',
-                        marginBottom: '4px',
+                        padding: '20px',
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        borderTop: '1px solid var(--card-border)',
+                        backgroundColor: 'var(--card-bg)',
                       }}
                     >
-                      {p.subtitulo}
-                    </span>
-                    <h3
-                      style={{
-                        fontSize: '17px',
-                        marginBottom: '8px',
-                        fontFamily: 'var(--font-headline)',
-                        fontWeight: 600,
-                        lineHeight: 1.3,
-                      }}
-                    >
-                      {p.nome}
-                    </h3>
-                    <p
-                      style={{
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '18px',
-                        fontWeight: 700,
-                        color: 'var(--color-primary)',
-                        marginBottom: '16px',
-                      }}
-                    >
-                      R$ {p.preco.toFixed(2)}
-                    </p>
+                      <div>
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '11px',
+                            color: 'var(--color-on-surface-variant)',
+                            display: 'block',
+                            marginBottom: '4px',
+                          }}
+                        >
+                          {p.subtitulo}
+                        </span>
+                        <h3
+                          style={{
+                            fontSize: '17px',
+                            marginBottom: '8px',
+                            fontFamily: 'var(--font-headline)',
+                            fontWeight: 600,
+                            lineHeight: 1.3,
+                          }}
+                        >
+                          {p.nome}
+                        </h3>
+                        <p
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '18px',
+                            fontWeight: 700,
+                            color: isUnpriced
+                              ? 'var(--color-on-surface-variant)'
+                              : isLight
+                                ? '#7A4B00'
+                                : 'var(--color-primary)',
+                            marginBottom: '16px',
+                          }}
+                        >
+                          {!isUnpriced ? `R$ ${formatBRL(p.preco)}` : 'Sob consulta'}
+                        </p>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProductForModal(p)}
+                          className="btn-outline"
+                          style={{ flex: 1, padding: '10px 8px' }}
+                        >
+                          Ver produto
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addToCart(p)}
+                          disabled={isUnavailable}
+                          aria-label={
+                            isExternalUnstocked
+                              ? `${p.nome} disponível sob encomenda`
+                              : isUnpriced
+                                ? `${p.nome} com preço sob consulta`
+                                : p.estoque <= 0
+                                  ? `${p.nome} esgotado`
+                                  : `Adicionar ${p.nome} ao carrinho`
+                          }
+                          className="btn-primary"
+                          style={{
+                            padding: isExternalUnstocked ? '10px 12px' : '10px 14px',
+                            fontSize: isExternalUnstocked ? '11px' : undefined,
+                            whiteSpace: 'nowrap',
+                            opacity: isUnavailable ? 0.45 : 1,
+                            cursor: isUnavailable ? 'not-allowed' : 'pointer',
+                          }}
+                          title={
+                            isExternalUnstocked
+                              ? 'Sob Encomenda — solicite importação à loja'
+                              : isUnpriced
+                                ? 'Preço sob consulta'
+                                : p.estoque <= 0
+                                  ? 'Produto esgotado'
+                                  : 'Adicionar ao carrinho'
+                          }
+                        >
+                          {isExternalUnstocked
+                            ? 'Sob Encomenda'
+                            : isUnpriced
+                              ? 'Indisp.'
+                              : p.estoque <= 0
+                                ? 'Esgotado'
+                                : '+'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      onClick={() => setSelectedProductForModal(p)}
-                      className="btn-outline"
-                      style={{ width: '100%', padding: '10px 0' }}
-                    >
-                      Ver produto
-                    </button>
-                    <button
-                      onClick={() => addToCart(p)}
-                      className="btn-primary"
-                      style={{ padding: '10px 14px' }}
-                      title="Adicionar ao carrinho"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </section>

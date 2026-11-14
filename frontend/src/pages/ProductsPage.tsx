@@ -1,13 +1,18 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/ThemeContext';
 import { Search, ShoppingBag, ChevronLeft, ChevronRight, Globe } from 'lucide-react';
 import type { ActiveGameApi, ExternalCard, GameId, ProductCategory } from '../types';
 import { SystemSelect } from '../components/SystemSelect';
 import { searchLiveCards } from '../services/tcgApi';
-import { externalCardToProduct } from '../services/api';
+import { externalCardToProduct, formatBRL } from '../services/api';
 import nobleLogo from '../assets/noble-logo.png';
 
 export const ProductsPage: React.FC = () => {
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
+  const activeAccentText = isLight ? '#7A4B00' : 'var(--color-primary)';
+  const activeSecondaryText = isLight ? '#8F4700' : 'var(--color-secondary)';
   const {
     products,
     selectedGameFilter,
@@ -132,8 +137,16 @@ export const ProductsPage: React.FC = () => {
     const combined = [...storeMatches, ...mappedApiProducts];
 
     return combined.sort((a, b) => {
-      if (sortBy === 'price-asc') return a.preco - b.preco;
-      if (sortBy === 'price-desc') return b.preco - a.preco;
+      if (sortBy === 'price-asc') {
+        if (a.preco <= 0 && b.preco > 0) return 1;
+        if (b.preco <= 0 && a.preco > 0) return -1;
+        return a.preco - b.preco;
+      }
+      if (sortBy === 'price-desc') {
+        if (a.preco <= 0 && b.preco > 0) return 1;
+        if (b.preco <= 0 && a.preco > 0) return -1;
+        return b.preco - a.preco;
+      }
       if (sortBy === 'name') return a.nome.localeCompare(b.nome);
       const aStore = a.id > 0 ? 1 : 0;
       const bStore = b.id > 0 ? 1 : 0;
@@ -160,7 +173,7 @@ export const ProductsPage: React.FC = () => {
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: '12px',
-              color: 'var(--color-primary)',
+              color: activeAccentText,
               textTransform: 'uppercase',
               letterSpacing: '0.08em',
               display: 'block',
@@ -278,10 +291,11 @@ export const ProductsPage: React.FC = () => {
                           : 'var(--color-surface-container-low)',
                       color:
                         catalogSource === src.id
-                          ? 'var(--color-primary)'
+                          ? activeAccentText
                           : 'var(--color-on-surface-variant)',
                       fontFamily: 'var(--font-mono)',
                       fontSize: '11px',
+                      fontWeight: catalogSource === src.id ? 700 : 500,
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
                     }}
@@ -315,6 +329,7 @@ export const ProductsPage: React.FC = () => {
             {games.map((g) => (
               <button
                 key={g.id}
+                type="button"
                 onClick={() => setSelectedGameFilter(g.id)}
                 style={{
                   padding: '8px 16px',
@@ -329,10 +344,11 @@ export const ProductsPage: React.FC = () => {
                       : 'var(--color-surface-container-low)',
                   color:
                     selectedGameFilter === g.id
-                      ? 'var(--color-primary)'
+                      ? activeAccentText
                       : 'var(--color-on-surface-variant)',
                   fontFamily: 'var(--font-mono)',
                   fontSize: '12px',
+                  fontWeight: selectedGameFilter === g.id ? 700 : 500,
                   textTransform: 'uppercase',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
@@ -353,6 +369,7 @@ export const ProductsPage: React.FC = () => {
             }}
           >
             <button
+              type="button"
               onClick={() => setSelectedCategory('all')}
               style={{
                 padding: '4px 12px',
@@ -363,9 +380,10 @@ export const ProductsPage: React.FC = () => {
                     ? 'rgba(255, 157, 0, 0.18)'
                     : 'transparent',
                 color:
-                  selectedCategory === 'all' ? 'var(--color-secondary)' : 'var(--color-outline)',
+                  selectedCategory === 'all' ? activeSecondaryText : 'var(--color-outline)',
                 fontFamily: 'var(--font-mono)',
                 fontSize: '11px',
+                fontWeight: selectedCategory === 'all' ? 700 : 500,
                 cursor: 'pointer',
               }}
             >
@@ -374,6 +392,7 @@ export const ProductsPage: React.FC = () => {
             {categories.map((cat) => (
               <button
                 key={cat}
+                type="button"
                 onClick={() => setSelectedCategory(cat)}
                 style={{
                   padding: '4px 12px',
@@ -384,9 +403,10 @@ export const ProductsPage: React.FC = () => {
                       ? 'rgba(255, 157, 0, 0.18)'
                       : 'transparent',
                   color:
-                    selectedCategory === cat ? 'var(--color-secondary)' : 'var(--color-outline)',
+                    selectedCategory === cat ? activeSecondaryText : 'var(--color-outline)',
                   fontFamily: 'var(--font-mono)',
                   fontSize: '11px',
+                  fontWeight: selectedCategory === cat ? 700 : 500,
                   cursor: 'pointer',
                 }}
               >
@@ -412,7 +432,7 @@ export const ProductsPage: React.FC = () => {
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
             {isLoadingApi ? (
               <>
-                <Globe size={14} color="var(--color-primary)" />
+                <Globe size={14} color={activeAccentText} />
                 <span>Consultando acervo oficial de cartas...</span>
               </>
             ) : (
@@ -421,6 +441,7 @@ export const ProductsPage: React.FC = () => {
           </span>
           {(selectedGameFilter !== 'all' || selectedCategory !== 'all' || searchQuery || catalogSource !== 'all') && (
             <button
+              type="button"
               onClick={() => {
                 setSelectedGameFilter('all');
                 setSelectedCategory('all');
@@ -430,8 +451,9 @@ export const ProductsPage: React.FC = () => {
               style={{
                 background: 'none',
                 border: 'none',
-                color: 'var(--color-secondary)',
+                color: activeSecondaryText,
                 fontSize: '12px',
+                fontWeight: 600,
                 cursor: 'pointer',
                 textDecoration: 'underline',
               }}
@@ -475,180 +497,222 @@ export const ProductsPage: React.FC = () => {
                 gap: '28px',
               }}
             >
-              {filteredProducts.map((p) => (
-                <div
-                  key={p.id}
-                  className="tcg-card"
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    height: '100%',
-                  }}
-                >
+              {filteredProducts.map((p) => {
+                const isExternalUnstocked = Boolean(p.externalCard) || p.id < 0;
+                const isUnpriced = p.preco <= 0;
+                const isUnavailable = isExternalUnstocked || isUnpriced || p.estoque <= 0;
+
+                return (
                   <div
+                    key={p.id}
+                    className="tcg-card"
                     style={{
-                      height: '220px',
-                      width: '100%',
-                      padding: '16px',
-                      position: 'relative',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: 'var(--color-surface-container)',
-                    }}
-                  >
-                    <img
-                      src={p.imagemUrl || nobleLogo}
-                      alt={p.nome}
-                      loading="lazy"
-                      style={{
-                        maxHeight: '100%',
-                        maxWidth: '100%',
-                        objectFit: 'contain',
-                        zIndex: 2,
-                        filter: 'drop-shadow(0 10px 18px rgba(0, 0, 0, 0.4))',
-                        transition: 'transform 0.3s ease',
-                      }}
-                    />
-
-                    {p.isNovo && (
-                      <span
-                        style={{
-                          position: 'absolute',
-                          top: '12px',
-                          right: '12px',
-                          backgroundColor: 'var(--color-primary-container)',
-                          color: 'var(--color-on-primary-container)',
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: '10px',
-                          textTransform: 'uppercase',
-                          padding: '3px 8px',
-                          borderRadius: 'var(--radius-sm)',
-                          zIndex: 5,
-                        }}
-                      >
-                        Novo
-                      </span>
-                    )}
-
-                    {p.raridade && (
-                      <span
-                        style={{
-                          position: 'absolute',
-                          top: '12px',
-                          left: '12px',
-                          backgroundColor: 'var(--color-surface-container)',
-                          border: '1px solid var(--card-border)',
-                          color: 'var(--color-secondary)',
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: '10px',
-                          padding: '2px 6px',
-                          borderRadius: 'var(--radius-sm)',
-                          zIndex: 5,
-                          maxWidth: '140px',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {p.raridade}
-                      </span>
-                    )}
-                  </div>
-
-                  <div
-                    style={{
-                      padding: '20px',
-                      flex: 1,
                       display: 'flex',
                       flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      borderTop: '1px solid var(--card-border)',
-                      backgroundColor: 'var(--card-bg)',
+                      height: '100%',
                     }}
                   >
-                    <div>
-                      <span
-                        style={{
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: '11px',
-                          color: 'var(--color-on-surface-variant)',
-                          display: 'block',
-                          marginBottom: '4px',
+                    <div
+                      style={{
+                        height: '220px',
+                        width: '100%',
+                        padding: '16px',
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: 'var(--color-surface-container)',
+                      }}
+                    >
+                      <img
+                        src={p.imagemUrl || nobleLogo}
+                        alt={p.nome}
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = nobleLogo;
                         }}
-                      >
-                        {p.subtitulo}
-                      </span>
-                      <h3
                         style={{
-                          fontSize: '17px',
-                          marginBottom: '8px',
-                          fontFamily: 'var(--font-headline)',
-                          fontWeight: 600,
-                          lineHeight: 1.3,
+                          maxHeight: '100%',
+                          maxWidth: '100%',
+                          objectFit: 'contain',
+                          zIndex: 2,
+                          filter: 'drop-shadow(0 10px 18px rgba(0, 0, 0, 0.4))',
+                          transition: 'transform 0.3s ease',
                         }}
-                      >
-                        {p.nome}
-                      </h3>
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'baseline',
-                          marginBottom: '16px',
-                        }}
-                      >
-                        <p
-                          style={{
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: '19px',
-                            fontWeight: 700,
-                            color: 'var(--color-primary)',
-                          }}
-                        >
-                          R$ {p.preco.toFixed(2)}
-                        </p>
+                      />
+
+                      {p.isNovo && (
                         <span
                           style={{
-                            fontSize: '11px',
+                            position: 'absolute',
+                            top: '12px',
+                            right: '12px',
+                            backgroundColor: 'var(--color-primary-container)',
+                            color: 'var(--color-on-primary-container)',
                             fontFamily: 'var(--font-mono)',
-                            color: p.estoque > 0 ? 'var(--color-outline)' : 'var(--color-error)',
+                            fontSize: '10px',
+                            textTransform: 'uppercase',
+                            padding: '3px 8px',
+                            borderRadius: 'var(--radius-sm)',
+                            zIndex: 5,
                           }}
                         >
-                          {p.externalCard
-                            ? 'Sob encomenda'
-                            : p.estoque > 0
-                              ? `${p.estoque} em estoque`
-                              : 'Esgotado'}
+                          Novo
                         </span>
-                      </div>
+                      )}
+
+                      {p.raridade && (
+                        <span
+                          style={{
+                            position: 'absolute',
+                            top: '12px',
+                            left: '12px',
+                            backgroundColor: 'var(--color-surface-container)',
+                            border: '1px solid var(--card-border)',
+                            color: activeSecondaryText,
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: 'var(--radius-sm)',
+                            zIndex: 5,
+                            maxWidth: '140px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {p.raridade}
+                        </span>
+                      )}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        onClick={() => setSelectedProductForModal(p)}
-                        className="btn-outline"
-                        style={{ flex: 1, padding: '10px 0' }}
-                      >
-                        Ver detalhes
-                      </button>
-                      <button
-                        onClick={() => addToCart(p)}
-                        disabled={p.estoque <= 0}
-                        className="btn-primary"
-                        style={{
-                          padding: '10px 14px',
-                          opacity: p.estoque <= 0 ? 0.3 : 1,
-                          cursor: p.estoque <= 0 ? 'not-allowed' : 'pointer',
-                        }}
-                        title={p.estoque > 0 ? 'Adicionar ao carrinho' : 'Sem estoque'}
-                      >
-                        <ShoppingBag size={16} />
-                      </button>
+                    <div
+                      style={{
+                        padding: '20px',
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        borderTop: '1px solid var(--card-border)',
+                        backgroundColor: 'var(--card-bg)',
+                      }}
+                    >
+                      <div>
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '11px',
+                            color: 'var(--color-on-surface-variant)',
+                            display: 'block',
+                            marginBottom: '4px',
+                          }}
+                        >
+                          {p.subtitulo}
+                        </span>
+                        <h3
+                          style={{
+                            fontSize: '17px',
+                            marginBottom: '8px',
+                            fontFamily: 'var(--font-headline)',
+                            fontWeight: 600,
+                            lineHeight: 1.3,
+                          }}
+                        >
+                          {p.nome}
+                        </h3>
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'baseline',
+                            marginBottom: '16px',
+                            gap: '8px',
+                          }}
+                        >
+                          <p
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: '19px',
+                              fontWeight: 700,
+                              color: isUnpriced ? 'var(--color-on-surface-variant)' : activeAccentText,
+                            }}
+                          >
+                            {!isUnpriced ? `R$ ${formatBRL(p.preco)}` : 'Sob consulta'}
+                          </p>
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontFamily: 'var(--font-mono)',
+                              color:
+                                isExternalUnstocked || p.estoque > 0
+                                  ? 'var(--color-outline)'
+                                  : isLight
+                                    ? '#b91c1c'
+                                    : 'var(--color-error)',
+                            }}
+                          >
+                            {isExternalUnstocked
+                              ? 'Sob encomenda'
+                              : p.estoque > 0
+                                ? `${p.estoque} em estoque`
+                                : 'Esgotado'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProductForModal(p)}
+                          className="btn-outline"
+                          style={{ flex: 1, padding: '10px 8px' }}
+                        >
+                          Ver detalhes
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addToCart(p)}
+                          disabled={isUnavailable}
+                          aria-label={
+                            isExternalUnstocked
+                              ? `${p.nome} disponível sob encomenda`
+                              : isUnpriced
+                                ? `${p.nome} com preço sob consulta`
+                                : p.estoque <= 0
+                                  ? `${p.nome} esgotado`
+                                  : `Adicionar ${p.nome} ao carrinho`
+                          }
+                          className="btn-primary"
+                          style={{
+                            padding: isExternalUnstocked ? '10px 12px' : '10px 14px',
+                            fontSize: isExternalUnstocked ? '11px' : undefined,
+                            whiteSpace: 'nowrap',
+                            opacity: isUnavailable ? 0.45 : 1,
+                            cursor: isUnavailable ? 'not-allowed' : 'pointer',
+                          }}
+                          title={
+                            isExternalUnstocked
+                              ? 'Sob Encomenda — solicite importação à equipe'
+                              : isUnpriced
+                                ? 'Produto sob consulta'
+                                : p.estoque > 0
+                                  ? 'Adicionar ao carrinho'
+                                  : 'Sem estoque'
+                          }
+                        >
+                          {isExternalUnstocked ? (
+                            <span>Sob Encomenda</span>
+                          ) : (
+                            <ShoppingBag size={16} />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {shouldFetchApi && apiCards.length > 0 && (
