@@ -853,7 +853,7 @@ export const AdminPage: React.FC = () => {
           style={{
             padding: '20px',
             borderRadius: '16px',
-            border: '1px solid rgba(216, 185, 255, 0.25)',
+            border: '1px solid rgba(255, 210, 26, 0.25)',
             position: 'relative',
             overflow: 'hidden',
           }}
@@ -862,7 +862,7 @@ export const AdminPage: React.FC = () => {
             <span style={{ fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Valor Total em Estoque
             </span>
-            <div style={{ padding: '6px', borderRadius: '8px', backgroundColor: 'rgba(216, 185, 255, 0.12)' }}>
+            <div style={{ padding: '6px', borderRadius: '8px', backgroundColor: 'rgba(255, 196, 0, 0.14)' }}>
               <DollarSign size={16} color="var(--color-primary)" />
             </div>
           </div>
@@ -887,7 +887,7 @@ export const AdminPage: React.FC = () => {
             <span style={{ fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Inventário Físico
             </span>
-            <div style={{ padding: '6px', borderRadius: '8px', backgroundColor: 'rgba(232, 179, 255, 0.12)' }}>
+            <div style={{ padding: '6px', borderRadius: '8px', backgroundColor: 'rgba(255, 157, 0, 0.14)' }}>
               <Boxes size={16} color="var(--color-secondary)" />
             </div>
           </div>
@@ -946,7 +946,7 @@ export const AdminPage: React.FC = () => {
             padding: '20px',
             borderRadius: '16px',
             border: activeAdminTab === 'api-catalog' ? '1px solid var(--color-primary)' : '1px solid var(--card-border)',
-            backgroundColor: activeAdminTab === 'api-catalog' ? 'rgba(216, 185, 255, 0.1)' : 'transparent',
+            backgroundColor: activeAdminTab === 'api-catalog' ? 'rgba(255, 196, 0, 0.12)' : 'transparent',
             cursor: 'pointer',
             transition: 'transform 0.2s ease',
           }}
@@ -956,7 +956,7 @@ export const AdminPage: React.FC = () => {
             <span style={{ fontSize: '11px', color: 'var(--color-outline)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Catálogo Oficial Global
             </span>
-            <div style={{ padding: '6px', borderRadius: '8px', backgroundColor: 'rgba(216, 185, 255, 0.12)' }}>
+            <div style={{ padding: '6px', borderRadius: '8px', backgroundColor: 'rgba(255, 196, 0, 0.14)' }}>
               <Globe size={16} color="var(--color-primary)" />
             </div>
           </div>
@@ -989,8 +989,8 @@ export const AdminPage: React.FC = () => {
           style={{
             padding: '10px 18px',
             borderRadius: '10px',
-            border: activeAdminTab === 'product-control' ? '1px solid rgba(216, 185, 255, 0.35)' : '1px solid transparent',
-            backgroundColor: activeAdminTab === 'product-control' ? 'rgba(216, 185, 255, 0.14)' : 'transparent',
+            border: activeAdminTab === 'product-control' ? '1px solid rgba(255, 210, 26, 0.35)' : '1px solid transparent',
+            backgroundColor: activeAdminTab === 'product-control' ? 'rgba(255, 196, 0, 0.15)' : 'transparent',
             color: activeAdminTab === 'product-control' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
             fontFamily: 'var(--font-mono)',
             fontSize: '13px',
@@ -1012,8 +1012,8 @@ export const AdminPage: React.FC = () => {
           style={{
             padding: '10px 18px',
             borderRadius: '10px',
-            border: activeAdminTab === 'movements' ? '1px solid rgba(216, 185, 255, 0.35)' : '1px solid transparent',
-            backgroundColor: activeAdminTab === 'movements' ? 'rgba(216, 185, 255, 0.14)' : 'transparent',
+            border: activeAdminTab === 'movements' ? '1px solid rgba(255, 210, 26, 0.35)' : '1px solid transparent',
+            backgroundColor: activeAdminTab === 'movements' ? 'rgba(255, 196, 0, 0.15)' : 'transparent',
             color: activeAdminTab === 'movements' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
             fontFamily: 'var(--font-mono)',
             fontSize: '13px',
@@ -1035,8 +1035,8 @@ export const AdminPage: React.FC = () => {
           style={{
             padding: '10px 18px',
             borderRadius: '10px',
-            border: activeAdminTab === 'orders' ? '1px solid rgba(216, 185, 255, 0.35)' : '1px solid transparent',
-            backgroundColor: activeAdminTab === 'orders' ? 'rgba(216, 185, 255, 0.14)' : 'transparent',
+            border: activeAdminTab === 'orders' ? '1px solid rgba(255, 210, 26, 0.35)' : '1px solid transparent',
+            backgroundColor: activeAdminTab === 'orders' ? 'rgba(255, 196, 0, 0.15)' : 'transparent',
             color: activeAdminTab === 'orders' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
             fontFamily: 'var(--font-mono)',
             fontSize: '13px',
@@ -1058,8 +1058,8 @@ export const AdminPage: React.FC = () => {
           style={{
             padding: '10px 18px',
             borderRadius: '10px',
-            border: activeAdminTab === 'users' ? '1px solid rgba(216, 185, 255, 0.35)' : '1px solid transparent',
-            backgroundColor: activeAdminTab === 'users' ? 'rgba(216, 185, 255, 0.14)' : 'transparent',
+            border: activeAdminTab === 'users' ? '1px solid rgba(255, 210, 26, 0.35)' : '1px solid transparent',
+            backgroundColor: activeAdminTab === 'users' ? 'rgba(255, 196, 0, 0.15)' : 'transparent',
             color: activeAdminTab === 'users' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
             fontFamily: 'var(--font-mono)',
             fontSize: '13px',
@@ -1096,7 +1096,7 @@ export const AdminPage: React.FC = () => {
               padding: '24px',
               borderRadius: '16px',
               marginBottom: '20px',
-              border: '1px solid rgba(216, 185, 255, 0.25)',
+              border: '1px solid rgba(255, 210, 26, 0.25)',
             }}
           >
             <div
@@ -1146,7 +1146,7 @@ export const AdminPage: React.FC = () => {
                   fontWeight: 700,
                   cursor: 'pointer',
                   border: apiGameFilter === 'all' ? '1px solid var(--color-primary)' : '1px solid var(--card-border)',
-                  backgroundColor: apiGameFilter === 'all' ? 'rgba(216, 185, 255, 0.15)' : 'transparent',
+                  backgroundColor: apiGameFilter === 'all' ? 'rgba(255, 196, 0, 0.16)' : 'transparent',
                   color: apiGameFilter === 'all' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
                 }}
               >
@@ -1164,7 +1164,7 @@ export const AdminPage: React.FC = () => {
                   fontWeight: 700,
                   cursor: 'pointer',
                   border: apiGameFilter === 'pokemon' ? '1px solid var(--color-accent-purple)' : '1px solid var(--card-border)',
-                  backgroundColor: apiGameFilter === 'pokemon' ? 'rgba(216, 185, 255, 0.15)' : 'transparent',
+                  backgroundColor: apiGameFilter === 'pokemon' ? 'rgba(255, 196, 0, 0.16)' : 'transparent',
                   color: apiGameFilter === 'pokemon' ? 'var(--color-accent-purple)' : 'var(--color-on-surface-variant)',
                 }}
               >
@@ -1182,7 +1182,7 @@ export const AdminPage: React.FC = () => {
                   fontWeight: 700,
                   cursor: 'pointer',
                   border: apiGameFilter === 'magic' ? '1px solid var(--color-accent-pink)' : '1px solid var(--card-border)',
-                  backgroundColor: apiGameFilter === 'magic' ? 'rgba(232, 179, 255, 0.15)' : 'transparent',
+                  backgroundColor: apiGameFilter === 'magic' ? 'rgba(255, 157, 0, 0.16)' : 'transparent',
                   color: apiGameFilter === 'magic' ? 'var(--color-accent-pink)' : 'var(--color-on-surface-variant)',
                 }}
               >
@@ -1200,7 +1200,7 @@ export const AdminPage: React.FC = () => {
                   fontWeight: 700,
                   cursor: 'pointer',
                   border: apiGameFilter === 'yugioh' ? '1px solid var(--color-accent-yellow)' : '1px solid var(--card-border)',
-                  backgroundColor: apiGameFilter === 'yugioh' ? 'rgba(250, 204, 21, 0.15)' : 'transparent',
+                  backgroundColor: apiGameFilter === 'yugioh' ? 'rgba(255, 210, 26, 0.16)' : 'transparent',
                   color: apiGameFilter === 'yugioh' ? 'var(--color-accent-yellow)' : 'var(--color-on-surface-variant)',
                 }}
               >
@@ -1298,7 +1298,7 @@ export const AdminPage: React.FC = () => {
                   fontWeight: 700,
                   cursor: 'pointer',
                   border: apiFilterType === 'all' ? '1px solid var(--color-primary)' : '1px solid var(--card-border)',
-                  backgroundColor: apiFilterType === 'all' ? 'rgba(216, 185, 255, 0.18)' : 'transparent',
+                  backgroundColor: apiFilterType === 'all' ? 'rgba(255, 196, 0, 0.18)' : 'transparent',
                   color: apiFilterType === 'all' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
                 }}
               >
@@ -1315,9 +1315,9 @@ export const AdminPage: React.FC = () => {
                   fontFamily: 'var(--font-mono)',
                   fontWeight: 700,
                   cursor: 'pointer',
-                  border: apiFilterType === 'sealed' ? '1px solid #ec4899' : '1px solid var(--card-border)',
-                  backgroundColor: apiFilterType === 'sealed' ? 'rgba(236, 72, 153, 0.18)' : 'transparent',
-                  color: apiFilterType === 'sealed' ? '#f472b6' : 'var(--color-on-surface-variant)',
+                  border: apiFilterType === 'sealed' ? '1px solid #FF9D00' : '1px solid var(--card-border)',
+                  backgroundColor: apiFilterType === 'sealed' ? 'rgba(255, 157, 0, 0.18)' : 'transparent',
+                  color: apiFilterType === 'sealed' ? '#FF9D00' : 'var(--color-on-surface-variant)',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '5px',

@@ -105,7 +105,7 @@ export const ProductModal: React.FC = () => {
               width: '260px',
               height: '260px',
               borderRadius: '50%',
-              backgroundColor: 'rgba(140, 86, 212, 0.25)',
+              backgroundColor: 'rgba(255, 196, 0, 0.22)',
               filter: 'blur(60px)',
               pointerEvents: 'none',
             }}

@@ -129,7 +129,7 @@ export const CartDrawer: React.FC = () => {
                 width: '64px',
                 height: '64px',
                 borderRadius: '50%',
-                backgroundColor: 'rgba(140, 86, 212, 0.2)',
+                backgroundColor: 'rgba(255, 196, 0, 0.16)',
                 border: '2px solid var(--color-primary)',
                 display: 'flex',
                 alignItems: 'center',

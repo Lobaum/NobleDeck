@@ -274,7 +274,7 @@ export const ProductsPage: React.FC = () => {
                           : '1px solid var(--nav-border)',
                       backgroundColor:
                         catalogSource === src.id
-                          ? 'rgba(140, 86, 212, 0.22)'
+                          ? 'rgba(255, 196, 0, 0.2)'
                           : 'var(--color-surface-container-low)',
                       color:
                         catalogSource === src.id
@@ -325,7 +325,7 @@ export const ProductsPage: React.FC = () => {
                       : '1px solid var(--nav-border)',
                   backgroundColor:
                     selectedGameFilter === g.id
-                      ? 'rgba(140, 86, 212, 0.22)'
+                      ? 'rgba(255, 196, 0, 0.2)'
                       : 'var(--color-surface-container-low)',
                   color:
                     selectedGameFilter === g.id
@@ -360,7 +360,7 @@ export const ProductsPage: React.FC = () => {
                 border: 'none',
                 backgroundColor:
                   selectedCategory === 'all'
-                    ? 'rgba(220, 149, 255, 0.2)'
+                    ? 'rgba(255, 157, 0, 0.18)'
                     : 'transparent',
                 color:
                   selectedCategory === 'all' ? 'var(--color-secondary)' : 'var(--color-outline)',
@@ -381,7 +381,7 @@ export const ProductsPage: React.FC = () => {
                   border: 'none',
                   backgroundColor:
                     selectedCategory === cat
-                      ? 'rgba(220, 149, 255, 0.2)'
+                      ? 'rgba(255, 157, 0, 0.18)'
                       : 'transparent',
                   color:
                     selectedCategory === cat ? 'var(--color-secondary)' : 'var(--color-outline)',
@@ -518,7 +518,7 @@ export const ProductsPage: React.FC = () => {
                           top: '12px',
                           right: '12px',
                           backgroundColor: 'var(--color-primary-container)',
-                          color: '#ffffff',
+                          color: 'var(--color-on-primary-container)',
                           fontFamily: 'var(--font-mono)',
                           fontSize: '10px',
                           textTransform: 'uppercase',

@@ -33,9 +33,9 @@ import { SystemModal } from '../components/SystemModal';
 import { searchLiveCards, getPokemonSets, type PokemonSetOption } from '../services/tcgApi';
 
 const GAME_OPTIONS: { value: GameId; label: string; badge: string; color: string }[] = [
-  { value: 'pokemon', label: 'Pokémon TCG', badge: 'POKÉMON', color: '#ffcb05' },
-  { value: 'magic', label: 'Magic: The Gathering', badge: 'MTG', color: '#f97316' },
-  { value: 'yugioh', label: 'Yu-Gi-Oh!', badge: 'YGO', color: '#a855f7' },
+  { value: 'pokemon', label: 'Pokémon TCG', badge: 'POKÉMON', color: '#FFC400' },
+  { value: 'magic', label: 'Magic: The Gathering', badge: 'MTG', color: '#FF9D00' },
+  { value: 'yugioh', label: 'Yu-Gi-Oh!', badge: 'YGO', color: '#FFD21A' },
   { value: 'onepiece', label: 'One Piece Card Game', badge: 'OP', color: '#ef4444' },
   { value: 'outros', label: 'Acessórios / Geral', badge: 'GERAL', color: '#38bdf8' },
 ];
@@ -127,7 +127,7 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
   const isSealedBox = product.categoria === 'Booster Box';
 
   const gameOption = GAME_OPTIONS.find((g) => g.value === product.jogo);
-  const gameBadgeColor = gameOption?.color || '#a855f7';
+  const gameBadgeColor = gameOption?.color || '#FFC400';
 
   return (
     <div
@@ -143,7 +143,7 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
         opacity: isInactive ? 0.6 : 1,
         filter: isInactive ? 'grayscale(0.65)' : 'none',
         cursor: 'pointer',
-        backgroundColor: 'var(--card-bg, #13101c)',
+        backgroundColor: 'var(--card-bg, #171717)',
         border: isSelected
           ? '2px solid var(--color-primary)'
           : isCriticalStock
@@ -161,7 +161,7 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
         width: '100%',
         margin: '0 auto',
         boxShadow: tilt.active
-          ? '0 18px 40px -10px rgba(0, 0, 0, 0.5), 0 0 20px rgba(168, 85, 247, 0.2)'
+          ? '0 18px 40px -10px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 210, 26, 0.2)'
           : '0 4px 14px rgba(0, 0, 0, 0.15)',
       }}
     >
@@ -170,7 +170,7 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
         className="holo-glare-overlay"
         style={{
           opacity: tilt.active ? 1 : 0,
-          background: `radial-gradient(circle at ${tilt.gx}% ${tilt.gy}%, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.08) 35%, transparent 70%), linear-gradient(${tilt.ry * 8 + 135}deg, rgba(255,0,128,0.25) 0%, rgba(0,255,255,0.2) 50%, rgba(255,215,0,0.25) 100%)`,
+          background: `radial-gradient(circle at ${tilt.gx}% ${tilt.gy}%, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.08) 35%, transparent 70%), linear-gradient(${tilt.ry * 8 + 135}deg, rgba(255, 196, 0, 0.22) 0%, rgba(250, 250, 250, 0.16) 50%, rgba(255, 157, 0, 0.22) 100%)`,
         }}
       />
 
@@ -234,7 +234,7 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
           position: 'relative',
           marginBottom: '12px',
           borderRadius: '12px',
-          background: 'radial-gradient(circle, rgba(168, 85, 247, 0.08) 0%, rgba(0,0,0,0.25) 100%)',
+          background: 'radial-gradient(circle, rgba(255, 196, 0, 0.08) 0%, rgba(0,0,0,0.25) 100%)',
           overflow: 'hidden',
           zIndex: 6,
           padding: '4px',
@@ -570,7 +570,7 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                 fontWeight: 800,
                 padding: '3px 8px',
                 borderRadius: '6px',
-                backgroundColor: 'rgba(168, 85, 247, 0.15)',
+                backgroundColor: 'rgba(255, 196, 0, 0.15)',
                 color: 'var(--color-primary)',
               }}
             >
@@ -643,9 +643,9 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                 justifyContent: 'center',
                 padding: '10px',
                 borderRadius: '16px',
-                background: 'radial-gradient(circle, rgba(168, 85, 247, 0.15) 0%, rgba(0,0,0,0.35) 100%)',
+                background: 'radial-gradient(circle, rgba(255, 196, 0, 0.15) 0%, rgba(0,0,0,0.35) 100%)',
                 border: '1px solid var(--card-border)',
-                boxShadow: '0 16px 36px -10px rgba(0,0,0,0.55), 0 0 20px rgba(168, 85, 247, 0.15)',
+                boxShadow: '0 16px 36px -10px rgba(0,0,0,0.55), 0 0 20px rgba(255, 196, 0, 0.15)',
                 maxWidth: isSealedBox ? '340px' : '230px',
                 width: 'fit-content',
                 margin: '0 auto',
@@ -861,7 +861,7 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                     fontSize: '11px',
                     fontWeight: 700,
                     fontFamily: 'var(--font-mono)',
-                    backgroundColor: percentDiff === 5 ? 'rgba(168, 85, 247, 0.15)' : undefined,
+                    backgroundColor: percentDiff === 5 ? 'rgba(255, 196, 0, 0.15)' : undefined,
                     borderColor: percentDiff === 5 ? 'var(--color-primary)' : undefined,
                     color: percentDiff === 5 ? 'var(--color-primary)' : undefined,
                   }}
@@ -878,7 +878,7 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                     fontSize: '11px',
                     fontWeight: 700,
                     fontFamily: 'var(--font-mono)',
-                    backgroundColor: percentDiff === 10 ? 'rgba(168, 85, 247, 0.15)' : undefined,
+                    backgroundColor: percentDiff === 10 ? 'rgba(255, 196, 0, 0.15)' : undefined,
                     borderColor: percentDiff === 10 ? 'var(--color-primary)' : undefined,
                     color: percentDiff === 10 ? 'var(--color-primary)' : undefined,
                   }}
@@ -894,8 +894,8 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                   style={{
                     padding: '8px 12px',
                     borderRadius: '8px',
-                    backgroundColor: percentDiff < 0 ? 'rgba(74, 222, 128, 0.1)' : 'rgba(168, 85, 247, 0.1)',
-                    border: percentDiff < 0 ? '1px solid rgba(74, 222, 128, 0.35)' : '1px solid rgba(168, 85, 247, 0.35)',
+                    backgroundColor: percentDiff < 0 ? 'rgba(74, 222, 128, 0.1)' : 'rgba(255, 196, 0, 0.12)',
+                    border: percentDiff < 0 ? '1px solid rgba(74, 222, 128, 0.35)' : '1px solid rgba(255, 210, 26, 0.38)',
                     marginBottom: '10px',
                     display: 'flex',
                     alignItems: 'center',
@@ -910,7 +910,7 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                         padding: '2px 6px',
                         borderRadius: '4px',
                         backgroundColor: percentDiff < 0 ? '#4ade80' : 'var(--color-primary)',
-                        color: percentDiff < 0 ? '#000' : '#fff',
+                        color: '#0B0B0B',
                         fontFamily: 'var(--font-mono)',
                       }}
                     >
@@ -1616,7 +1616,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                   fontWeight: 700,
                   cursor: 'pointer',
                   border: statusFilter === tab.id ? '1px solid var(--color-primary)' : '1px solid transparent',
-                  backgroundColor: statusFilter === tab.id ? 'rgba(168, 85, 247, 0.16)' : 'var(--color-surface-container-low)',
+                  backgroundColor: statusFilter === tab.id ? 'rgba(255, 196, 0, 0.16)' : 'var(--color-surface-container-low)',
                   color: statusFilter === tab.id ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
                   transition: 'all 0.15s ease',
                 }}
@@ -1650,7 +1650,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                 fontSize: '11.5px',
                 fontWeight: 700,
                 backgroundColor: viewMode === 'table' ? 'var(--color-primary)' : 'transparent',
-                color: viewMode === 'table' ? '#fff' : 'var(--color-on-surface-variant)',
+                color: viewMode === 'table' ? 'var(--color-on-primary)' : 'var(--color-on-surface-variant)',
                 transition: 'all 0.15s ease',
               }}
             >
@@ -1670,7 +1670,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                 fontSize: '11.5px',
                 fontWeight: 700,
                 backgroundColor: viewMode === 'grid' ? 'var(--color-primary)' : 'transparent',
-                color: viewMode === 'grid' ? '#fff' : 'var(--color-on-surface-variant)',
+                color: viewMode === 'grid' ? 'var(--color-on-primary)' : 'var(--color-on-surface-variant)',
                 transition: 'all 0.15s ease',
               }}
             >
@@ -1886,7 +1886,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                         cursor: 'pointer',
                         borderBottom: '1px solid var(--card-border)',
                         backgroundColor: isSelected
-                          ? 'rgba(168, 85, 247, 0.08)'
+                          ? 'rgba(255, 196, 0, 0.08)'
                           : isInactive
                             ? 'rgba(0, 0, 0, 0.15)'
                             : 'transparent',
@@ -2008,7 +2008,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                               gap: '5px',
                             }}
                           >
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: gameOpt?.color || '#a855f7' }} />
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: gameOpt?.color || '#FFC400' }} />
                             {gameOpt?.label || p.jogo}
                           </span>
                           <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)' }}>
@@ -2038,7 +2038,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                               onClick={(e) => handleSaveInlinePrice(p.id, e)}
                               style={{
                                 background: 'var(--color-primary)',
-                                color: '#fff',
+                                color: 'var(--color-on-primary)',
                                 border: 'none',
                                 borderRadius: '6px',
                                 padding: '4px 6px',
@@ -2078,7 +2078,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                               transition: 'background-color 0.15s ease',
                             }}
                             title="Clique para editar o preço rapidamente"
-                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(168, 85, 247, 0.1)')}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 196, 0, 0.12)')}
                             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                           >
                             <span style={{ fontSize: '13px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--color-primary)' }}>
@@ -3496,7 +3496,7 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
             fontWeight: 700,
             cursor: 'pointer',
             border: filterType === 'all' ? '1px solid var(--color-primary)' : '1px solid var(--card-border)',
-            backgroundColor: filterType === 'all' ? 'rgba(216, 185, 255, 0.18)' : 'transparent',
+            backgroundColor: filterType === 'all' ? 'rgba(255, 196, 0, 0.18)' : 'transparent',
             color: filterType === 'all' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
           }}
         >
@@ -3513,9 +3513,9 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
             fontFamily: 'var(--font-mono)',
             fontWeight: 700,
             cursor: 'pointer',
-            border: filterType === 'sealed' ? '1px solid #ec4899' : '1px solid var(--card-border)',
-            backgroundColor: filterType === 'sealed' ? 'rgba(236, 72, 153, 0.18)' : 'transparent',
-            color: filterType === 'sealed' ? '#f472b6' : 'var(--color-on-surface-variant)',
+            border: filterType === 'sealed' ? '1px solid #FF9D00' : '1px solid var(--card-border)',
+            backgroundColor: filterType === 'sealed' ? 'rgba(255, 157, 0, 0.18)' : 'transparent',
+            color: filterType === 'sealed' ? '#FF9D00' : 'var(--color-on-surface-variant)',
             display: 'inline-flex',
             alignItems: 'center',
             gap: '5px',
@@ -3578,14 +3578,14 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
                   padding: '10px 14px',
                   borderRadius: '10px',
                   backgroundColor: isSealedPack
-                    ? 'rgba(236, 72, 153, 0.06)'
+                    ? 'rgba(255, 157, 0, 0.08)'
                     : isSealedBox
-                      ? 'rgba(168, 85, 247, 0.08)'
+                      ? 'rgba(255, 196, 0, 0.08)'
                       : 'var(--color-surface-container-low)',
                   border: isSealedPack
-                    ? '1px solid rgba(236, 72, 153, 0.35)'
+                    ? '1px solid rgba(255, 157, 0, 0.38)'
                     : isSealedBox
-                      ? '1px solid rgba(168, 85, 247, 0.35)'
+                      ? '1px solid rgba(255, 210, 26, 0.38)'
                       : '1px solid var(--card-border)',
                   display: 'flex',
                   alignItems: 'center',
@@ -3613,9 +3613,9 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
                       {isSealedPack && (
                         <span
                           style={{
-                            backgroundColor: 'rgba(236, 72, 153, 0.2)',
-                            border: '1px solid rgba(236, 72, 153, 0.45)',
-                            color: '#f472b6',
+                            backgroundColor: 'rgba(255, 157, 0, 0.2)',
+                            border: '1px solid rgba(255, 157, 0, 0.45)',
+                            color: '#FF9D00',
                             padding: '1px 6px',
                             borderRadius: '4px',
                             fontSize: '9.5px',
@@ -3629,9 +3629,9 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
                       {isSealedBox && (
                         <span
                           style={{
-                            backgroundColor: 'rgba(168, 85, 247, 0.2)',
-                            border: '1px solid rgba(168, 85, 247, 0.45)',
-                            color: '#c084fc',
+                            backgroundColor: 'rgba(255, 210, 26, 0.2)',
+                            border: '1px solid rgba(255, 210, 26, 0.45)',
+                            color: '#FFD21A',
                             padding: '1px 6px',
                             borderRadius: '4px',
                             fontSize: '9.5px',

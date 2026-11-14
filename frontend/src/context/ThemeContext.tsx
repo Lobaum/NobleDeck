@@ -12,8 +12,8 @@ interface ThemeContextType {
 }
 
 const THEME_COLORS: Record<Theme, string> = {
-  dark: '#151219',
-  light: '#faf7fc',
+  dark: '#0B0B0B',
+  light: '#FAFAFA',
 };
 
 const CURTAIN_EASING = 'cubic-bezier(0.76, 0, 0.24, 1)';
@@ -101,7 +101,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           transition: phase !== 'idle' ? `transform ${DEFAULT_DURATION}ms ${CURTAIN_EASING}` : 'none',
           zIndex: 99999,
           pointerEvents: 'none',
-          boxShadow: phase === 'falling' ? '0 15px 40px rgba(140, 86, 212, 0.45)' : 'none',
+          boxShadow: phase === 'falling' ? '0 15px 40px rgba(255, 210, 26, 0.35)' : 'none',
         }}
       />
       {children}

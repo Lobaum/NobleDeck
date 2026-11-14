@@ -223,7 +223,7 @@ export const Navbar: React.FC = () => {
                   top: '-4px',
                   right: '-4px',
                   backgroundColor: 'var(--color-primary-container)',
-                  color: '#ffffff',
+                  color: 'var(--color-on-primary-container)',
                   fontSize: '10px',
                   fontWeight: 700,
                   fontFamily: 'var(--font-mono)',
@@ -233,7 +233,7 @@ export const Navbar: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 0 10px rgba(140, 86, 212, 0.8)',
+                  boxShadow: '0 0 10px rgba(255, 210, 26, 0.65)',
                 }}
               >
                 {cartItemsCount}

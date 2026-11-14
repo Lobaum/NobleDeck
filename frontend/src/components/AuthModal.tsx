@@ -42,7 +42,7 @@ const SLIDES: Slide[] = [
   {
     id: 2,
     tag: 'Magic: The Gathering',
-    tagColor: '#DC95FF',
+    tagColor: '#FF9D00',
     title: 'Singles Raras & Colecionáveis',
     description:
       'Encontre cartas lendárias e boosters lacrados com procedência garantida e estoque atualizado.',
@@ -207,7 +207,7 @@ export const AuthModal: React.FC = () => {
         style={{
           position: 'absolute',
           inset: 0,
-          backgroundColor: isLight ? 'rgba(25, 18, 36, 0.45)' : 'rgba(10, 8, 14, 0.75)',
+          backgroundColor: isLight ? 'rgba(11, 11, 11, 0.45)' : 'rgba(11, 11, 11, 0.8)',
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
           transition: 'background-color 0.3s ease',
@@ -224,12 +224,12 @@ export const AuthModal: React.FC = () => {
           maxWidth: '960px',
           height: '660px',
           maxHeight: '92vh',
-          backgroundColor: isLight ? '#ffffff' : '#151219',
+          backgroundColor: isLight ? '#FAFAFA' : '#0B0B0B',
           borderRadius: '24px',
-          border: isLight ? '1px solid rgba(115, 55, 189, 0.18)' : '1px solid rgba(216, 185, 255, 0.15)',
+          border: isLight ? '1px solid rgba(23, 23, 23, 0.14)' : '1px solid rgba(255, 210, 26, 0.18)',
           boxShadow: isLight
-            ? '0 25px 60px -15px rgba(50, 20, 80, 0.18), 0 0 40px -10px rgba(140, 86, 212, 0.12)'
-            : '0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 50px -10px rgba(140, 86, 212, 0.25)',
+            ? '0 25px 60px -15px rgba(11, 11, 11, 0.16), 0 0 40px -10px rgba(255, 196, 0, 0.14)'
+            : '0 25px 60px -15px rgba(0, 0, 0, 0.85), 0 0 50px -10px rgba(255, 196, 0, 0.2)',
           display: 'grid',
           gridTemplateColumns: '1.05fr 1fr',
           overflow: 'hidden',
@@ -245,12 +245,12 @@ export const AuthModal: React.FC = () => {
             position: 'relative',
             height: '100%',
             overflow: 'hidden',
-            backgroundColor: '#0c0a0f',
+            backgroundColor: '#0B0B0B',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
             padding: '32px',
-            borderRight: isLight ? '1px solid rgba(115, 55, 189, 0.12)' : 'none',
+            borderRight: isLight ? '1px solid rgba(23, 23, 23, 0.1)' : 'none',
           }}
           className="auth-slider-column"
         >
@@ -286,7 +286,7 @@ export const AuthModal: React.FC = () => {
                     position: 'absolute',
                     inset: 0,
                     background:
-                      'linear-gradient(to top, #100d14 0%, rgba(16, 13, 20, 0.75) 45%, rgba(16, 13, 20, 0.2) 100%)',
+                      'linear-gradient(to top, #0B0B0B 0%, rgba(11, 11, 11, 0.75) 45%, rgba(11, 11, 11, 0.2) 100%)',
                   }}
                 />
                 <div
@@ -294,7 +294,7 @@ export const AuthModal: React.FC = () => {
                     position: 'absolute',
                     inset: 0,
                     background:
-                      'radial-gradient(circle at 80% 20%, rgba(140, 86, 212, 0.3) 0%, transparent 60%)',
+                      'radial-gradient(circle at 80% 20%, rgba(255, 196, 0, 0.22) 0%, transparent 60%)',
                   }}
                 />
               </div>
@@ -308,9 +308,9 @@ export const AuthModal: React.FC = () => {
                 width: '36px',
                 height: '36px',
                 borderRadius: '10px',
-                backgroundColor: 'rgba(21, 18, 25, 0.8)',
+                backgroundColor: 'rgba(23, 23, 23, 0.85)',
                 backdropFilter: 'blur(8px)',
-                border: '1px solid rgba(216, 185, 255, 0.25)',
+                border: '1px solid rgba(255, 210, 26, 0.28)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -356,10 +356,10 @@ export const AuthModal: React.FC = () => {
                 width: '38px',
                 height: '38px',
                 borderRadius: '50%',
-                backgroundColor: 'rgba(21, 18, 25, 0.65)',
+                backgroundColor: 'rgba(23, 23, 23, 0.75)',
                 backdropFilter: 'blur(8px)',
                 border: '1px solid rgba(255, 255, 255, 0.15)',
-                color: '#ffffff',
+                color: '#FAFAFA',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -368,10 +368,12 @@ export const AuthModal: React.FC = () => {
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = 'var(--color-primary-container)';
+                e.currentTarget.style.color = '#0B0B0B';
                 e.currentTarget.style.transform = 'scale(1.08)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(21, 18, 25, 0.65)';
+                e.currentTarget.style.backgroundColor = 'rgba(23, 23, 23, 0.75)';
+                e.currentTarget.style.color = '#FAFAFA';
                 e.currentTarget.style.transform = 'scale(1)';
               }}
             >
@@ -387,10 +389,10 @@ export const AuthModal: React.FC = () => {
                 width: '38px',
                 height: '38px',
                 borderRadius: '50%',
-                backgroundColor: 'rgba(21, 18, 25, 0.65)',
+                backgroundColor: 'rgba(23, 23, 23, 0.75)',
                 backdropFilter: 'blur(8px)',
                 border: '1px solid rgba(255, 255, 255, 0.15)',
-                color: '#ffffff',
+                color: '#FAFAFA',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -399,10 +401,12 @@ export const AuthModal: React.FC = () => {
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = 'var(--color-primary-container)';
+                e.currentTarget.style.color = '#0B0B0B';
                 e.currentTarget.style.transform = 'scale(1.08)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(21, 18, 25, 0.65)';
+                e.currentTarget.style.backgroundColor = 'rgba(23, 23, 23, 0.75)';
+                e.currentTarget.style.color = '#FAFAFA';
                 e.currentTarget.style.transform = 'scale(1)';
               }}
             >
@@ -452,7 +456,7 @@ export const AuthModal: React.FC = () => {
             <p
               style={{
                 fontSize: '13px',
-                color: '#cdc3d4',
+                color: '#D4D4D4',
                 lineHeight: 1.5,
                 marginBottom: '20px',
                 maxWidth: '92%',
@@ -474,7 +478,7 @@ export const AuthModal: React.FC = () => {
                       height: '6px',
                       width: isSelected ? '28px' : '6px',
                       borderRadius: '100px',
-                      backgroundColor: isSelected ? 'var(--color-primary, #d8b9ff)' : 'rgba(255, 255, 255, 0.28)',
+                      backgroundColor: isSelected ? 'var(--color-primary, #FFC400)' : 'rgba(255, 255, 255, 0.28)',
                       border: 'none',
                       cursor: 'pointer',
                       transition: 'all 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -496,7 +500,7 @@ export const AuthModal: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            backgroundColor: isLight ? '#ffffff' : '#151219',
+            backgroundColor: isLight ? '#FAFAFA' : '#0B0B0B',
             transition: 'background-color 0.3s ease',
           }}
           className="auth-form-column"
@@ -510,29 +514,29 @@ export const AuthModal: React.FC = () => {
               position: 'absolute',
               top: '20px',
               right: '20px',
-              background: isLight ? 'rgba(115, 55, 189, 0.08)' : 'rgba(255, 255, 255, 0.05)',
-              border: isLight ? '1px solid rgba(115, 55, 189, 0.15)' : '1px solid rgba(255, 255, 255, 0.08)',
+              background: isLight ? 'rgba(23, 23, 23, 0.06)' : 'rgba(255, 255, 255, 0.05)',
+              border: isLight ? '1px solid rgba(23, 23, 23, 0.14)' : '1px solid rgba(255, 255, 255, 0.08)',
               width: '32px',
               height: '32px',
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: isLight ? '#564c64' : 'var(--color-on-surface-variant)',
+              color: isLight ? '#777777' : 'var(--color-on-surface-variant)',
               cursor: 'pointer',
               transition: 'all 0.2s ease',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = isLight
-                ? 'rgba(115, 55, 189, 0.16)'
+                ? 'rgba(255, 196, 0, 0.22)'
                 : 'rgba(255, 255, 255, 0.12)';
-              e.currentTarget.style.color = isLight ? '#1a1424' : '#ffffff';
+              e.currentTarget.style.color = isLight ? '#0B0B0B' : '#FAFAFA';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = isLight
-                ? 'rgba(115, 55, 189, 0.08)'
+                ? 'rgba(23, 23, 23, 0.06)'
                 : 'rgba(255, 255, 255, 0.05)';
-              e.currentTarget.style.color = isLight ? '#564c64' : 'var(--color-on-surface-variant)';
+              e.currentTarget.style.color = isLight ? '#777777' : 'var(--color-on-surface-variant)';
             }}
           >
             <X size={16} />
@@ -542,10 +546,10 @@ export const AuthModal: React.FC = () => {
             <div
               style={{
                 display: 'flex',
-                backgroundColor: isLight ? '#f3ecf8' : '#1e1a22',
+                backgroundColor: isLight ? '#EFEFEF' : '#171717',
                 padding: '4px',
                 borderRadius: '12px',
-                border: isLight ? '1px solid rgba(115, 55, 189, 0.15)' : '1px solid rgba(216, 185, 255, 0.1)',
+                border: isLight ? '1px solid rgba(23, 23, 23, 0.12)' : '1px solid rgba(255, 210, 26, 0.14)',
                 marginBottom: '20px',
                 maxWidth: '280px',
               }}
@@ -559,7 +563,7 @@ export const AuthModal: React.FC = () => {
                   borderRadius: '8px',
                   border: 'none',
                   backgroundColor: authModalMode === 'login' ? 'var(--color-primary-container)' : 'transparent',
-                  color: authModalMode === 'login' ? '#ffffff' : isLight ? '#564c64' : 'var(--color-on-surface-variant)',
+                  color: authModalMode === 'login' ? '#0B0B0B' : isLight ? '#777777' : 'var(--color-on-surface-variant)',
                   fontSize: '13px',
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -577,7 +581,7 @@ export const AuthModal: React.FC = () => {
                   borderRadius: '8px',
                   border: 'none',
                   backgroundColor: authModalMode === 'register' ? 'var(--color-primary-container)' : 'transparent',
-                  color: authModalMode === 'register' ? '#ffffff' : isLight ? '#564c64' : 'var(--color-on-surface-variant)',
+                  color: authModalMode === 'register' ? '#0B0B0B' : isLight ? '#777777' : 'var(--color-on-surface-variant)',
                   fontSize: '13px',
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -594,7 +598,7 @@ export const AuthModal: React.FC = () => {
                 fontSize: '24px',
                 fontFamily: 'var(--font-headline, sans-serif)',
                 fontWeight: 700,
-                color: isLight ? '#1a1424' : '#ffffff',
+                color: isLight ? '#0B0B0B' : '#FAFAFA',
                 marginBottom: '4px',
               }}
             >
@@ -603,7 +607,7 @@ export const AuthModal: React.FC = () => {
             <p
               style={{
                 fontSize: '13px',
-                color: isLight ? '#564c64' : 'var(--color-on-surface-variant)',
+                color: isLight ? '#777777' : 'var(--color-on-surface-variant)',
                 marginBottom: '18px',
               }}
             >
@@ -622,7 +626,7 @@ export const AuthModal: React.FC = () => {
                       display: 'block',
                       fontSize: '11px',
                       fontFamily: 'var(--font-mono, monospace)',
-                      color: isLight ? '#564c64' : 'var(--color-outline)',
+                      color: isLight ? '#555555' : 'var(--color-outline)',
                       textTransform: 'uppercase',
                       marginBottom: '4px',
                     }}
@@ -637,7 +641,7 @@ export const AuthModal: React.FC = () => {
                         left: '12px',
                         top: '50%',
                         transform: 'translateY(-50%)',
-                        color: isLight ? '#7c708c' : 'var(--color-outline)',
+                        color: isLight ? '#777777' : 'var(--color-outline)',
                       }}
                     />
                     <input
@@ -662,7 +666,7 @@ export const AuthModal: React.FC = () => {
                     display: 'block',
                     fontSize: '11px',
                     fontFamily: 'var(--font-mono, monospace)',
-                    color: isLight ? '#564c64' : 'var(--color-outline)',
+                    color: isLight ? '#555555' : 'var(--color-outline)',
                     textTransform: 'uppercase',
                     marginBottom: '4px',
                   }}
@@ -677,7 +681,7 @@ export const AuthModal: React.FC = () => {
                       left: '12px',
                       top: '50%',
                       transform: 'translateY(-50%)',
-                      color: isLight ? '#7c708c' : 'var(--color-outline)',
+                      color: isLight ? '#777777' : 'var(--color-outline)',
                     }}
                   />
                   <input
@@ -701,7 +705,7 @@ export const AuthModal: React.FC = () => {
                     style={{
                       fontSize: '11px',
                       fontFamily: 'var(--font-mono, monospace)',
-                      color: isLight ? '#564c64' : 'var(--color-outline)',
+                      color: isLight ? '#555555' : 'var(--color-outline)',
                       textTransform: 'uppercase',
                     }}
                   >
@@ -728,7 +732,7 @@ export const AuthModal: React.FC = () => {
                       left: '12px',
                       top: '50%',
                       transform: 'translateY(-50%)',
-                      color: isLight ? '#7c708c' : 'var(--color-outline)',
+                      color: isLight ? '#777777' : 'var(--color-outline)',
                     }}
                   />
                   <input
@@ -754,7 +758,7 @@ export const AuthModal: React.FC = () => {
                       transform: 'translateY(-50%)',
                       background: 'none',
                       border: 'none',
-                      color: isLight ? '#7c708c' : 'var(--color-outline)',
+                      color: isLight ? '#777777' : 'var(--color-outline)',
                       cursor: 'pointer',
                       padding: 0,
                       display: 'flex',
@@ -771,7 +775,7 @@ export const AuthModal: React.FC = () => {
                       display: 'block',
                       fontSize: '11px',
                       fontFamily: 'var(--font-mono, monospace)',
-                      color: isLight ? '#564c64' : 'var(--color-outline)',
+                      color: isLight ? '#555555' : 'var(--color-outline)',
                       textTransform: 'uppercase',
                       marginBottom: '4px',
                     }}
@@ -786,7 +790,7 @@ export const AuthModal: React.FC = () => {
                         left: '12px',
                         top: '50%',
                         transform: 'translateY(-50%)',
-                        color: isLight ? '#7c708c' : 'var(--color-outline)',
+                        color: isLight ? '#777777' : 'var(--color-outline)',
                       }}
                     />
                     <input
@@ -814,12 +818,12 @@ export const AuthModal: React.FC = () => {
                   padding: '12px',
                   borderRadius: '10px',
                   border: 'none',
-                  background: 'linear-gradient(135deg, #8c56d4 0%, #6b298d 100%)',
-                  color: '#ffffff',
+                  background: 'linear-gradient(135deg, #FFC400 0%, #FF9D00 100%)',
+                  color: '#0B0B0B',
                   fontSize: '14px',
                   fontWeight: 600,
                   cursor: isLoading ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 4px 15px rgba(140, 86, 212, 0.35)',
+                  boxShadow: '0 4px 15px rgba(255, 196, 0, 0.35)',
                   transition: 'all 0.2s ease',
                   display: 'flex',
                   alignItems: 'center',
@@ -828,12 +832,12 @@ export const AuthModal: React.FC = () => {
                 }}
                 onMouseEnter={(e) => {
                   if (!isLoading) {
-                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(140, 86, 212, 0.55)';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(255, 210, 26, 0.55)';
                     e.currentTarget.style.transform = 'translateY(-1px)';
                   }
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(140, 86, 212, 0.35)';
+                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(255, 196, 0, 0.35)';
                   e.currentTarget.style.transform = 'translateY(0)';
                 }}
               >
@@ -850,10 +854,10 @@ export const AuthModal: React.FC = () => {
           <div
             style={{
               paddingTop: '16px',
-              borderTop: isLight ? '1px solid rgba(115, 55, 189, 0.12)' : '1px solid rgba(255, 255, 255, 0.08)',
+              borderTop: isLight ? '1px solid rgba(23, 23, 23, 0.1)' : '1px solid rgba(255, 255, 255, 0.08)',
               textAlign: 'center',
               fontSize: '12px',
-              color: isLight ? '#564c64' : 'var(--color-on-surface-variant)',
+              color: isLight ? '#777777' : 'var(--color-on-surface-variant)',
             }}
           >
             {authModalMode === 'login' ? (

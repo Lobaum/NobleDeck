@@ -58,10 +58,10 @@ const OrderStatusDropdown: React.FC<OrderStatusDropdownProps> = ({ currentStatus
         };
       default:
         return {
-          dot: '#a855f7',
-          text: '#c084fc',
-          bg: 'rgba(168, 85, 247, 0.12)',
-          border: 'rgba(168, 85, 247, 0.35)',
+          dot: '#FF9D00',
+          text: '#FF9D00',
+          bg: 'rgba(255, 157, 0, 0.12)',
+          border: 'rgba(255, 157, 0, 0.35)',
         };
     }
   };
@@ -132,10 +132,10 @@ const OrderStatusDropdown: React.FC<OrderStatusDropdownProps> = ({ currentStatus
             backgroundColor: 'var(--card-bg)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
-            border: '1px solid rgba(140, 86, 212, 0.35)',
+            border: '1px solid rgba(255, 210, 26, 0.35)',
             borderRadius: '10px',
             padding: '4px',
-            boxShadow: '0 12px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(140, 86, 212, 0.15)',
+            boxShadow: '0 12px 30px rgba(0, 0, 0, 0.55), 0 0 20px rgba(255, 196, 0, 0.15)',
           }}
         >
           {availableOptions.map((opt) => {
@@ -159,7 +159,7 @@ const OrderStatusDropdown: React.FC<OrderStatusDropdownProps> = ({ currentStatus
                   padding: '8px 10px',
                   borderRadius: '6px',
                   border: 'none',
-                  backgroundColor: isSelected ? 'rgba(140, 86, 212, 0.15)' : 'transparent',
+                  backgroundColor: isSelected ? 'rgba(255, 196, 0, 0.15)' : 'transparent',
                   color: isSelected ? 'var(--color-headline)' : 'var(--color-on-surface)',
                   fontFamily: 'var(--font-mono, monospace)',
                   fontSize: '12px',
@@ -170,7 +170,7 @@ const OrderStatusDropdown: React.FC<OrderStatusDropdownProps> = ({ currentStatus
                 }}
                 onMouseEnter={(e) => {
                   if (!isSelected) {
-                    e.currentTarget.style.backgroundColor = 'rgba(140, 86, 212, 0.1)';
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 210, 26, 0.1)';
                   }
                 }}
                 onMouseLeave={(e) => {
@@ -326,8 +326,8 @@ const StockItemCard: React.FC<StockItemCardProps> = ({
                   alignItems: 'center',
                   gap: '5px',
                   padding: '4px 9px',
-                  backgroundColor: 'rgba(140, 86, 212, 0.12)',
-                  border: '1px solid rgba(140, 86, 212, 0.35)',
+                  backgroundColor: 'rgba(255, 196, 0, 0.12)',
+                  border: '1px solid rgba(255, 210, 26, 0.35)',
                   borderRadius: '6px',
                   color: 'var(--color-primary)',
                   fontSize: '11px',
@@ -336,8 +336,8 @@ const StockItemCard: React.FC<StockItemCardProps> = ({
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(140, 86, 212, 0.22)')}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(140, 86, 212, 0.12)')}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 210, 26, 0.22)')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 196, 0, 0.12)')}
                 title="Editar dados deste produto"
               >
                 <Pencil size={12} />
@@ -487,7 +487,7 @@ const StockItemCard: React.FC<StockItemCardProps> = ({
                   height: '32px',
                   padding: '0 10px',
                   backgroundColor: 'var(--color-primary)',
-                  color: '#fff',
+                  color: 'var(--color-on-primary)',
                   border: 'none',
                   borderRadius: 'var(--radius-sm)',
                   fontSize: '11px',
@@ -496,7 +496,7 @@ const StockItemCard: React.FC<StockItemCardProps> = ({
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '4px',
-                  boxShadow: '0 0 10px rgba(140, 86, 212, 0.4)',
+                  boxShadow: '0 0 10px rgba(255, 210, 26, 0.4)',
                 }}
                 title="Salvar quantidade digitada"
               >
@@ -509,7 +509,7 @@ const StockItemCard: React.FC<StockItemCardProps> = ({
                 style={{
                   height: '32px',
                   padding: '0 10px',
-                  backgroundColor: 'rgba(140, 86, 212, 0.2)',
+                  backgroundColor: 'rgba(255, 196, 0, 0.18)',
                   border: '1px solid var(--color-primary)',
                   borderRadius: 'var(--radius-sm)',
                   color: 'var(--color-primary)',
@@ -1396,8 +1396,8 @@ export const DashboardPage: React.FC = () => {
                 width: '64px',
                 height: '64px',
                 borderRadius: '50%',
-                backgroundColor: 'rgba(140, 86, 212, 0.15)',
-                border: '1px solid rgba(140, 86, 212, 0.3)',
+                backgroundColor: 'rgba(255, 196, 0, 0.15)',
+                border: '1px solid rgba(255, 210, 26, 0.32)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1466,8 +1466,8 @@ export const DashboardPage: React.FC = () => {
                   borderRadius: '50%',
                   backgroundColor:
                     currentUser.role === 'funcionario'
-                      ? '#FFF4BF'
-                      : '#8C56D4',
+                      ? '#FF9D00'
+                      : '#FFC400',
                 }}
               />
               <span
@@ -1509,7 +1509,7 @@ export const DashboardPage: React.FC = () => {
               borderRadius: 'var(--radius-md)',
               border: 'none',
               backgroundColor:
-                activeTab === 'orders' ? 'rgba(140, 86, 212, 0.25)' : 'transparent',
+                activeTab === 'orders' ? 'rgba(255, 196, 0, 0.2)' : 'transparent',
               color: activeTab === 'orders' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
               fontFamily: 'var(--font-mono)',
               fontSize: '13px',
@@ -1530,7 +1530,7 @@ export const DashboardPage: React.FC = () => {
                   borderRadius: 'var(--radius-md)',
                   border: 'none',
                   backgroundColor:
-                    activeTab === 'inventory' ? 'rgba(140, 86, 212, 0.25)' : 'transparent',
+                    activeTab === 'inventory' ? 'rgba(255, 196, 0, 0.2)' : 'transparent',
                   color: activeTab === 'inventory' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
                   fontFamily: 'var(--font-mono)',
                   fontSize: '13px',
@@ -1639,10 +1639,10 @@ export const DashboardPage: React.FC = () => {
                               order.status === 'Finalizado'
                                 ? 'rgba(76, 175, 80, 0.2)'
                                 : order.status === 'Processando'
-                                  ? 'rgba(255, 244, 191, 0.2)'
+                                  ? 'rgba(255, 210, 26, 0.18)'
                                   : order.status === 'Cancelado'
                                     ? 'rgba(239, 68, 68, 0.2)'
-                                    : 'rgba(140, 86, 212, 0.2)',
+                                    : 'rgba(255, 196, 0, 0.18)',
                             color:
                               order.status === 'Finalizado'
                                 ? '#81c784'

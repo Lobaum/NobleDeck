@@ -103,7 +103,7 @@ export function SystemSelect<T extends string | number = string>({
         <ChevronDown
           size={size === 'sm' ? 14 : 16}
           style={{
-            color: 'var(--color-primary, #8c56d4)',
+            color: 'var(--color-primary, #FFC400)',
             transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
             transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
             flexShrink: 0,
@@ -145,7 +145,7 @@ export function SystemSelect<T extends string | number = string>({
                 {isSelected && (
                   <Check
                     size={size === 'sm' ? 13 : 15}
-                    style={{ color: 'var(--color-primary, #8c56d4)', flexShrink: 0, marginLeft: '6px' }}
+                    style={{ color: 'var(--color-primary, #FFC400)', flexShrink: 0, marginLeft: '6px' }}
                   />
                 )}
               </button>

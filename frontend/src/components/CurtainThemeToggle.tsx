@@ -45,7 +45,7 @@ export const CurtainThemeToggle: React.FC<CurtainThemeToggleProps> = ({
         padding: variant === 'labeled' ? '0 16px' : '0',
         borderRadius: 'var(--radius-full)',
         border: '1px solid var(--nav-border)',
-        background: isDark ? 'rgba(216, 185, 255, 0.08)' : 'rgba(115, 55, 189, 0.08)',
+        background: isDark ? 'rgba(255, 196, 0, 0.1)' : 'rgba(255, 196, 0, 0.14)',
         color: 'var(--color-primary)',
         cursor: isAnimating ? 'wait' : 'pointer',
         display: 'inline-flex',
@@ -57,8 +57,8 @@ export const CurtainThemeToggle: React.FC<CurtainThemeToggleProps> = ({
         transition: 'transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease',
         boxShadow: isHovered
           ? isDark
-            ? '0 0 16px rgba(216, 185, 255, 0.3)'
-            : '0 0 16px rgba(115, 55, 189, 0.25)'
+            ? '0 0 16px rgba(255, 210, 26, 0.3)'
+            : '0 0 16px rgba(255, 196, 0, 0.25)'
           : 'none',
         flexShrink: 0,
         fontFamily: 'var(--font-nav)',

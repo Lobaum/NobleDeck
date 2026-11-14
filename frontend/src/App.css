@@ -15,15 +15,15 @@
   top: 24px;
   right: 24px;
   z-index: 100000;
-  background-color: #1e1a26;
-  border: 1px solid rgba(216, 185, 255, 0.28);
+  background-color: #171717;
+  border: 1px solid rgba(255, 210, 26, 0.3);
   border-radius: var(--radius-md);
   padding: 13px 20px;
-  color: #ffffff;
+  color: #FAFAFA;
   font-family: var(--font-body);
   font-size: 14px;
   font-weight: 600;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), 0 0 20px rgba(140, 86, 212, 0.35);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.65), 0 0 20px rgba(255, 196, 0, 0.22);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -70,7 +70,7 @@
 .noble-toast-btn-confirm {
   background: var(--color-primary-container);
   border: none;
-  color: #ffffff;
+  color: #0B0B0B;
   border-radius: var(--radius-sm);
   padding: 6px 14px;
   font-size: 12px;
@@ -78,7 +78,7 @@
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 10px rgba(140, 86, 212, 0.3);
+  box-shadow: 0 2px 10px rgba(255, 196, 0, 0.3);
 }
 
 .noble-toast-btn-confirm:hover {
@@ -89,9 +89,9 @@
 :root[data-theme="light"] .noble-toast,
 html.light .noble-toast {
   background-color: #ffffff;
-  color: #1a1424;
-  border: 1px solid rgba(115, 55, 189, 0.3);
-  box-shadow: 0 14px 34px rgba(50, 20, 80, 0.16), 0 0 18px rgba(115, 55, 189, 0.15);
+  color: #171717;
+  border: 1px solid rgba(255, 157, 0, 0.35);
+  box-shadow: 0 14px 34px rgba(11, 11, 11, 0.14), 0 0 18px rgba(255, 196, 0, 0.16);
 }
 
 @keyframes slideDownToast {
@@ -129,8 +129,8 @@ html.light .noble-toast {
 
 .admin-kpi-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 28px rgba(140, 86, 212, 0.25);
-  border-color: var(--color-primary-container);
+  box-shadow: 0 12px 28px rgba(255, 210, 26, 0.22);
+  border-color: var(--color-secondary);
 }
 
 .admin-tab-btn {
@@ -147,7 +147,7 @@ html.light .noble-toast {
 }
 
 .admin-table-row:hover {
-  background-color: rgba(216, 185, 255, 0.05);
+  background-color: rgba(255, 210, 26, 0.06);
 }
 
 @media (max-width: 768px) {
@@ -176,11 +176,11 @@ html.light .noble-toast {
   overflow: hidden;
   border-radius: 28px;
   padding: 44px 36px 36px;
-  background: rgba(22, 17, 30, 0.75);
+  background: rgba(23, 23, 23, 0.85);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(216, 185, 255, 0.16);
-  box-shadow: 0 30px 70px -10px rgba(0, 0, 0, 0.75), 0 0 40px -10px rgba(140, 86, 212, 0.25);
+  border: 1px solid rgba(255, 210, 26, 0.2);
+  box-shadow: 0 30px 70px -10px rgba(0, 0, 0, 0.8), 0 0 40px -10px rgba(255, 196, 0, 0.18);
   text-align: center;
   transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
@@ -194,8 +194,8 @@ html.light .access-denied-card,
 :root[data-theme="light"] .admin-login-card,
 html.light .admin-login-card {
   background: #ffffff;
-  border: 1px solid rgba(115, 55, 189, 0.12);
-  box-shadow: 0 16px 36px -8px rgba(60, 20, 95, 0.08), 0 4px 12px rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(23, 23, 23, 0.12);
+  box-shadow: 0 16px 36px -8px rgba(11, 11, 11, 0.08), 0 4px 12px rgba(0, 0, 0, 0.02);
 }
 
 .access-denied-glow-bg {
@@ -205,7 +205,7 @@ html.light .admin-login-card {
   transform: translateX(-50%);
   width: 280px;
   height: 280px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.22) 0%, rgba(216, 185, 255, 0.08) 45%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 196, 0, 0.18) 0%, rgba(255, 157, 0, 0.08) 45%, transparent 70%);
   border-radius: 50%;
   pointer-events: none;
   filter: blur(28px);
@@ -213,7 +213,7 @@ html.light .admin-login-card {
 
 :root[data-theme="light"] .access-denied-glow-bg,
 html.light .access-denied-glow-bg {
-  background: radial-gradient(circle, rgba(140, 86, 212, 0.12) 0%, rgba(220, 149, 255, 0.04) 50%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 196, 0, 0.14) 0%, rgba(255, 157, 0, 0.05) 50%, transparent 70%);
 }
 
 .admin-login-header-glow {
@@ -232,23 +232,23 @@ html.light .access-denied-glow-bg {
   align-items: center;
   justify-content: center;
   margin-bottom: 16px;
-  background: linear-gradient(135deg, rgba(216, 185, 255, 0.14) 0%, rgba(140, 86, 212, 0.08) 100%);
-  border: 1px solid rgba(216, 185, 255, 0.25);
-  box-shadow: 0 8px 24px -4px rgba(140, 86, 212, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  background: linear-gradient(135deg, rgba(255, 196, 0, 0.16) 0%, rgba(255, 157, 0, 0.08) 100%);
+  border: 1px solid rgba(255, 210, 26, 0.28);
+  box-shadow: 0 8px 24px -4px rgba(255, 196, 0, 0.22), inset 0 1px 1px rgba(255, 255, 255, 0.12);
   position: relative;
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
 }
 
 .admin-icon-halo:hover {
   transform: translateY(-2px) scale(1.03);
-  box-shadow: 0 12px 30px -4px rgba(140, 86, 212, 0.45);
+  box-shadow: 0 12px 30px -4px rgba(255, 210, 26, 0.38);
 }
 
 :root[data-theme="light"] .admin-icon-halo,
 html.light .admin-icon-halo {
-  background: linear-gradient(135deg, rgba(243, 232, 255, 0.8) 0%, rgba(255, 255, 255, 0.95) 100%);
-  border: 1px solid rgba(115, 55, 189, 0.18);
-  box-shadow: 0 6px 18px -3px rgba(115, 55, 189, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+  background: linear-gradient(135deg, rgba(255, 243, 196, 0.85) 0%, rgba(255, 255, 255, 0.95) 100%);
+  border: 1px solid rgba(255, 157, 0, 0.25);
+  box-shadow: 0 6px 18px -3px rgba(255, 196, 0, 0.14), inset 0 1px 1px rgba(255, 255, 255, 0.8);
 }
 
 .admin-field-group {
@@ -303,14 +303,14 @@ html.light .admin-icon-halo {
 }
 
 .admin-modern-input:hover {
-  border-color: rgba(216, 185, 255, 0.3);
+  border-color: rgba(255, 210, 26, 0.38);
   background-color: rgba(255, 255, 255, 0.06);
 }
 
 .admin-modern-input:focus {
-  border-color: var(--color-primary);
+  border-color: var(--color-secondary);
   background-color: rgba(255, 255, 255, 0.07);
-  box-shadow: 0 0 0 3px rgba(140, 86, 212, 0.22), 0 6px 18px -4px rgba(140, 86, 212, 0.2);
+  box-shadow: 0 0 0 3px rgba(255, 210, 26, 0.22), 0 6px 18px -4px rgba(255, 196, 0, 0.18);
   transform: translateY(-1px);
 }
 
@@ -321,22 +321,22 @@ html.light .admin-icon-halo {
 
 :root[data-theme="light"] .admin-modern-input,
 html.light .admin-modern-input {
-  background-color: #faf8fc;
-  border-color: rgba(115, 55, 189, 0.16);
-  color: #1a1424;
+  background-color: #FAFAFA;
+  border-color: rgba(23, 23, 23, 0.16);
+  color: #171717;
 }
 
 :root[data-theme="light"] .admin-modern-input:hover,
 html.light .admin-modern-input:hover {
-  border-color: rgba(115, 55, 189, 0.35);
+  border-color: rgba(255, 157, 0, 0.45);
   background-color: #ffffff;
 }
 
 :root[data-theme="light"] .admin-modern-input:focus,
 html.light .admin-modern-input:focus {
-  border-color: #7337bd;
+  border-color: #FF9D00;
   background-color: #ffffff;
-  box-shadow: 0 0 0 3px rgba(115, 55, 189, 0.15), 0 4px 12px rgba(115, 55, 189, 0.08);
+  box-shadow: 0 0 0 3px rgba(255, 196, 0, 0.2), 0 4px 12px rgba(255, 157, 0, 0.1);
 }
 
 .admin-toggle-eye-btn {
@@ -356,7 +356,7 @@ html.light .admin-modern-input:focus {
 
 .admin-toggle-eye-btn:hover {
   color: var(--color-primary);
-  background-color: rgba(216, 185, 255, 0.08);
+  background-color: rgba(255, 210, 26, 0.12);
 }
 
 .admin-submit-btn {
@@ -370,19 +370,19 @@ html.light .admin-modern-input:focus {
   justify-content: center;
   gap: 10px;
   background: var(--grad-button);
-  color: #ffffff;
+  color: #0B0B0B;
   font-family: var(--font-body);
   font-size: 13.5px;
   font-weight: 700;
   letter-spacing: 0.02em;
   cursor: pointer;
-  box-shadow: 0 8px 22px -3px rgba(140, 86, 212, 0.45);
+  box-shadow: 0 8px 22px -3px rgba(255, 196, 0, 0.4);
   transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .admin-submit-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 28px -2px rgba(140, 86, 212, 0.6);
+  box-shadow: 0 12px 28px -2px rgba(255, 210, 26, 0.55);
   filter: brightness(1.05);
 }
 
@@ -404,9 +404,9 @@ html.light .admin-modern-input:focus {
   align-items: center;
   justify-content: center;
   margin: 0 auto 20px;
-  background: linear-gradient(135deg, rgba(216, 185, 255, 0.16) 0%, rgba(140, 86, 212, 0.1) 100%);
-  border: 1px solid rgba(216, 185, 255, 0.3);
-  box-shadow: 0 0 28px rgba(140, 86, 212, 0.25);
+  background: linear-gradient(135deg, rgba(255, 196, 0, 0.16) 0%, rgba(255, 157, 0, 0.1) 100%);
+  border: 1px solid rgba(255, 210, 26, 0.3);
+  box-shadow: 0 0 28px rgba(255, 196, 0, 0.2);
   position: relative;
   transition: transform 0.3s ease;
 }
@@ -417,9 +417,9 @@ html.light .admin-modern-input:focus {
 
 :root[data-theme="light"] .access-denied-icon-box,
 html.light .access-denied-icon-box {
-  background: linear-gradient(135deg, rgba(115, 55, 189, 0.12) 0%, rgba(140, 86, 212, 0.06) 100%);
-  border-color: rgba(115, 55, 189, 0.25);
-  box-shadow: 0 0 20px rgba(115, 55, 189, 0.15);
+  background: linear-gradient(135deg, rgba(255, 196, 0, 0.14) 0%, rgba(255, 157, 0, 0.08) 100%);
+  border-color: rgba(255, 157, 0, 0.28);
+  box-shadow: 0 0 20px rgba(255, 196, 0, 0.15);
 }
 
 .access-denied-pill {
@@ -432,8 +432,8 @@ html.light .access-denied-icon-box {
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--color-primary);
-  background-color: rgba(216, 185, 255, 0.08);
-  border: 1px solid rgba(216, 185, 255, 0.25);
+  background-color: rgba(255, 196, 0, 0.1);
+  border: 1px solid rgba(255, 210, 26, 0.3);
   padding: 5px 14px;
   border-radius: 20px;
   margin-bottom: 16px;
@@ -441,9 +441,9 @@ html.light .access-denied-icon-box {
 
 :root[data-theme="light"] .access-denied-pill,
 html.light .access-denied-pill {
-  color: #7337bd;
-  background-color: rgba(115, 55, 189, 0.08);
-  border-color: rgba(115, 55, 189, 0.22);
+  color: #B86E00;
+  background-color: rgba(255, 196, 0, 0.14);
+  border-color: rgba(255, 157, 0, 0.28);
 }
 
 .access-denied-status-dot {
