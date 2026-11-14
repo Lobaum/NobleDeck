@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from app.banco import (
     salvar_produto,
     obter_produto_por_id,
@@ -11,6 +11,7 @@ from app.banco import (
 from app.modelos.produto import Produto
 from app.modelos.estoque import Estoque
 from app.esquemas import ProdutoRegistro, ProdutoAlteracao, ProdutoResposta
+from app.seguranca import exigir_equipe
 
 router = APIRouter(prefix="/api/produtos", tags=["Produtos"])
 
@@ -33,7 +34,10 @@ def buscarPorId(id_produto: int):
 
 
 @router.post("", response_model=ProdutoResposta, status_code=status.HTTP_201_CREATED)
-def cadastrar(dados: ProdutoRegistro):
+def cadastrar(
+    dados: ProdutoRegistro,
+    usuario_atual=Depends(exigir_equipe),
+):
     novo_produto = Produto(**dados.model_dump())
     salvar_produto(novo_produto)
 
@@ -53,14 +57,18 @@ def cadastrar(dados: ProdutoRegistro):
             saldo_anterior=0,
             saldo_posterior=novo_produto.quantidade,
             motivo="Estoque Inicial no Cadastro",
-            responsavel="Catálogo",
+            responsavel=usuario_atual.nome,
         )
 
     return novo_produto
 
 
 @router.put("/{id_produto}", response_model=ProdutoResposta)
-def alterar(id_produto: int, dados: ProdutoAlteracao):
+def alterar(
+    id_produto: int,
+    dados: ProdutoAlteracao,
+    usuario_atual=Depends(exigir_equipe),
+):
     produto = obter_produto_por_id(id_produto)
     if not produto:
         raise HTTPException(status_code=404, detail="Produto não encontrado.")
@@ -70,10 +78,19 @@ def alterar(id_produto: int, dados: ProdutoAlteracao):
     for campo, valor in dados_atualizacao.items():
         if valor is not None:
             if campo in ("quantidade", "estoque"):
-                produto.quantidade = int(valor)
-                produto.estoque = int(valor)
+                qtd = int(valor)
+                if qtd < 0:
+                    raise HTTPException(status_code=400, detail="A quantidade em estoque não pode ser negativa.")
+                produto.quantidade = qtd
+                produto.estoque = qtd
             elif campo == "estoque_minimo":
-                produto.estoque_minimo = max(0, int(valor))
+                est_min = int(valor)
+                if est_min < 0:
+                    raise HTTPException(status_code=400, detail="O estoque mínimo não pode ser negativo.")
+                produto.estoque_minimo = est_min
+            elif campo == "preco":
+                if not produto.atualizarPreco(valor):
+                    raise HTTPException(status_code=400, detail="O preço do produto deve ser maior que zero.")
             elif hasattr(produto, campo):
                 setattr(produto, campo, valor)
 
@@ -89,14 +106,17 @@ def alterar(id_produto: int, dados: ProdutoAlteracao):
             saldo_anterior=saldo_anterior,
             saldo_posterior=produto.quantidade,
             motivo="Ajuste Direto de Inventário",
-            responsavel="Gestão de Estoque",
+            responsavel=usuario_atual.nome,
         )
 
     return produto
 
 
 @router.patch("/{id_produto}/inativar", response_model=ProdutoResposta)
-def inativar(id_produto: int):
+def inativar(
+    id_produto: int,
+    _usuario_atual=Depends(exigir_equipe),
+):
     produto = obter_produto_por_id(id_produto)
     if not produto:
         raise HTTPException(status_code=404, detail="Produto não encontrado.")
@@ -107,7 +127,10 @@ def inativar(id_produto: int):
 
 
 @router.patch("/{id_produto}/ativar", response_model=ProdutoResposta)
-def ativar(id_produto: int):
+def ativar(
+    id_produto: int,
+    _usuario_atual=Depends(exigir_equipe),
+):
     produto = obter_produto_por_id(id_produto)
     if not produto:
         raise HTTPException(status_code=404, detail="Produto não encontrado.")
@@ -118,7 +141,10 @@ def ativar(id_produto: int):
 
 
 @router.delete("/{id_produto}", status_code=status.HTTP_204_NO_CONTENT)
-def excluir(id_produto: int):
+def excluir(
+    id_produto: int,
+    _usuario_atual=Depends(exigir_equipe),
+):
     produto = obter_produto_por_id(id_produto)
     if not produto:
         raise HTTPException(status_code=404, detail="Produto não encontrado.")
