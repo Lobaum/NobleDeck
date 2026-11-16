@@ -1,232 +1,235 @@
 import React from 'react';
+import {
+  ArrowUpRight,
+  Clock,
+  Mail,
+  MapPin,
+  Phone,
+  ShoppingBag,
+  User,
+} from 'lucide-react';
 import nobleLogo from '../assets/noble-logo.png';
-import { useApp } from '../context/AppContext';
+import pokemonLogo from '../assets/games/pokemon.png';
+import magicLogo from '../assets/games/magic.png';
+import yugiohLogo from '../assets/games/yugioh.png';
+import onepieceLogo from '../assets/games/onepiece.png';
+import { FooterHoloHorizon } from './FooterHoloHorizon';
+import { useApp, type NavigationTab } from '../context/AppContext';
+import { useTheme } from '../context/ThemeContext';
+import type { GameId } from '../types';
+
+const FOOTER_UNIVERSES: Array<{
+  id: GameId;
+  name: string;
+  subtitle: string;
+  logo: string;
+}> = [
+    {
+      id: 'pokemon',
+      name: 'Pokémon TCG',
+      subtitle: 'Singles ex, Alt Arts e boosters',
+      logo: pokemonLogo,
+    },
+    {
+      id: 'magic',
+      name: 'Magic: The Gathering',
+      subtitle: 'Commander, míticas e staples',
+      logo: magicLogo,
+    },
+    {
+      id: 'yugioh',
+      name: 'Yu-Gi-Oh!',
+      subtitle: 'Extradeck, monstros e duelos',
+      logo: yugiohLogo,
+    },
+    {
+      id: 'onepiece',
+      name: 'One Piece',
+      subtitle: 'Líderes e cartas secretas',
+      logo: onepieceLogo,
+    },
+  ];
 
 export const Footer: React.FC = () => {
-  const { setCurrentTab } = useApp();
+  const {
+    currentTab,
+    setCurrentTab,
+    setSelectedGameFilter,
+    setIsCartOpen,
+    cartItemsCount,
+    currentUser,
+    setIsAuthModalOpen,
+    setAuthModalMode,
+  } = useApp();
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleNavigateTab = (tab: NavigationTab) => {
+    setCurrentTab(tab);
+    scrollToTop();
+  };
+
+  const handleSelectGame = (game: GameId | 'all') => {
+    setSelectedGameFilter(game);
+    setCurrentTab('products');
+    scrollToTop();
+  };
+
+  const handleAccountAction = () => {
+    if (currentUser.id > 0) {
+      handleNavigateTab('dashboard');
+      return;
+    }
+    setAuthModalMode('login');
+    setIsAuthModalOpen(true);
+  };
+
+  const firstName = currentUser.nome ? currentUser.nome.trim().split(' ')[0] : '';
 
   return (
-    <footer
-      style={{
-        backgroundColor: 'var(--color-surface-container-lowest)',
-        borderTop: '1px solid var(--nav-border)',
-        padding: '60px 0 32px',
-        marginTop: '80px',
-      }}
-    >
-      {/* Rodapé */}
-      <div className="app-container">
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: '40px',
-            marginBottom: '48px',
-          }}
-        >
-          <div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                marginBottom: '16px',
-              }}
-            >
+    <footer className="noble-footer-root">
+      <FooterHoloHorizon isLight={isLight} />
+
+      <div className="landing-band-wide noble-footer-inner">
+        <div className="noble-footer-top-grid">
+          {/* Coluna 1: Identidade da marca e loja física */}
+          <div className="noble-footer-brand-col">
+            <div className="noble-footer-brand-head">
               <img
                 src={nobleLogo}
                 alt="Noble Deck Logo"
-                style={{ width: '32px', height: '32px', opacity: 0.9 }}
+                style={{ width: '38px', height: '38px', objectFit: 'contain' }}
               />
-              <span
-                style={{
-                  fontFamily: 'var(--font-headline)',
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  color: 'var(--color-primary)',
-                }}
-              >
-                Noble Deck
-              </span>
+              <span className="noble-footer-brand-name">Noble Deck</span>
             </div>
-            <p
-              style={{
-                color: 'var(--color-on-surface-variant)',
-                fontSize: '14px',
-                lineHeight: '1.6',
-                maxWidth: '320px',
-              }}
-            >
-              Sistema de Gerenciamento de Card Games. Encontre seus cards raros, construa
-              coleções épicas e conecte-se com a comunidade.
+
+            <p className="noble-footer-brand-copy">
+              Curadoria e gerenciamento de Trading Card Games em São Paulo. Singles avaliadas,
+              boosters selados e mesas abertas para jogadores e colecionadores.
             </p>
+
+            <div className="noble-footer-arena-meta">
+              <div className="noble-footer-arena-row">
+                <MapPin size={15} />
+                <span>Av. Paulista, 1800, Conj. 42, Bela Vista - São Paulo / SP</span>
+              </div>
+              <div className="noble-footer-arena-row">
+                <Clock size={15} />
+                <span>Terça a Sábado: 11h às 22h | Domingos: 10h às 19h</span>
+              </div>
+              <div className="noble-footer-arena-row">
+                <Phone size={15} />
+                <span>(11) 3456-7890</span>
+              </div>
+              <div className="noble-footer-arena-row">
+                <Mail size={15} />
+                <a href="mailto:contato@nobledeck.com.br" className="noble-footer-mailto">
+                  contato@nobledeck.com.br
+                </a>
+              </div>
+            </div>
           </div>
 
-          <div>
-            <h4
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '12px',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: 'var(--color-headline)',
-                marginBottom: '16px',
-              }}
-            >
-              Navegação
-            </h4>
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {/* Coluna 2: Navegação e utilidades reais (sem links mortos) */}
+          <div className="noble-footer-nav-col">
+            <h4 className="noble-footer-col-heading">Navegação</h4>
+            <ul className="noble-footer-nav-list">
               <li>
                 <button
-                  onClick={() => {
-                    setCurrentTab('home');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--color-on-surface-variant)',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    transition: 'color 0.2s ease',
-                  }}
-                  onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
-                  onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-on-surface-variant)')}
+                  type="button"
+                  onClick={() => handleNavigateTab('home')}
+                  className={`noble-footer-nav-btn${currentTab === 'home' ? ' is-active' : ''}`}
                 >
-                  Início
+                  <span>Início</span>
+                  <ArrowUpRight size={15} />
                 </button>
               </li>
               <li>
                 <button
-                  onClick={() => {
-                    setCurrentTab('products');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--color-on-surface-variant)',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    transition: 'color 0.2s ease',
-                  }}
-                  onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
-                  onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-on-surface-variant)')}
+                  type="button"
+                  onClick={() => handleSelectGame('all')}
+                  className={`noble-footer-nav-btn${currentTab === 'products' ? ' is-active' : ''}`}
                 >
-                  Catálogo de Produtos
+                  <span>Catálogo de Produtos</span>
+                  <ArrowUpRight size={15} />
                 </button>
               </li>
               <li>
                 <button
-                  onClick={() => {
-                    setCurrentTab('about');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--color-on-surface-variant)',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    transition: 'color 0.2s ease',
-                  }}
-                  onMouseOver={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
-                  onMouseOut={(e) => (e.currentTarget.style.color = 'var(--color-on-surface-variant)')}
+                  type="button"
+                  onClick={() => handleNavigateTab('about')}
+                  className={`noble-footer-nav-btn${currentTab === 'about' ? ' is-active' : ''}`}
                 >
-                  Sobre a Noble Deck
+                  <span>Sobre a Noble Deck</span>
+                  <ArrowUpRight size={15} />
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setIsCartOpen(true)}
+                  className="noble-footer-nav-btn"
+                >
+                  <span className="noble-footer-nav-btn-left">
+                    <ShoppingBag size={15} />
+                    <span>Abrir Carrinho</span>
+                  </span>
+                  {cartItemsCount > 0 ? (
+                    <span className="noble-footer-cart-count">{cartItemsCount}</span>
+                  ) : (
+                    <ArrowUpRight size={15} />
+                  )}
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={handleAccountAction}
+                  className={`noble-footer-nav-btn${currentTab === 'dashboard' ? ' is-active' : ''}`}
+                >
+                  <span className="noble-footer-nav-btn-left">
+                    <User size={15} />
+                    <span>{currentUser.id > 0 ? `Conta de ${firstName}` : 'Entrar ou Cadastrar'}</span>
+                  </span>
+                  <ArrowUpRight size={15} />
                 </button>
               </li>
             </ul>
           </div>
 
-          <div>
-            <h4
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '12px',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: 'var(--color-headline)',
-                marginBottom: '16px',
-              }}
-            >
-              Links Rápidos
-            </h4>
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <li>
-                <span style={{ color: 'var(--color-on-surface-variant)', fontSize: '14px', cursor: 'pointer' }}>
-                  Termos de Uso
-                </span>
-              </li>
-              <li>
-                <span style={{ color: 'var(--color-on-surface-variant)', fontSize: '14px', cursor: 'pointer' }}>
-                  Política de Privacidade
-                </span>
-              </li>
-              <li>
-                <span style={{ color: 'var(--color-on-surface-variant)', fontSize: '14px', cursor: 'pointer' }}>
-                  Contato & Suporte
-                </span>
-              </li>
-              <li>
-                <span style={{ color: 'var(--color-on-surface-variant)', fontSize: '14px', cursor: 'pointer' }}>
-                  FAQ & Perguntas Frequentes
-                </span>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '12px',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: 'var(--color-headline)',
-                marginBottom: '16px',
-              }}
-            >
-              Card Games
-            </h4>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              <span className="badge badge-purple">Pokémon TCG</span>
-              <span className="badge badge-pink">Magic: The Gathering</span>
-              <span className="badge badge-yellow">Yu-Gi-Oh!</span>
-              <span className="badge badge-muted">One Piece Card Game</span>
+          {/* Coluna 3: Universos TCG interativos ocupando a largura direita */}
+          <div className="noble-footer-universes-col">
+            <h4 className="noble-footer-col-heading">Universos TCG</h4>
+            <div className="noble-footer-universes-grid">
+              {FOOTER_UNIVERSES.map((game) => (
+                <button
+                  key={game.id}
+                  type="button"
+                  onClick={() => handleSelectGame(game.id)}
+                  className="noble-footer-game-card"
+                >
+                  <div className="noble-footer-game-left">
+                    <div className="noble-footer-game-logo-box">
+                      <img src={game.logo} alt={game.name} />
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <span className="noble-footer-game-title">{game.name}</span>
+                      <span className="noble-footer-game-sub">{game.subtitle}</span>
+                    </div>
+                  </div>
+                  <ArrowUpRight size={16} className="noble-footer-game-arrow" />
+                </button>
+              ))}
             </div>
-            <p
-              style={{
-                fontSize: '12px',
-                color: 'var(--color-on-surface-variant)',
-                marginTop: '16px',
-              }}
-            >
-              Catálogo completo, novidades e loja especializada em Card Games.
-            </p>
           </div>
         </div>
 
-        <div
-          style={{
-            borderTop: '1px solid var(--nav-border)',
-            paddingTop: '24px',
-            display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: '16px',
-          }}
-        >
-          <p
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '12px',
-              color: 'var(--color-on-surface-variant)',
-            }}
-          >
-            © 2026 Noble Deck - Todos os direitos reservados.
-          </p>
+        <div className="noble-footer-colophon">
+          <span>© 2026 Noble Deck. Todos os direitos reservados.</span>
         </div>
       </div>
     </footer>
