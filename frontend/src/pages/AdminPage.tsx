@@ -2297,9 +2297,8 @@ export const AdminPage: React.FC = () => {
                             {o.endereco_entrega ? `Destino: ${o.endereco_entrega}` : ''}
                             {o.endereco_entrega && o.metodo_pagamento ? ' | ' : ''}
                             {o.metodo_pagamento
-                              ? `Pagamento: ${o.metodo_pagamento.toUpperCase()}${
-                                  o.status_pagamento ? ` (${o.status_pagamento})` : ''
-                                }`
+                              ? `Pagamento: ${o.metodo_pagamento.toUpperCase()}${o.status_pagamento ? ` (${o.status_pagamento})` : ''
+                              }`
                               : ''}
                           </div>
                         )}
@@ -2695,7 +2694,7 @@ export const AdminPage: React.FC = () => {
                             </div>
                           ) : (
                             <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)' }}>
-                              {u.role === 'admin' ? 'Acesso irrestrito + governança' : 'Loja e próprios pedidos'}
+                              {u.role === 'admin' ? 'Acesso irrestrito' : 'Loja e próprios pedidos'}
                             </span>
                           )}
                         </td>
