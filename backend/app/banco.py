@@ -1,4 +1,3 @@
-import random
 import secrets
 import sqlite3
 from datetime import datetime
@@ -90,6 +89,11 @@ def inicializar_banco():
                 cliente_email TEXT DEFAULT '',
                 cliente_telefone TEXT DEFAULT '',
                 endereco_entrega TEXT DEFAULT '',
+                tipo_entrega TEXT DEFAULT 'entrega',
+                cep TEXT DEFAULT '',
+                metodo_pagamento TEXT DEFAULT '',
+                status_pagamento TEXT DEFAULT 'Aguardando',
+                observacoes TEXT DEFAULT '',
                 codigo_rastreio TEXT DEFAULT '',
                 atualizado_em TEXT DEFAULT '',
                 FOREIGN KEY (cliente_id) REFERENCES usuarios (id_usuario)
@@ -137,6 +141,11 @@ def inicializar_banco():
         migracoes = [
             "ALTER TABLE pedidos ADD COLUMN cliente_telefone TEXT DEFAULT ''",
             "ALTER TABLE pedidos ADD COLUMN endereco_entrega TEXT DEFAULT ''",
+            "ALTER TABLE pedidos ADD COLUMN tipo_entrega TEXT DEFAULT 'entrega'",
+            "ALTER TABLE pedidos ADD COLUMN cep TEXT DEFAULT ''",
+            "ALTER TABLE pedidos ADD COLUMN metodo_pagamento TEXT DEFAULT ''",
+            "ALTER TABLE pedidos ADD COLUMN status_pagamento TEXT DEFAULT 'Aguardando'",
+            "ALTER TABLE pedidos ADD COLUMN observacoes TEXT DEFAULT ''",
             "ALTER TABLE pedidos ADD COLUMN codigo_rastreio TEXT DEFAULT ''",
             "ALTER TABLE pedidos ADD COLUMN atualizado_em TEXT DEFAULT ''",
             "ALTER TABLE itens_pedido ADD COLUMN produto_nome TEXT DEFAULT ''",
@@ -148,6 +157,10 @@ def inicializar_banco():
                 cursor.execute(sql_migracao)
             except sqlite3.OperationalError:
                 pass
+
+        cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_pedidos_numero ON pedidos (numero)"
+        )
 
         cursor.execute(
             "INSERT OR IGNORE INTO _config (chave, valor) VALUES (?, ?)",
@@ -587,27 +600,16 @@ def salvar_pedido(pedido):
     with obter_conexao() as conn:
         cursor = conn.cursor()
 
-        numero = pedido.numero
-        if numero is not None:
-            cursor.execute("SELECT 1 FROM pedidos WHERE numero = ?", (numero,))
-            if cursor.fetchone():
-                numero = None
-        while numero is None:
-            candidato = random.randint(1000, 999999)
-            cursor.execute("SELECT 1 FROM pedidos WHERE numero = ?", (candidato,))
-            if not cursor.fetchone():
-                numero = candidato
-        pedido.numero = numero
-
         cursor.execute(
             """
             INSERT INTO pedidos (
                 numero, data, valor_total, status, cliente_id, cliente_nome, cliente_email,
-                cliente_telefone, endereco_entrega, codigo_rastreio, atualizado_em
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                cliente_telefone, endereco_entrega, tipo_entrega, cep,
+                metodo_pagamento, status_pagamento, observacoes,
+                codigo_rastreio, atualizado_em
+            ) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                pedido.numero,
                 pedido.data,
                 pedido.valorTotal,
                 pedido.status,
@@ -616,11 +618,45 @@ def salvar_pedido(pedido):
                 pedido.cliente_email,
                 getattr(pedido, "cliente_telefone", "") or "",
                 getattr(pedido, "endereco_entrega", "") or "",
+                getattr(pedido, "tipo_entrega", "entrega") or "entrega",
+                getattr(pedido, "cep", "") or "",
+                getattr(pedido, "metodo_pagamento", "") or "",
+                getattr(pedido, "status_pagamento", "Aguardando") or "Aguardando",
+                getattr(pedido, "observacoes", "") or "",
                 getattr(pedido, "codigo_rastreio", "") or "",
                 getattr(pedido, "atualizado_em", "") or agora,
             ),
         )
         pedido.id_pedido = cursor.lastrowid
+
+        numero_candidato = (
+            int(pedido.numero) if pedido.numero and int(pedido.numero) > 0 else (1000 + int(pedido.id_pedido))
+        )
+        while True:
+            try:
+                cursor.execute(
+                    "UPDATE pedidos SET numero = ? WHERE id_pedido = ?",
+                    (numero_candidato, pedido.id_pedido),
+                )
+                break
+            except sqlite3.IntegrityError:
+                numero_candidato += 1
+        pedido.numero = numero_candidato
+
+        # Numeração pública determinística (1000 + id_pedido) protegida por índice UNIQUE
+        numero_candidato = (
+            int(pedido.numero) if pedido.numero and int(pedido.numero) > 0 else (1000 + int(pedido.id_pedido))
+        )
+        while True:
+            try:
+                cursor.execute(
+                    "UPDATE pedidos SET numero = ? WHERE id_pedido = ?",
+                    (numero_candidato, pedido.id_pedido),
+                )
+                break
+            except sqlite3.IntegrityError:
+                numero_candidato += 1
+        pedido.numero = numero_candidato
         pedido.atualizado_em = getattr(pedido, "atualizado_em", "") or agora
 
         for item in pedido.itens:
@@ -723,6 +759,11 @@ def _carregar_pedido_com_cursor(cursor, row):
         cliente_email=row["cliente_email"] or "",
         cliente_telefone=row["cliente_telefone"] if "cliente_telefone" in chaves and row["cliente_telefone"] else "",
         endereco_entrega=row["endereco_entrega"] if "endereco_entrega" in chaves and row["endereco_entrega"] else "",
+        tipo_entrega=row["tipo_entrega"] if "tipo_entrega" in chaves and row["tipo_entrega"] else "entrega",
+        cep=row["cep"] if "cep" in chaves and row["cep"] else "",
+        metodo_pagamento=row["metodo_pagamento"] if "metodo_pagamento" in chaves and row["metodo_pagamento"] else "",
+        status_pagamento=row["status_pagamento"] if "status_pagamento" in chaves and row["status_pagamento"] else "Aguardando",
+        observacoes=row["observacoes"] if "observacoes" in chaves and row["observacoes"] else "",
         codigo_rastreio=row["codigo_rastreio"] if "codigo_rastreio" in chaves and row["codigo_rastreio"] else "",
         atualizado_em=row["atualizado_em"] if "atualizado_em" in chaves and row["atualizado_em"] else "",
     )
@@ -795,9 +836,11 @@ def atualizar_status_pedido(
     novo_status: str,
     codigo_rastreio: str | None = None,
     responsavel: str = "Sistema",
+    status_pagamento: str | None = None,
 ):
     agora = datetime.now().strftime("%d/%m/%Y %H:%M")
     codigo_limpo = codigo_rastreio.strip() if codigo_rastreio is not None else None
+    pagamento_limpo = status_pagamento.strip() if status_pagamento is not None else None
 
     with obter_conexao() as conn:
         cursor = conn.cursor()
@@ -811,11 +854,12 @@ def atualizar_status_pedido(
                 """
                 UPDATE pedidos
                 SET status = 'Cancelado',
+                    status_pagamento = COALESCE(?, CASE WHEN status_pagamento = 'Aprovado' THEN 'Estornado' ELSE 'Cancelado' END),
                     codigo_rastreio = COALESCE(?, codigo_rastreio),
                     atualizado_em = ?
                 WHERE id_pedido = ? AND status != 'Cancelado'
                 """,
-                (codigo_limpo, agora, id_pedido),
+                (pagamento_limpo, codigo_limpo, agora, id_pedido),
             )
             if cursor.rowcount == 1:
                 cursor.execute("SELECT * FROM itens_pedido WHERE pedido_id = ?", (id_pedido,))
@@ -886,11 +930,12 @@ def atualizar_status_pedido(
                 """
                 UPDATE pedidos
                 SET status = ?,
+                    status_pagamento = COALESCE(?, status_pagamento),
                     codigo_rastreio = COALESCE(?, codigo_rastreio),
                     atualizado_em = ?
                 WHERE id_pedido = ?
                 """,
-                (novo_status, codigo_limpo, agora, id_pedido),
+                (novo_status, pagamento_limpo, codigo_limpo, agora, id_pedido),
             )
 
         cursor.execute("SELECT * FROM pedidos WHERE id_pedido = ?", (id_pedido,))

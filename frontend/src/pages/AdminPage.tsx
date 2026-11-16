@@ -2252,6 +2252,17 @@ export const AdminPage: React.FC = () => {
                           Cliente: <strong style={{ color: 'var(--color-headline)' }}>{o.cliente_nome}</strong> ({o.cliente_email})
                           {o.cliente_telefone ? ` • ${o.cliente_telefone}` : ''}
                         </div>
+                        {(o.endereco_entrega || o.metodo_pagamento) && (
+                          <div style={{ fontSize: '12px', color: 'var(--color-on-surface-variant)', marginTop: '4px' }}>
+                            {o.endereco_entrega ? `Destino: ${o.endereco_entrega}` : ''}
+                            {o.endereco_entrega && o.metodo_pagamento ? ' | ' : ''}
+                            {o.metodo_pagamento
+                              ? `Pagamento: ${o.metodo_pagamento.toUpperCase()}${
+                                  o.status_pagamento ? ` (${o.status_pagamento})` : ''
+                                }`
+                              : ''}
+                          </div>
+                        )}
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>

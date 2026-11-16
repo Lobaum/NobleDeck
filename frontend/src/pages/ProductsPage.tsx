@@ -18,6 +18,7 @@ export const ProductsPage: React.FC = () => {
     selectedGameFilter,
     setSelectedGameFilter,
     setSelectedProductForModal,
+    setExternalRequestProduct,
     addToCart,
   } = useApp();
 
@@ -673,11 +674,17 @@ export const ProductsPage: React.FC = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => addToCart(p)}
-                          disabled={isUnavailable}
+                          onClick={() => {
+                            if (isExternalUnstocked) {
+                              setExternalRequestProduct(p);
+                              return;
+                            }
+                            addToCart(p);
+                          }}
+                          disabled={!isExternalUnstocked && isUnavailable}
                           aria-label={
                             isExternalUnstocked
-                              ? `${p.nome} disponível sob encomenda`
+                              ? `Solicitar encomenda para ${p.nome}`
                               : isUnpriced
                                 ? `${p.nome} com preço sob consulta`
                                 : p.estoque <= 0
@@ -689,12 +696,12 @@ export const ProductsPage: React.FC = () => {
                             padding: isExternalUnstocked ? '10px 12px' : '10px 14px',
                             fontSize: isExternalUnstocked ? '11px' : undefined,
                             whiteSpace: 'nowrap',
-                            opacity: isUnavailable ? 0.45 : 1,
-                            cursor: isUnavailable ? 'not-allowed' : 'pointer',
+                            opacity: !isExternalUnstocked && isUnavailable ? 0.45 : 1,
+                            cursor: !isExternalUnstocked && isUnavailable ? 'not-allowed' : 'pointer',
                           }}
                           title={
                             isExternalUnstocked
-                              ? 'Sob Encomenda — solicite importação à equipe'
+                              ? 'Solicitar encomenda / importação à equipe'
                               : isUnpriced
                                 ? 'Produto sob consulta'
                                 : p.estoque > 0
@@ -703,7 +710,7 @@ export const ProductsPage: React.FC = () => {
                           }
                         >
                           {isExternalUnstocked ? (
-                            <span>Sob Encomenda</span>
+                            <span>Solicitar Encomenda</span>
                           ) : (
                             <ShoppingBag size={16} />
                           )}

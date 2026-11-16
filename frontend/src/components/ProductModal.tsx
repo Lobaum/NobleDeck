@@ -14,6 +14,7 @@ export const ProductModal: React.FC = () => {
     addToCart,
     currentUser,
     importExternalCard,
+    setExternalRequestProduct,
   } = useApp();
 
   const [isImporting, setIsImporting] = useState(false);
@@ -326,24 +327,29 @@ export const ProductModal: React.FC = () => {
             <button
               type="button"
               onClick={() => {
-                if (isUnavailable) return;
+                if (isExternalUnstocked) {
+                  setSelectedProductForModal(null);
+                  setExternalRequestProduct(product);
+                  return;
+                }
+                if (isUnpriced || product.estoque <= 0) return;
                 addToCart(product);
                 setSelectedProductForModal(null);
               }}
-              disabled={isUnavailable}
+              disabled={!isExternalUnstocked && isUnavailable}
               className="btn-primary"
               style={{
                 flex: 1,
                 padding: '16px',
                 fontSize: '14px',
-                opacity: isUnavailable ? 0.45 : 1,
-                cursor: isUnavailable ? 'not-allowed' : 'pointer',
+                opacity: !isExternalUnstocked && isUnavailable ? 0.45 : 1,
+                cursor: !isExternalUnstocked && isUnavailable ? 'not-allowed' : 'pointer',
               }}
             >
-              <ShoppingBag size={18} />
+              {isExternalUnstocked ? <PackagePlus size={18} /> : <ShoppingBag size={18} />}
               <span>
                 {isExternalUnstocked
-                  ? 'Sob Encomenda'
+                  ? 'Solicitar Encomenda'
                   : isUnpriced
                     ? 'Sob Consulta'
                     : product.estoque > 0

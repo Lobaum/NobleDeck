@@ -71,6 +71,7 @@ export const HomePage: React.FC = () => {
     setSelectedGameFilter,
     products,
     setSelectedProductForModal,
+    setExternalRequestProduct,
     addToCart,
     setIsAuthModalOpen,
     setAuthModalMode,
@@ -616,11 +617,17 @@ export const HomePage: React.FC = () => {
                           <button
                             type="button"
                             className="landing-btn-print-secondary"
-                            disabled={leadUnavailable}
-                            onClick={() => addToCart(leadStore)}
+                            disabled={!leadStore.externalCard && leadStore.id >= 0 && leadUnavailable}
+                            onClick={() => {
+                              if (Boolean(leadStore.externalCard) || leadStore.id < 0) {
+                                setExternalRequestProduct(leadStore);
+                                return;
+                              }
+                              addToCart(leadStore);
+                            }}
                           >
                             {Boolean(leadStore.externalCard) || leadStore.id < 0
-                              ? 'Sob encomenda'
+                              ? 'Solicitar encomenda'
                               : leadStore.preco <= 0
                                 ? 'Sob consulta'
                                 : leadStore.estoque <= 0
@@ -693,11 +700,17 @@ export const HomePage: React.FC = () => {
                                 <button
                                   type="button"
                                   className="landing-rail-btn-add"
-                                  disabled={isUnavailable}
-                                  onClick={() => addToCart(p)}
+                                  disabled={!isExternal && isUnavailable}
+                                  onClick={() => {
+                                    if (isExternal) {
+                                      setExternalRequestProduct(p);
+                                      return;
+                                    }
+                                    addToCart(p);
+                                  }}
                                   aria-label={
                                     isExternal
-                                      ? `${p.nome} disponível sob encomenda`
+                                      ? `Solicitar encomenda para ${p.nome}`
                                       : isUnpriced
                                         ? `${p.nome} com preço sob consulta`
                                         : p.estoque <= 0

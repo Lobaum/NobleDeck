@@ -71,6 +71,23 @@ export interface CartItem {
   subtotal: number;
 }
 
+export type DeliveryType = 'entrega' | 'retirada';
+
+export type PaymentMethod = 'pix' | 'cartao' | 'boleto' | 'retirada_loja';
+
+export type PaymentStatus = 'Aguardando' | 'Aprovado' | 'Na Retirada' | 'Estornado' | 'Cancelado';
+
+export interface CheckoutSubmissionPayload {
+  tipo_entrega: DeliveryType;
+  cep: string;
+  endereco_entrega: string;
+  cliente_telefone?: string;
+  metodo_pagamento: PaymentMethod;
+  status_pagamento: PaymentStatus;
+  parcelas?: number;
+  observacoes?: string;
+}
+
 export interface Order {
   id_pedido: number;
   numero?: number;
@@ -79,6 +96,11 @@ export interface Order {
   cliente_email: string;
   cliente_telefone?: string;
   endereco_entrega?: string;
+  tipo_entrega?: DeliveryType;
+  cep?: string;
+  metodo_pagamento?: PaymentMethod | string;
+  status_pagamento?: PaymentStatus | string;
+  observacoes?: string;
   codigo_rastreio?: string;
   atualizado_em?: string;
   itens: CartItem[];

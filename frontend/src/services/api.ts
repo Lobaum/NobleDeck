@@ -224,6 +224,11 @@ export function adaptarPedidoDoBackend(p: any, produtosCatalogo: Product[] = [])
     cliente_email: p.cliente_email,
     cliente_telefone: p.cliente_telefone || undefined,
     endereco_entrega: p.endereco_entrega || undefined,
+    tipo_entrega: p.tipo_entrega || 'entrega',
+    cep: p.cep || undefined,
+    metodo_pagamento: p.metodo_pagamento || undefined,
+    status_pagamento: p.status_pagamento || undefined,
+    observacoes: p.observacoes || undefined,
     codigo_rastreio: p.codigo_rastreio || undefined,
     atualizado_em: p.atualizado_em || undefined,
     itens,
@@ -417,7 +422,13 @@ export const api = {
       cliente_nome: string;
       cliente_email: string;
       cliente_telefone?: string;
-      endereco_entrega?: string;
+      endereco_entrega: string;
+      tipo_entrega: 'entrega' | 'retirada';
+      cep: string;
+      metodo_pagamento: string;
+      status_pagamento: string;
+      parcelas?: number;
+      observacoes?: string;
       itens: { produto_id: number; quantidade: number }[];
     },
     produtosCatalogo: Product[] = []
@@ -438,11 +449,15 @@ export const api = {
     pedidoId: number,
     status: Order['status'],
     produtosCatalogo: Product[] = [],
-    codigoRastreio?: string
+    codigoRastreio?: string,
+    statusPagamento?: string
   ): Promise<Order> {
     const payload: Record<string, string> = { status };
     if (codigoRastreio !== undefined) {
       payload.codigo_rastreio = codigoRastreio;
+    }
+    if (statusPagamento !== undefined) {
+      payload.status_pagamento = statusPagamento;
     }
     const res = await fetchWithAuth(`${API_BASE}/pedidos/${pedidoId}/status`, {
       method: 'PATCH',
@@ -451,6 +466,17 @@ export const api = {
     });
     if (!res.ok) {
       throw new Error(await extractErrorMessage(res, 'Erro ao atualizar status do pedido'));
+    }
+    const dados = await res.json();
+    return adaptarPedidoDoBackend(dados, produtosCatalogo);
+  },
+
+  async cancelarMeuPedido(pedidoId: number, produtosCatalogo: Product[] = []): Promise<Order> {
+    const res = await fetchWithAuth(`${API_BASE}/pedidos/${pedidoId}/cancelar`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      throw new Error(await extractErrorMessage(res, 'Não foi possível cancelar o pedido'));
     }
     const dados = await res.json();
     return adaptarPedidoDoBackend(dados, produtosCatalogo);

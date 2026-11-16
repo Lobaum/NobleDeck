@@ -1,4 +1,4 @@
-import random
+import re
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.banco import (
     salvar_pedido,
@@ -14,6 +14,10 @@ from app.seguranca import exigir_equipe, obter_usuario_atual
 router = APIRouter(prefix="/api/pedidos", tags=["Pedidos"])
 
 _STATUS_PEDIDO_VALIDOS = {"Pendente", "Processando", "Enviado", "Finalizado", "Cancelado"}
+_TIPOS_ENTREGA_VALIDOS = {"entrega", "retirada"}
+_METODOS_PAGAMENTO_VALIDOS = {"pix", "cartao", "boleto", "retirada_loja"}
+_STATUS_PAGAMENTO_VALIDOS = {"Aguardando", "Aprovado", "Na Retirada", "Estornado", "Cancelado"}
+_ENDERECO_RETIRADA_LOJA = "Retirada na Loja - Av. Paulista, 1800, Conj. 42, Bela Vista - São Paulo/SP"
 
 
 def _formatar_pedido(pedido):
@@ -45,6 +49,11 @@ def _formatar_pedido(pedido):
         cliente_email=pedido.cliente_email,
         cliente_telefone=getattr(pedido, "cliente_telefone", "") or "",
         endereco_entrega=getattr(pedido, "endereco_entrega", "") or "",
+        tipo_entrega=getattr(pedido, "tipo_entrega", "entrega") or "entrega",
+        cep=getattr(pedido, "cep", "") or "",
+        metodo_pagamento=getattr(pedido, "metodo_pagamento", "") or "",
+        status_pagamento=getattr(pedido, "status_pagamento", "Aguardando") or "Aguardando",
+        observacoes=getattr(pedido, "observacoes", "") or "",
         codigo_rastreio=getattr(pedido, "codigo_rastreio", "") or "",
         atualizado_em=getattr(pedido, "atualizado_em", "") or "",
         itens=itens_resposta,
@@ -77,8 +86,53 @@ def criar_pedido(
     if not dados.itens:
         raise HTTPException(status_code=400, detail="O pedido deve conter ao menos um item.")
 
+    tipo_entrega = (dados.tipo_entrega or "entrega").strip().lower()
+    if tipo_entrega not in _TIPOS_ENTREGA_VALIDOS:
+        raise HTTPException(
+            status_code=400,
+            detail="Tipo de entrega inválido. Use 'entrega' ou 'retirada'.",
+        )
+
+    metodo_pagamento = (dados.metodo_pagamento or "pix").strip().lower()
+    if metodo_pagamento not in _METODOS_PAGAMENTO_VALIDOS:
+        raise HTTPException(
+            status_code=400,
+            detail="Método de pagamento inválido. Use 'pix', 'cartao', 'boleto' ou 'retirada_loja'.",
+        )
+
+    if metodo_pagamento == "retirada_loja" and tipo_entrega != "retirada":
+        raise HTTPException(
+            status_code=400,
+            detail="Pagamento na retirada só está disponível para retirada presencial na loja.",
+        )
+
+    cep_limpo = re.sub(r"\D", "", dados.cep or "")
+    endereco = (dados.endereco_entrega or "").strip()
+
+    if tipo_entrega == "entrega":
+        if len(cep_limpo) != 8:
+            raise HTTPException(
+                status_code=400,
+                detail="Informe um CEP válido com 8 dígitos para entrega.",
+            )
+        if len(endereco) < 10:
+            raise HTTPException(
+                status_code=400,
+                detail="Informe o endereço completo de entrega (rua, número, bairro e cidade/UF).",
+            )
+        cep_formatado = f"{cep_limpo[:5]}-{cep_limpo[5:]}"
+    else:
+        cep_formatado = "01310-200"
+        if not endereco:
+            endereco = _ENDERECO_RETIRADA_LOJA
+
     quantidades_por_produto: dict[int, int] = {}
     for item_requisicao in dados.itens:
+        if item_requisicao.produto_id <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Cartas externas não catalogadas precisam ser importadas à loja antes da compra.",
+            )
         if item_requisicao.quantidade <= 0:
             raise HTTPException(
                 status_code=400,
@@ -108,17 +162,34 @@ def criar_pedido(
             )
         produtos_por_id[produto_id] = produto
 
-    numero_gerado = random.randint(1000, 999999)
+    if metodo_pagamento == "retirada_loja":
+        status_pagamento = "Na Retirada"
+        status_inicial = "Pendente"
+    elif metodo_pagamento == "boleto":
+        status_pagamento = "Aguardando"
+        status_inicial = "Pendente"
+    elif (dados.status_pagamento or "").strip() == "Aprovado":
+        status_pagamento = "Aprovado"
+        status_inicial = "Processando"
+    else:
+        status_pagamento = "Aguardando"
+        status_inicial = "Pendente"
+
     telefone = (dados.cliente_telefone or getattr(usuario_atual, "telefone", "") or "").strip()
-    endereco = (dados.endereco_entrega or "").strip()
+    observacoes = (dados.observacoes or "").strip()
 
     novo_pedido = Pedido(
-        numero=numero_gerado,
+        numero=None,
         cliente_id=usuario_atual.id_usuario,
         cliente_nome=usuario_atual.nome,
         cliente_email=usuario_atual.email,
         cliente_telefone=telefone,
         endereco_entrega=endereco,
+        tipo_entrega=tipo_entrega,
+        cep=cep_formatado,
+        metodo_pagamento=metodo_pagamento,
+        status_pagamento=status_pagamento,
+        observacoes=observacoes,
         status="Pendente",
     )
 
@@ -126,7 +197,15 @@ def criar_pedido(
         produto = produtos_por_id[item_requisicao.produto_id]
         novo_pedido.adicionarItem(produto, item_requisicao.quantidade)
 
+    if not novo_pedido.itens:
+        raise HTTPException(status_code=400, detail="Não foi possível vincular os itens ao pedido.")
+
     novo_pedido.calcularTotal()
+    if status_inicial != "Pendente":
+        try:
+            novo_pedido.transicionarPara(status_inicial)
+        except ValueError as err:
+            raise HTTPException(status_code=400, detail=str(err))
 
     try:
         salvar_pedido(novo_pedido)
@@ -136,36 +215,65 @@ def criar_pedido(
     return _formatar_pedido(novo_pedido)
 
 
+@router.post("/{id_pedido}/cancelar", response_model=PedidoResposta)
+def cancelar_proprio_pedido_rota(
+    id_pedido: int,
+    usuario_atual=Depends(obter_usuario_atual),
+):
+    pedido = obter_pedido_por_id(id_pedido)
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido não encontrado.")
+
+    if pedido.cliente_id != usuario_atual.id_usuario:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você não tem permissão para cancelar pedidos de outro titular.",
+        )
+
+    try:
+        pedido.cancelar(apenas_se_pendente=True)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+    pedido_atualizado = atualizar_status_pedido(
+        id_pedido,
+        pedido.status,
+        responsavel=usuario_atual.nome,
+        status_pagamento=pedido.status_pagamento,
+    )
+    if not pedido_atualizado:
+        raise HTTPException(status_code=500, detail="Erro ao cancelar o pedido no banco de dados.")
+
+    return _formatar_pedido(pedido_atualizado)
+
+
 @router.patch("/{id_pedido}/status", response_model=PedidoResposta)
 def atualizar_status_pedido_rota(
     id_pedido: int,
     dados: PedidoStatusAlteracao,
     usuario_atual=Depends(exigir_equipe),
 ):
-    if dados.status not in _STATUS_PEDIDO_VALIDOS:
+    if dados.status_pagamento is not None and dados.status_pagamento not in _STATUS_PAGAMENTO_VALIDOS:
         raise HTTPException(
             status_code=400,
-            detail="Status inválido. Valores permitidos: Pendente, Processando, Enviado, Finalizado ou Cancelado.",
+            detail="Status de pagamento inválido.",
         )
 
     pedido = obter_pedido_por_id(id_pedido)
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido não encontrado.")
 
-    if pedido.status == "Cancelado" and dados.status != "Cancelado":
-        raise HTTPException(status_code=400, detail="Pedidos cancelados não podem ser reabertos.")
-
-    if pedido.status == "Finalizado" and dados.status not in ("Finalizado", "Cancelado"):
-        raise HTTPException(
-            status_code=400,
-            detail="Pedidos finalizados só podem ser alterados para Finalizado ou Cancelado.",
-        )
+    try:
+        pedido.transicionarPara(dados.status)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
 
     pedido_atualizado = atualizar_status_pedido(
         id_pedido,
-        dados.status,
+        pedido.status,
         codigo_rastreio=dados.codigo_rastreio,
         responsavel=usuario_atual.nome,
+        status_pagamento=dados.status_pagamento,
     )
     if not pedido_atualizado:
         raise HTTPException(status_code=500, detail="Erro ao atualizar o pedido no banco de dados.")

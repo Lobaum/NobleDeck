@@ -38,6 +38,8 @@ class ItemPedido:
 
 
 class Pedido:
+    STATUS_VALIDOS = {"Pendente", "Processando", "Enviado", "Finalizado", "Cancelado"}
+
     def __init__(
         self,
         id_pedido=None,
@@ -51,6 +53,11 @@ class Pedido:
         cliente_email="",
         cliente_telefone="",
         endereco_entrega="",
+        tipo_entrega="entrega",
+        cep="",
+        metodo_pagamento="",
+        status_pagamento="Aguardando",
+        observacoes="",
         codigo_rastreio="",
         atualizado_em="",
     ):
@@ -73,6 +80,11 @@ class Pedido:
             self.cliente_telefone = cliente_telefone or ""
 
         self.endereco_entrega = endereco_entrega or ""
+        self.tipo_entrega = tipo_entrega or "entrega"
+        self.cep = cep or ""
+        self.metodo_pagamento = metodo_pagamento or ""
+        self.status_pagamento = status_pagamento or "Aguardando"
+        self.observacoes = observacoes or ""
         self.codigo_rastreio = codigo_rastreio or ""
         self.atualizado_em = atualizado_em or ""
         self.itens = []
@@ -98,9 +110,44 @@ class Pedido:
         self.valorTotal = round(sum(item.calcularSubtotal() for item in self.itens), 2)
         return self.valorTotal
 
-    def atualizarStatus(self, novo_status):
+    def transicionarPara(self, novo_status):
+        if novo_status not in self.STATUS_VALIDOS:
+            raise ValueError(
+                "Status inválido. Valores permitidos: Pendente, Processando, Enviado, Finalizado ou Cancelado."
+            )
+
+        if self.status == "Cancelado" and novo_status != "Cancelado":
+            raise ValueError("Pedidos cancelados não podem ser reabertos.")
+
+        if self.status == "Finalizado" and novo_status not in ("Finalizado", "Cancelado"):
+            raise ValueError(
+                "Pedidos finalizados só podem ser alterados para Finalizado ou Cancelado."
+            )
+
+        if novo_status == "Finalizado":
+            if not self.finalizar():
+                raise ValueError("O pedido precisa conter ao menos um item para ser finalizado.")
+            return self.status
+
+        if novo_status == "Cancelado":
+            self.cancelar(apenas_se_pendente=False)
+            return self.status
+
         self.status = novo_status
         return self.status
+
+    def atualizarStatus(self, novo_status):
+        return self.transicionarPara(novo_status)
+
+    def cancelar(self, apenas_se_pendente=False):
+        if self.status == "Cancelado":
+            raise ValueError("Este pedido já está cancelado.")
+        if apenas_se_pendente and self.status != "Pendente":
+            raise ValueError("Apenas pedidos com status 'Pendente' podem ser cancelados pelo titular.")
+
+        self.status = "Cancelado"
+        self.status_pagamento = "Estornado" if self.status_pagamento == "Aprovado" else "Cancelado"
+        return True
 
     def finalizar(self):
         if not self.itens:

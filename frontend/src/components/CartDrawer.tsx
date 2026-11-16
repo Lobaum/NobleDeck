@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { formatBRL } from '../services/api';
-import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight } from 'lucide-react';
 import nobleLogo from '../assets/noble-logo.png';
 
 export const CartDrawer: React.FC = () => {
@@ -15,39 +15,11 @@ export const CartDrawer: React.FC = () => {
     removeFromCart,
     updateCartQuantity,
     cartTotal,
-    createOrder,
+    startCheckoutFlow,
     setCurrentTab,
-    currentUser,
-    setIsAuthModalOpen,
-    setAuthModalMode,
-    showToast,
   } = useApp();
 
-  const [lastCompletedOrder, setLastCompletedOrder] = useState<number | null>(null);
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
-
   if (!isCartOpen) return null;
-
-  const handleCheckout = async () => {
-    if (isCheckingOut) return;
-    if (!currentUser.email || currentUser.id === 0) {
-      showToast('Faça login ou crie uma conta para finalizar seu pedido!');
-      setIsCartOpen(false);
-      setAuthModalMode('login');
-      setIsAuthModalOpen(true);
-      return;
-    }
-
-    setIsCheckingOut(true);
-    try {
-      const order = await createOrder();
-      if (order) {
-        setLastCompletedOrder(order.id_pedido);
-      }
-    } finally {
-      setIsCheckingOut(false);
-    }
-  };
 
   return (
     <div
@@ -60,10 +32,7 @@ export const CartDrawer: React.FC = () => {
       }}
     >
       <div
-        onClick={() => {
-          setIsCartOpen(false);
-          setLastCompletedOrder(null);
-        }}
+        onClick={() => setIsCartOpen(false)}
         style={{
           position: 'absolute',
           inset: 0,
@@ -107,10 +76,7 @@ export const CartDrawer: React.FC = () => {
           <button
             type="button"
             aria-label="Fechar carrinho"
-            onClick={() => {
-              setIsCartOpen(false);
-              setLastCompletedOrder(null);
-            }}
+            onClick={() => setIsCartOpen(false)}
             style={{
               background: 'none',
               border: 'none',
@@ -125,62 +91,7 @@ export const CartDrawer: React.FC = () => {
           </button>
         </div>
 
-        {lastCompletedOrder ? (
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '32px',
-              textAlign: 'center',
-            }}
-          >
-            <div
-              style={{
-                width: '64px',
-                height: '64px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(255, 196, 0, 0.16)',
-                border: '2px solid var(--color-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '20px',
-                color: 'var(--color-primary)',
-              }}
-            >
-              <CheckCircle2 size={36} />
-            </div>
-            <h3 style={{ fontSize: '22px', marginBottom: '8px' }}>
-              Pedido #{lastCompletedOrder} Confirmado!
-            </h3>
-            <p
-              style={{
-                color: 'var(--color-on-surface-variant)',
-                fontSize: '14px',
-                marginBottom: '24px',
-                lineHeight: '1.6',
-              }}
-            >
-              Obrigado por comprar na Noble Deck! O estoque dos produtos foi atualizado e
-              você pode acompanhar este pedido no seu Painel.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setIsCartOpen(false);
-                setLastCompletedOrder(null);
-                setCurrentTab(currentUser.role === 'admin' ? 'admin' : 'dashboard');
-              }}
-              className="btn-primary"
-              style={{ width: '100%' }}
-            >
-              Ver no Painel de Pedidos
-            </button>
-          </div>
-        ) : cart.length === 0 ? (
+        {cart.length === 0 ? (
           <div
             style={{
               flex: 1,
@@ -410,7 +321,7 @@ export const CartDrawer: React.FC = () => {
           </div>
         )}
 
-        {cart.length > 0 && !lastCompletedOrder && (
+        {cart.length > 0 && (
           <div
             style={{
               padding: '24px',
@@ -477,8 +388,7 @@ export const CartDrawer: React.FC = () => {
 
             <button
               type="button"
-              onClick={handleCheckout}
-              disabled={isCheckingOut}
+              onClick={startCheckoutFlow}
               className="btn-primary"
               style={{
                 width: '100%',
@@ -488,23 +398,11 @@ export const CartDrawer: React.FC = () => {
                 justifyContent: 'center',
                 alignItems: 'center',
                 gap: '8px',
-                opacity: isCheckingOut ? 0.65 : 1,
-                cursor: isCheckingOut ? 'not-allowed' : 'pointer',
               }}
             >
-              <span>{isCheckingOut ? 'Processando...' : 'Finalizar Pedido'}</span>
-              {!isCheckingOut && <ArrowRight size={18} />}
+              <span>Ir para o Checkout</span>
+              <ArrowRight size={18} />
             </button>
-            <p
-              style={{
-                textAlign: 'center',
-                fontSize: '11px',
-                color: 'var(--color-on-surface-variant)',
-                marginTop: '10px',
-              }}
-            >
-              Pagamento seguro na retirada ou envio rápido rastreado.
-            </p>
           </div>
         )}
       </aside>

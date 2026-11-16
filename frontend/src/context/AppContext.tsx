@@ -8,6 +8,7 @@ import type {
   GameId,
   ExternalCard,
   StockMovement,
+  CheckoutSubmissionPayload,
 } from '../types';
 import {
   api,
@@ -17,7 +18,14 @@ import {
   setUnauthorizedHandler,
 } from '../services/api';
 
-export type NavigationTab = 'home' | 'products' | 'about' | 'dashboard' | 'admin' | 'product-control';
+export type NavigationTab =
+  | 'home'
+  | 'products'
+  | 'about'
+  | 'dashboard'
+  | 'admin'
+  | 'product-control'
+  | 'checkout';
 
 const GUEST_USER: UserProfile = {
   id: 0,
@@ -45,12 +53,9 @@ const findMatchingStoreProduct = (target: Product, catalog: Product[]): Product 
 
 const reconcileCartWithProducts = (prevCart: CartItem[], liveProducts: Product[]): CartItem[] => {
   return prevCart.reduce<CartItem[]>((acc, item) => {
-    if (!item?.produto) return acc;
+    if (!item?.produto || item.produto.id <= 0 || item.produto.externalCard) return acc;
 
-    const live =
-      item.produto.id > 0 && !item.produto.externalCard
-        ? liveProducts.find((dp) => dp.id === item.produto.id)
-        : findMatchingStoreProduct(item.produto, liveProducts);
+    const live = liveProducts.find((dp) => dp.id === item.produto.id);
 
     if (
       !live ||
@@ -118,8 +123,13 @@ interface AppContextType {
 
   orders: Order[];
   refreshOrders: () => Promise<void>;
-  createOrder: () => Promise<Order | null>;
+  createOrder: (checkoutDetails: CheckoutSubmissionPayload) => Promise<Order | null>;
   updateOrderStatus: (orderId: number, status: Order['status']) => Promise<void> | void;
+  cancelOwnOrder: (orderId: number) => Promise<Order | null>;
+
+  externalRequestProduct: Product | null;
+  setExternalRequestProduct: (product: Product | null) => void;
+  startCheckoutFlow: () => void;
 
   currentUser: UserProfile;
   isAuthModalOpen: boolean;
@@ -166,16 +176,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return clean === '/gestao-produtos' || clean === '/controle-produtos' || clean === '/produtos-admin';
   };
 
+  const isCheckoutPath = (pathname: string) => {
+    const clean = pathname.toLowerCase().replace(/\/+$/, '');
+    return clean === '/checkout';
+  };
+
   const getInitialTab = (): NavigationTab => {
     if (typeof window !== 'undefined') {
       const p = window.location.pathname;
       if (isAdminPath(p)) return 'admin';
       if (isProductControlPath(p)) return 'product-control';
+      if (isCheckoutPath(p)) return 'checkout';
     }
     return 'home';
   };
 
   const [currentTab, setCurrentTabState] = useState<NavigationTab>(getInitialTab);
+  const pendingCheckoutAfterAuthRef = useRef(false);
 
   const setCurrentTab = useCallback((tab: NavigationTab) => {
     setCurrentTabState(tab);
@@ -188,8 +205,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!isProductControlPath(window.location.pathname)) {
           window.history.pushState(null, '', '/gestao-produtos');
         }
+      } else if (tab === 'checkout') {
+        if (!isCheckoutPath(window.location.pathname)) {
+          window.history.pushState(null, '', '/checkout');
+        }
       } else {
-        if (isAdminPath(window.location.pathname) || isProductControlPath(window.location.pathname)) {
+        if (
+          isAdminPath(window.location.pathname) ||
+          isProductControlPath(window.location.pathname) ||
+          isCheckoutPath(window.location.pathname)
+        ) {
           window.history.pushState(null, '', '/');
         }
       }
@@ -203,6 +228,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentTabState('admin');
       } else if (isProductControlPath(p)) {
         setCurrentTabState('product-control');
+      } else if (isCheckoutPath(p)) {
+        setCurrentTabState('checkout');
       } else {
         setCurrentTabState('home');
       }
@@ -230,7 +257,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!saved) return [];
     try {
       const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : [];
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(
+        (item: CartItem) =>
+          Boolean(item?.produto) &&
+          typeof item.produto.id === 'number' &&
+          item.produto.id > 0 &&
+          !item.produto.externalCard &&
+          item.produto.ativo !== false &&
+          Number.isFinite(item.produto.preco) &&
+          item.produto.preco > 0 &&
+          Number.isFinite(item.produto.estoque) &&
+          item.produto.estoque > 0 &&
+          Number.isFinite(item.quantidade) &&
+          item.quantidade > 0
+      );
     } catch {
       return [];
     }
@@ -260,6 +301,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
+  const [externalRequestProduct, setExternalRequestProduct] = useState<Product | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -455,21 +497,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [currentUser.email, currentUser.id, currentUser.role]);
 
   const addToCart = (product: Product, quantity = 1) => {
+    let targetProduct = product;
+    if (product.id <= 0 || product.externalCard) {
+      const matched = findMatchingStoreProduct(product, productsRef.current);
+      if (!matched) {
+        setSelectedProductForModal(null);
+        setExternalRequestProduct(product);
+        showToast('Carta externa não catalogada na loja. Envie uma solicitação de encomenda.');
+        return;
+      }
+      targetProduct = matched;
+    }
+
     if (!currentUser.email || currentUser.id <= 0 || !getAuthToken()) {
       showToast('Faça login para adicionar produtos ao carrinho!');
       setAuthModalMode('login');
       setIsAuthModalOpen(true);
       return;
-    }
-
-    let targetProduct = product;
-    if (product.id < 0 || product.externalCard) {
-      const matched = findMatchingStoreProduct(product, productsRef.current);
-      if (!matched) {
-        showToast('Este card precisa ser importado ao estoque da loja antes da compra.');
-        return;
-      }
-      targetProduct = matched;
     }
 
     if (targetProduct.ativo === false) {
@@ -535,7 +579,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateCartQuantity = (productId: number, quantity: number) => {
-    if (quantity <= 0) {
+    if (productId <= 0 || quantity <= 0) {
       removeFromCart(productId);
       return;
     }
@@ -564,7 +608,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const cartTotal = cart.reduce((acc, item) => acc + item.subtotal, 0);
   const cartItemsCount = cart.reduce((acc, item) => acc + item.quantidade, 0);
 
-  const createOrder = async (): Promise<Order | null> => {
+  const startCheckoutFlow = useCallback(() => {
+    if (cart.length === 0) {
+      showToast('Seu carrinho está vazio.');
+      return;
+    }
+
+    const hasUncataloged = cart.some((item) => item.produto.id <= 0 || Boolean(item.produto.externalCard));
+    if (hasUncataloged) {
+      setCart((prev) => prev.filter((item) => item.produto.id > 0 && !item.produto.externalCard));
+      showToast('Itens externos não catalogados foram removidos do carrinho.');
+      return;
+    }
+
+    if (!currentUser.email || currentUser.id <= 0 || !getAuthToken()) {
+      pendingCheckoutAfterAuthRef.current = true;
+      setIsCartOpen(false);
+      showToast('Faça login ou crie uma conta para acessar o checkout.');
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    setIsCartOpen(false);
+    setCurrentTab('checkout');
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [cart, currentUser.email, currentUser.id, setCurrentTab, showToast]);
+
+  const createOrder = async (checkoutDetails: CheckoutSubmissionPayload): Promise<Order | null> => {
     if (!currentUser.email || currentUser.id <= 0 || !getAuthToken()) {
       showToast('Faça login para finalizar seu pedido!');
       setAuthModalMode('login');
@@ -577,61 +650,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return null;
     }
 
+    const tipoEntrega = checkoutDetails.tipo_entrega || 'entrega';
+    const cepLimpo = (checkoutDetails.cep || '').replace(/\D/g, '');
+    const enderecoEntrega = (checkoutDetails.endereco_entrega || '').trim();
+
+    if (tipoEntrega === 'entrega') {
+      if (cepLimpo.length !== 8) {
+        showToast('Informe um CEP válido com 8 dígitos para entrega.');
+        return null;
+      }
+      if (enderecoEntrega.length < 10) {
+        showToast('Informe o endereço completo de entrega antes de finalizar.');
+        return null;
+      }
+    }
+
     try {
       const currentCatalog = [...productsRef.current];
       const resolvedItems: { produto_id: number; quantidade: number }[] = [];
 
       for (const item of cart) {
-        if (item.produto.id < 0 || item.produto.externalCard) {
-          const existingInStore = currentCatalog.find(
-            (p) =>
-              p.ativo !== false &&
-              p.nome.toLowerCase().trim() === item.produto.nome.toLowerCase().trim() &&
-              p.jogo === item.produto.jogo
-          );
-
-          if (!existingInStore) {
-            showToast('Este card precisa ser importado ao estoque da loja antes da compra');
-            return null;
-          }
-          if (!Number.isFinite(existingInStore.preco) || existingInStore.preco <= 0) {
-            showToast(`Produto "${existingInStore.nome}" está com preço indisponível.`);
-            return null;
-          }
-          if (existingInStore.estoque < item.quantidade) {
-            showToast(`Estoque insuficiente na loja para ${existingInStore.nome}`);
-            return null;
-          }
-          resolvedItems.push({
-            produto_id: existingInStore.id,
-            quantidade: item.quantidade,
-          });
-        } else {
-          const p = currentCatalog.find((prod) => prod.id === item.produto.id && prod.ativo !== false);
-          if (!p) {
-            showToast(`Produto "${item.produto.nome}" não está mais disponível no catálogo.`);
-            return null;
-          }
-          if (!Number.isFinite(p.preco) || p.preco <= 0) {
-            showToast(`Produto "${p.nome}" está com preço indisponível.`);
-            return null;
-          }
-          if (p.estoque < item.quantidade) {
-            showToast(`Estoque insuficiente para ${item.produto.nome}`);
-            return null;
-          }
-          resolvedItems.push({
-            produto_id: p.id,
-            quantidade: item.quantidade,
-          });
+        if (item.produto.id <= 0 || item.produto.externalCard) {
+          showToast(`"${item.produto.nome}" é um item externo não catalogado e não pode ser comprado diretamente.`);
+          return null;
         }
+        const p = currentCatalog.find((prod) => prod.id === item.produto.id && prod.ativo !== false);
+        if (!p) {
+          showToast(`Produto "${item.produto.nome}" não está mais disponível no catálogo.`);
+          return null;
+        }
+        if (!Number.isFinite(p.preco) || p.preco <= 0) {
+          showToast(`Produto "${p.nome}" está com preço indisponível.`);
+          return null;
+        }
+        if (p.estoque < item.quantidade) {
+          showToast(`Estoque insuficiente para ${item.produto.nome}`);
+          return null;
+        }
+        resolvedItems.push({
+          produto_id: p.id,
+          quantidade: item.quantidade,
+        });
       }
 
       const payload = {
         cliente_id: currentUser.id > 0 ? currentUser.id : undefined,
         cliente_nome: currentUser.nome,
         cliente_email: currentUser.email,
-        cliente_telefone: currentUser.telefone || undefined,
+        cliente_telefone: checkoutDetails.cliente_telefone || currentUser.telefone || undefined,
+        endereco_entrega:
+          tipoEntrega === 'retirada' && !enderecoEntrega
+            ? 'Retirada na Loja - Av. Paulista, 1800, Conj. 42, Bela Vista - São Paulo/SP'
+            : enderecoEntrega,
+        tipo_entrega: tipoEntrega,
+        cep: tipoEntrega === 'retirada' ? '01310-200' : `${cepLimpo.slice(0, 5)}-${cepLimpo.slice(5)}`,
+        metodo_pagamento: checkoutDetails.metodo_pagamento,
+        status_pagamento: checkoutDetails.status_pagamento,
+        parcelas: checkoutDetails.parcelas ?? 1,
+        observacoes: checkoutDetails.observacoes?.trim() || undefined,
         itens: resolvedItems,
       };
 
@@ -642,7 +718,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       clearCart();
       setIsCartOpen(false);
-      showToast(`Pedido #${pedidoBackend.id_pedido} realizado com sucesso!`);
+      showToast(`Pedido #${pedidoBackend.numero || pedidoBackend.id_pedido} confirmado!`);
       return pedidoBackend;
     } catch (err: any) {
       showToast(err?.message || 'Não foi possível finalizar o pedido no servidor.');
@@ -660,6 +736,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast(`Status do pedido #${orderId} atualizado para ${status}`);
     } catch (err: any) {
       showToast(err?.message || 'Erro ao atualizar status do pedido no servidor.');
+    }
+  };
+
+  const cancelOwnOrder = async (orderId: number): Promise<Order | null> => {
+    try {
+      const cancelado = await api.cancelarMeuPedido(orderId, productsRef.current);
+      setOrders((prev) => prev.map((o) => (o.id_pedido === orderId ? cancelado : o)));
+      await Promise.all([refreshProducts(), refreshStockMovements()]);
+      showToast(`Pedido #${cancelado.numero || cancelado.id_pedido} cancelado e itens estornados.`);
+      return cancelado;
+    } catch (err: any) {
+      showToast(err?.message || 'Erro ao cancelar o pedido.');
+      return null;
     }
   };
 
@@ -979,7 +1068,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentUser(cadastrado);
         setIsAuthModalOpen(false);
         showToast(`Cadastro realizado! Bem-vindo, ${cadastrado.nome}!`);
-        if (cadastrado.role === 'admin') {
+        if (pendingCheckoutAfterAuthRef.current) {
+          pendingCheckoutAfterAuthRef.current = false;
+          setCurrentTab('checkout');
+        } else if (cadastrado.role === 'admin') {
           setCurrentTab('admin');
         }
         return true;
@@ -994,7 +1086,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentUser(logado);
         setIsAuthModalOpen(false);
         showToast(`Bem-vindo de volta, ${logado.nome}!`);
-        if (logado.role === 'admin') {
+        if (pendingCheckoutAfterAuthRef.current) {
+          pendingCheckoutAfterAuthRef.current = false;
+          setCurrentTab('checkout');
+        } else if (logado.role === 'admin') {
           setCurrentTab('admin');
         }
         return true;
@@ -1014,6 +1109,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Sessão encerrada.');
     setCurrentTab('home');
   };
+
+  useEffect(() => {
+    if (!isAuthModalOpen && (!currentUser.email || currentUser.id <= 0)) {
+      pendingCheckoutAfterAuthRef.current = false;
+    }
+  }, [isAuthModalOpen, currentUser.email, currentUser.id]);
 
   // Bloqueia acesso direto a painéis restritos se não estiver autenticado/autorizado
   useEffect(() => {
@@ -1069,6 +1170,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshOrders,
         createOrder,
         updateOrderStatus,
+        cancelOwnOrder,
+        externalRequestProduct,
+        setExternalRequestProduct,
+        startCheckoutFlow,
         currentUser,
         isAuthModalOpen,
         setIsAuthModalOpen,

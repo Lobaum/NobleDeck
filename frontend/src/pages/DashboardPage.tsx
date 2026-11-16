@@ -1500,6 +1500,7 @@ export const DashboardPage: React.FC = () => {
     showToastConfirm,
     addProduct,
     updateOrderStatus,
+    cancelOwnOrder,
     setCurrentTab,
     setIsAuthModalOpen,
     setAuthModalMode,
@@ -1825,21 +1826,52 @@ export const DashboardPage: React.FC = () => {
                             }}
                           />
                         ) : (
-                          <span
-                            style={{
-                              fontFamily: 'var(--font-mono)',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              padding: '4px 10px',
-                              borderRadius: 'var(--radius-sm)',
-                              backgroundColor: customerBadgeStyle.bg,
-                              color: customerBadgeStyle.text,
-                              border: `1px solid ${customerBadgeStyle.border}`,
-                              textTransform: 'uppercase',
-                            }}
-                          >
-                            {order.status}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span
+                              style={{
+                                fontFamily: 'var(--font-mono)',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                padding: '4px 10px',
+                                borderRadius: 'var(--radius-sm)',
+                                backgroundColor: customerBadgeStyle.bg,
+                                color: customerBadgeStyle.text,
+                                border: `1px solid ${customerBadgeStyle.border}`,
+                                textTransform: 'uppercase',
+                              }}
+                            >
+                              {order.status}
+                            </span>
+
+                            {order.status === 'Pendente' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  showToastConfirm({
+                                    message: `Cancelar o Pedido #${orderLabel}? Os itens serão devolvidos ao estoque.`,
+                                    confirmText: 'Cancelar Pedido',
+                                    cancelText: 'Voltar',
+                                    onConfirm: () => {
+                                      void cancelOwnOrder(order.id_pedido);
+                                    },
+                                  });
+                                }}
+                                style={{
+                                  fontFamily: 'var(--font-mono)',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  padding: '4px 10px',
+                                  borderRadius: 'var(--radius-sm)',
+                                  backgroundColor: tones.dangerBg,
+                                  color: tones.dangerText,
+                                  border: `1px solid ${tones.dangerBorder}`,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Cancelar Pedido
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1876,6 +1908,37 @@ export const DashboardPage: React.FC = () => {
                         </div>
                       ))}
                     </div>
+
+                    {(order.endereco_entrega || order.metodo_pagamento) && (
+                      <div
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          backgroundColor: 'var(--color-surface-container-low)',
+                          border: '1px solid var(--card-border)',
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          justifyContent: 'space-between',
+                          gap: '8px 16px',
+                          fontSize: '12.5px',
+                          color: 'var(--color-on-surface-variant)',
+                        }}
+                      >
+                        {order.endereco_entrega && (
+                          <span>
+                            <strong style={{ color: 'var(--color-headline)' }}>Destino:</strong>{' '}
+                            {order.endereco_entrega}
+                          </span>
+                        )}
+                        {order.metodo_pagamento && (
+                          <span style={{ fontFamily: 'var(--font-mono)' }}>
+                            <strong style={{ color: 'var(--color-headline)' }}>Pagamento:</strong>{' '}
+                            {order.metodo_pagamento.toUpperCase()}
+                            {order.status_pagamento ? ` (${order.status_pagamento})` : ''}
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     <div
                       style={{

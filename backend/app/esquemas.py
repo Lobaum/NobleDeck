@@ -253,12 +253,19 @@ class PedidoRegistro(BaseModel):
     cliente_email: str = ""
     cliente_telefone: str = ""
     endereco_entrega: str = ""
+    tipo_entrega: str = "entrega"
+    cep: str = ""
+    metodo_pagamento: str = "pix"
+    status_pagamento: str = "Aguardando"
+    parcelas: int = 1
+    observacoes: str = ""
     itens: list[ItemPedidoRegistro]
 
 
 class PedidoStatusAlteracao(BaseModel):
     status: str
     codigo_rastreio: str | None = None
+    status_pagamento: str | None = None
 
 
 class PedidoResposta(BaseModel):
@@ -274,6 +281,11 @@ class PedidoResposta(BaseModel):
     cliente_email: str
     cliente_telefone: str = ""
     endereco_entrega: str = ""
+    tipo_entrega: str = "entrega"
+    cep: str = ""
+    metodo_pagamento: str = ""
+    status_pagamento: str = "Aguardando"
+    observacoes: str = ""
     codigo_rastreio: str = ""
     atualizado_em: str = ""
     itens: list[ItemPedidoResposta] = []

@@ -12,6 +12,8 @@ import { DashboardPage } from './pages/DashboardPage';
 import { AboutPage } from './pages/AboutPage';
 import { AdminPage } from './pages/AdminPage';
 import { ProductControlPage } from './pages/ProductControlPage';
+import { CheckoutPage } from './pages/CheckoutPage';
+import { ExternalRequestModal } from './components/ExternalRequestModal';
 import { ThemeProvider } from './context/ThemeContext';
 
 const AppContent: React.FC = () => {
@@ -28,6 +30,7 @@ const AppContent: React.FC = () => {
         {currentTab === 'dashboard' && <DashboardPage />}
         {currentTab === 'admin' && <AdminPage />}
         {currentTab === 'product-control' && <ProductControlPage />}
+        {currentTab === 'checkout' && <CheckoutPage />}
       </main>
 
       <Footer />
@@ -35,6 +38,7 @@ const AppContent: React.FC = () => {
       {/* Modais */}
       <CartDrawer />
       <ProductModal />
+      <ExternalRequestModal />
       <AuthModal />
 
       {/* Notificação Padrão */}
