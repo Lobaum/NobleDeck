@@ -1,9 +1,46 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
+
+const SPA_ROUTES = [
+  'admin',
+  'equipe',
+  'painel',
+  'minha-conta',
+  'gestao-produtos',
+  'controle-produtos',
+  'produtos-admin',
+  'checkout',
+]
+
+function spaRouteEntriesPlugin(): Plugin {
+  let outDir = 'dist'
+  return {
+    name: 'nobledeck-spa-route-entries',
+    configResolved(config) {
+      outDir = config.build.outDir
+    },
+    closeBundle() {
+      const resolvedOutDir = path.resolve(process.cwd(), outDir)
+      const indexFile = path.join(resolvedOutDir, 'index.html')
+      if (!fs.existsSync(indexFile)) return
+      const html = fs.readFileSync(indexFile, 'utf-8')
+      for (const route of SPA_ROUTES) {
+        const flatFile = path.join(resolvedOutDir, `${route}.html`)
+        const nestedDir = path.join(resolvedOutDir, route)
+        const nestedIndex = path.join(nestedDir, 'index.html')
+        fs.writeFileSync(flatFile, html, 'utf-8')
+        fs.mkdirSync(nestedDir, { recursive: true })
+        fs.writeFileSync(nestedIndex, html, 'utf-8')
+      }
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), spaRouteEntriesPlugin()],
   publicDir: 'public',
   server: {
     proxy: {
