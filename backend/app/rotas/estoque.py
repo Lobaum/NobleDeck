@@ -17,13 +17,13 @@ from app.esquemas import (
     EstoqueMinimoAtualizacao,
     MovimentacaoEstoqueResposta,
 )
-from app.seguranca import exigir_equipe
+from app.seguranca import exigir_permissao
 
 router = APIRouter(prefix="/api/estoque", tags=["Estoque"])
 
 
 @router.get("", response_model=list[EstoqueResposta])
-def consultarQuantidade(_usuario_atual=Depends(exigir_equipe)):
+def consultarQuantidade(_usuario_atual=Depends(exigir_permissao("estoque"))):
     estoques = listar_estoques()
     resultado = []
     for item_estoque in estoques:
@@ -43,7 +43,7 @@ def consultarQuantidade(_usuario_atual=Depends(exigir_equipe)):
 @router.get("/movimentacoes", response_model=list[MovimentacaoEstoqueResposta])
 def consultarMovimentacoes(
     limite: int = 100,
-    _usuario_atual=Depends(exigir_equipe),
+    _usuario_atual=Depends(exigir_permissao("estoque")),
 ):
     return listar_movimentacoes_estoque(limite=limite)
 
@@ -51,7 +51,7 @@ def consultarMovimentacoes(
 @router.post("/entrada", response_model=EstoqueResposta)
 def registrarEntrada(
     dados: EstoqueEntrada,
-    usuario_atual=Depends(exigir_equipe),
+    usuario_atual=Depends(exigir_permissao("estoque")),
 ):
     if dados.quantidade <= 0:
         raise HTTPException(status_code=400, detail="A quantidade de entrada deve ser maior que zero.")
@@ -93,7 +93,7 @@ def registrarEntrada(
 @router.post("/saida", response_model=EstoqueResposta)
 def registrarSaida(
     dados: EstoqueSaida,
-    usuario_atual=Depends(exigir_equipe),
+    usuario_atual=Depends(exigir_permissao("estoque")),
 ):
     if dados.quantidade <= 0:
         raise HTTPException(status_code=400, detail="A quantidade de saída deve ser maior que zero.")
@@ -139,7 +139,7 @@ def registrarSaida(
 def definirEstoqueMinimo(
     produto_id: int,
     dados: EstoqueMinimoAtualizacao,
-    _usuario_atual=Depends(exigir_equipe),
+    _usuario_atual=Depends(exigir_permissao("estoque", "catalogo_api")),
 ):
     if dados.estoque_minimo < 0:
         raise HTTPException(status_code=400, detail="O estoque mínimo não pode ser negativo.")
@@ -158,7 +158,7 @@ def definirEstoqueMinimo(
 
 @router.get("/falta", response_model=list[EstoqueResposta])
 @router.get("/baixo", response_model=list[EstoqueResposta])
-def verificarEstoqueBaixo(_usuario_atual=Depends(exigir_equipe)):
+def verificarEstoqueBaixo(_usuario_atual=Depends(exigir_permissao("estoque"))):
     estoques = listar_estoques()
     em_falta = []
     for item_estoque in estoques:

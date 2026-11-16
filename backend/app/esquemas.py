@@ -9,8 +9,12 @@ class UsuarioCadastro(BaseModel):
     email: str
     senha: str
     telefone: str = ""
+    cpf: str = ""
+    cep: str = ""
+    endereco: str = ""
     cargo: str | None = None
     tipoUsuario: str = Field(default="cliente", alias="tipo_usuario")
+    permissoes: list[str] | None = None
 
 
 class UsuarioLogin(BaseModel):
@@ -26,11 +30,26 @@ class UsuarioResposta(BaseModel):
     email: str
     tipoUsuario: str = Field(default="cliente", alias="tipo_usuario")
     telefone: str | None = None
+    cpf: str | None = None
+    cep: str | None = None
+    endereco: str | None = None
     cargo: str | None = None
+    permissoes: list[str] = []
 
 
 class UsuarioAutenticadoResposta(UsuarioResposta):
     token: str
+
+
+class UsuarioAtualizacaoDados(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    nome: str
+    email: str
+    telefone: str | None = ""
+    cpf: str | None = ""
+    cep: str | None = ""
+    endereco: str | None = ""
 
 
 class UsuarioAtualizacaoPerfil(BaseModel):
@@ -38,6 +57,7 @@ class UsuarioAtualizacaoPerfil(BaseModel):
 
     tipo_usuario: str = Field(default="cliente", alias="tipoUsuario")
     cargo: str | None = None
+    permissoes: list[str] | None = None
 
 
 class UsuarioAlterarSenha(BaseModel):
@@ -63,6 +83,7 @@ class ProdutoRegistro(BaseModel):
     is_destaque: bool = False
     idioma: str = "Português"
     ano: int = 2024
+    origem: str = "manual"
 
     @field_validator("nome")
     @classmethod

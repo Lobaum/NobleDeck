@@ -211,6 +211,27 @@ def obter_usuario_opcional(
     return obter_usuario_por_id(id_usuario)
 
 
+_LABELS_PERMISSAO = {
+    "pedidos": "Pedidos e Expedição",
+    "estoque": "Estoque e Movimentações",
+    "produtos": "Produtos e Preços",
+    "catalogo_api": "Catálogo Oficial (API)",
+}
+
+
+def usuario_tem_permissao(usuario, permissao: str) -> bool:
+    if usuario is None:
+        return False
+    tipo = getattr(usuario, "tipoUsuario", "")
+    if tipo == "administrador":
+        return True
+    if tipo != "funcionario":
+        return False
+    if hasattr(usuario, "temPermissao"):
+        return bool(usuario.temPermissao(permissao))
+    return permissao in (getattr(usuario, "permissoes", None) or [])
+
+
 def exigir_equipe(usuario_atual=Depends(obter_usuario_atual)):
     if getattr(usuario_atual, "tipoUsuario", "") not in ("funcionario", "administrador"):
         raise HTTPException(
@@ -218,6 +239,27 @@ def exigir_equipe(usuario_atual=Depends(obter_usuario_atual)):
             detail="Acesso restrito à equipe da loja.",
         )
     return usuario_atual
+
+
+def exigir_permissao(*permissoes_necessarias: str):
+    def _verificar_permissao(usuario_atual=Depends(obter_usuario_atual)):
+        tipo = getattr(usuario_atual, "tipoUsuario", "")
+        if tipo == "administrador":
+            return usuario_atual
+        if tipo != "funcionario":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acesso restrito à equipe autorizada da loja.",
+            )
+        if any(usuario_tem_permissao(usuario_atual, p) for p in permissoes_necessarias):
+            return usuario_atual
+        nomes = ", ".join(_LABELS_PERMISSAO.get(p, p) for p in permissoes_necessarias)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Seu nível de acesso não inclui permissão para: {nomes}.",
+        )
+
+    return _verificar_permissao
 
 
 def exigir_admin(usuario_atual=Depends(obter_usuario_atual)):

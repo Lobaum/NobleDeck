@@ -12,7 +12,7 @@ export const ProductModal: React.FC = () => {
     selectedProductForModal,
     setSelectedProductForModal,
     addToCart,
-    currentUser,
+    hasPermission,
     importExternalCard,
     setExternalRequestProduct,
   } = useApp();
@@ -31,7 +31,7 @@ export const ProductModal: React.FC = () => {
   if (!selectedProductForModal) return null;
 
   const product = selectedProductForModal;
-  const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+  const canImportCatalog = hasPermission('catalogo_api');
   const isExternalUnstocked = Boolean(product.externalCard) || product.id < 0;
   const isUnpriced = product.preco <= 0;
   const isUnavailable = isExternalUnstocked || isUnpriced || product.estoque <= 0;
@@ -297,7 +297,7 @@ export const ProductModal: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            {product.externalCard && isStaffOrAdmin && (
+            {product.externalCard && canImportCatalog && (
               <button
                 type="button"
                 disabled={isImporting}

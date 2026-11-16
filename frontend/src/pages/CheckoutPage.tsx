@@ -223,7 +223,23 @@ export const CheckoutPage: React.FC = () => {
     if (currentUser.telefone && !phone) {
       setPhone(formatPhoneInput(currentUser.telefone));
     }
-  }, [currentUser.nome, currentUser.telefone, fullName, cardHolder, phone]);
+    if (currentUser.cep && !cep) {
+      setCep(formatCepInput(currentUser.cep));
+    }
+    if (currentUser.endereco && !street) {
+      setStreet(currentUser.endereco);
+    }
+  }, [
+    currentUser.nome,
+    currentUser.telefone,
+    currentUser.cep,
+    currentUser.endereco,
+    fullName,
+    cardHolder,
+    phone,
+    cep,
+    street,
+  ]);
 
   useEffect(() => {
     if (deliveryType === 'entrega' && paymentMethod === 'retirada_loja') {

@@ -32,6 +32,7 @@ import {
   Edit3,
   Trash2,
   Home,
+  User,
   UserCheck,
   ChevronLeft,
   ChevronRight,
@@ -39,6 +40,7 @@ import {
 import type {
   UserProfile,
   UserRole,
+  StaffPermission,
   Order,
   Product,
   GameId,
@@ -50,8 +52,16 @@ import { api, formatBRL } from '../services/api';
 import { searchLiveCards, getPokemonSets, type PokemonSetOption } from '../services/tcgApi';
 import { SystemSelect } from '../components/SystemSelect';
 import { SystemModal } from '../components/SystemModal';
+import { ChangePasswordModal } from '../components/ChangePasswordModal';
+import { AccountProfilePanel } from '../components/AccountProfilePanel';
+import {
+  ALL_STAFF_PERMISSIONS,
+  STAFF_CARGO_PRESETS,
+  STAFF_PERMISSIONS_CATALOG,
+  resolveUserPermissions,
+} from '../constants/accessControl';
 
-type AdminTab = 'movements' | 'orders' | 'users' | 'api-catalog';
+type AdminTab = 'movements' | 'orders' | 'users' | 'api-catalog' | 'account';
 type MovementFilter = 'all' | 'entrada' | 'saida' | 'ajuste';
 type MovementSort = 'newest' | 'oldest' | 'qty-desc';
 type OrderStatusFilter = 'all' | Order['status'];
@@ -557,6 +567,16 @@ export const AdminPage: React.FC = () => {
 
   // Pedidos atuais (sincronizáveis via Atualizar)
   const displayedOrdersSource = ordersOverride ?? orders;
+
+  const adminPersonalOrders = useMemo(
+    () =>
+      displayedOrdersSource.filter(
+        (o) =>
+          o.cliente_id === currentUser.id ||
+          o.cliente_email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()
+      ),
+    [displayedOrdersSource, currentUser.id, currentUser.email]
+  );
 
   const orderRevenueSummary = useMemo(() => {
     let confirmado = 0;
@@ -1194,7 +1214,7 @@ export const AdminPage: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '360px', margin: '0 auto' }}>
               <button
                 type="button"
-                onClick={() => setCurrentTab('dashboard')}
+                onClick={() => setCurrentTab(currentUser.role === 'funcionario' ? 'staff' : 'dashboard')}
                 className="btn-primary"
                 style={{ padding: '12px 20px', borderRadius: 'var(--radius-full)' }}
               >
@@ -1388,6 +1408,21 @@ export const AdminPage: React.FC = () => {
             title="Abrir tela de Controle e Edição de Produtos"
           >
             <Boxes size={14} /> Controle de Produtos
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveAdminTab('account')}
+            className="btn-outline"
+            style={{
+              ...headerBtnBase,
+              textTransform: 'none',
+              letterSpacing: '0.01em',
+              fontFamily: 'var(--font-body)',
+            }}
+            title="Alterar seus dados pessoais, e-mail e senha"
+          >
+            <User size={14} /> Minha Conta
           </button>
         </div>
       </div>
@@ -1589,6 +1624,11 @@ export const AdminPage: React.FC = () => {
               id: 'api-catalog' as AdminTab,
               label: apiHasLoadedOnce ? `Catálogo Oficial (API) (${apiCards.length})` : 'Catálogo Oficial (API)',
               icon: <Globe size={16} />,
+            },
+            {
+              id: 'account' as AdminTab,
+              label: 'Minha Conta',
+              icon: <User size={16} />,
             },
           ] as const
         ).map((tab) => {
@@ -2600,16 +2640,64 @@ export const AdminPage: React.FC = () => {
                                 : 'badge-muted'
                               }`}
                           >
-                            {u.role.toUpperCase()}
+                            {u.role === 'admin' ? 'ADMINISTRADOR' : u.role === 'funcionario' ? 'FUNCIONÁRIO' : 'CLIENTE'}
                           </span>
                         </td>
-                        <td style={{ padding: '12px 10px', color: 'var(--color-headline)', fontFamily: 'var(--font-mono)' }}>
-                          {u.cargo ||
-                            (u.role === 'admin'
-                              ? 'Administrador Geral'
-                              : u.role === 'funcionario'
-                                ? 'Atendente'
-                                : 'Cliente')}
+                        <td style={{ padding: '12px 10px', color: 'var(--color-headline)' }}>
+                          <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '12.5px', marginBottom: '5px' }}>
+                            {u.cargo ||
+                              (u.role === 'admin'
+                                ? 'Administrador Geral'
+                                : u.role === 'funcionario'
+                                  ? 'Atendente de Loja'
+                                  : 'Cliente')}
+                          </div>
+                          {u.role === 'funcionario' ? (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                              {(() => {
+                                const userPerms = resolveUserPermissions(u);
+                                if (userPerms.length === 0) {
+                                  return (
+                                    <span
+                                      style={{
+                                        fontSize: '10px',
+                                        fontFamily: 'var(--font-mono)',
+                                        fontWeight: 700,
+                                        padding: '2px 7px',
+                                        borderRadius: '4px',
+                                        backgroundColor: tones.dangerBg,
+                                        border: `1px solid ${tones.dangerBorder}`,
+                                        color: tones.dangerText,
+                                      }}
+                                    >
+                                      Sem módulos liberados
+                                    </span>
+                                  );
+                                }
+                                return STAFF_PERMISSIONS_CATALOG.filter((p) => userPerms.includes(p.key)).map((p) => (
+                                  <span
+                                    key={p.key}
+                                    style={{
+                                      fontSize: '10px',
+                                      fontFamily: 'var(--font-mono)',
+                                      fontWeight: 700,
+                                      padding: '2px 7px',
+                                      borderRadius: '4px',
+                                      backgroundColor: tones.activeTabBg,
+                                      border: `1px solid ${tones.activeTabBorder}`,
+                                      color: tones.activeTabText,
+                                    }}
+                                  >
+                                    {p.shortLabel}
+                                  </span>
+                                ));
+                              })()}
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)' }}>
+                              {u.role === 'admin' ? 'Acesso irrestrito + governança' : 'Loja e próprios pedidos'}
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding: '12px 10px', textAlign: 'right' }}>
                           <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
@@ -3423,6 +3511,24 @@ export const AdminPage: React.FC = () => {
       )}
 
       {/* =========================================================================
+            ABA 5: MINHA CONTA (DADOS PESSOAIS, E-MAIL, SENHA & COMPRAS)
+           ========================================================================= */}
+      {activeAdminTab === 'account' && (
+        <div
+          id="admin-panel-account"
+          role="tabpanel"
+          aria-labelledby="admin-tab-account"
+          className="admin-animate-fade"
+        >
+          <AccountProfilePanel
+            personalOrders={adminPersonalOrders}
+            showPersonalOrders
+            onBrowseCatalog={() => setCurrentTab('products')}
+          />
+        </div>
+      )}
+
+      {/* =========================================================================
             MODAIS OPERACIONAIS
            ========================================================================= */}
 
@@ -3865,7 +3971,6 @@ export const AdminPage: React.FC = () => {
           currentUser={currentUser}
           onClose={() => setIsPasswordModalOpen(false)}
           showToast={showToast}
-          tones={tones}
         />
       )}
 
@@ -3875,6 +3980,7 @@ export const AdminPage: React.FC = () => {
           onClose={() => setIsNewUserModalOpen(false)}
           onCreated={carregarUsuarios}
           showToast={showToast}
+          tones={tones}
         />
       )}
 
@@ -3886,6 +3992,7 @@ export const AdminPage: React.FC = () => {
           onClose={() => setEditingUser(null)}
           onSaved={carregarUsuarios}
           showToast={showToast}
+          tones={tones}
         />
       )}
     </div>
@@ -4247,156 +4354,151 @@ const CreateManualProductModal: React.FC<CreateManualProductModalProps> = ({
 };
 
 // ============================================================================
-// SUB-MODAL: ALTERAR SENHA DO USUÁRIO ATIVO
+// SUB-COMPONENTE: SELETOR GRANULAR DE PERMISSÕES DE EQUIPE
 // ============================================================================
-interface ChangePasswordModalProps {
-  currentUser: UserProfile;
-  onClose: () => void;
-  showToast: (msg: string) => void;
+interface StaffPermissionsEditorProps {
+  selectedPermissions: StaffPermission[];
+  onChangePermissions: (next: StaffPermission[]) => void;
+  onSelectPreset: (cargo: string, perms: StaffPermission[]) => void;
   tones: SemanticTones;
 }
 
-const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
-  currentUser,
-  onClose,
-  showToast,
+const StaffPermissionsEditor: React.FC<StaffPermissionsEditorProps> = ({
+  selectedPermissions,
+  onChangePermissions,
+  onSelectPreset,
   tones,
 }) => {
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [isUpdating, setIsUpdating] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isUpdating) return;
-
-    if (!currentPassword.trim()) {
-      showToast('Informe sua senha atual para confirmar a alteração.');
-      return;
-    }
-    if (newPassword.trim().length < 8) {
-      showToast('A nova senha deve possuir pelo menos 8 caracteres.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      showToast('A confirmação de senha não confere.');
-      return;
-    }
-
-    setIsUpdating(true);
-    try {
-      await api.alterarSenhaUsuario(currentUser.id, newPassword.trim(), currentPassword);
-      showToast('Senha da conta ativa atualizada com sucesso!');
-      onClose();
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'Erro ao atualizar senha.');
-    } finally {
-      setIsUpdating(false);
+  const togglePerm = (perm: StaffPermission) => {
+    if (selectedPermissions.includes(perm)) {
+      onChangePermissions(selectedPermissions.filter((p) => p !== perm));
+    } else {
+      const nextSet = new Set([...selectedPermissions, perm]);
+      onChangePermissions(ALL_STAFF_PERMISSIONS.filter((p) => nextSet.has(p)));
     }
   };
 
   return (
-    <SystemModal onClose={onClose} maxWidth="460px">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
-        <div>
-          <span className="badge badge-primary" style={{ marginBottom: '6px' }}>
-            Segurança
-          </span>
-          <h3 style={{ fontSize: '18px', color: 'var(--color-headline)', margin: 0, fontWeight: 800 }}>
-            Alterar Senha de Acesso
-          </h3>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div>
+        <span style={labelStyle}>Perfis Rápidos por Função</span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          {STAFF_CARGO_PRESETS.map((preset) => (
+            <button
+              key={preset.cargo}
+              type="button"
+              onClick={() => onSelectPreset(preset.cargo, preset.permissoes)}
+              title={preset.resumo}
+              style={{
+                padding: '5px 10px',
+                borderRadius: '6px',
+                border: '1px solid var(--card-border)',
+                backgroundColor: tones.subtleSurface,
+                color: 'var(--color-headline)',
+                fontSize: '11px',
+                fontFamily: 'var(--font-mono)',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              {preset.cargo}
+            </button>
+          ))}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Fechar modal"
-          title="Fechar"
-          style={{ background: 'transparent', border: 'none', color: 'var(--color-on-surface-variant)', cursor: 'pointer' }}
-        >
-          <X size={20} />
-        </button>
+      </div>
+
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+          <span style={{ ...labelStyle, marginBottom: 0 }}>
+            Módulos Liberados ({selectedPermissions.length}/4)
+          </span>
+          <button
+            type="button"
+            onClick={() =>
+              onChangePermissions(
+                selectedPermissions.length === ALL_STAFF_PERMISSIONS.length ? [] : [...ALL_STAFF_PERMISSIONS]
+              )
+            }
+            style={{
+              background: 'none',
+              border: 'none',
+              color: tones.activeTabText,
+              fontSize: '11px',
+              fontFamily: 'var(--font-mono)',
+              fontWeight: 700,
+              cursor: 'pointer',
+              textDecoration: 'underline',
+            }}
+          >
+            {selectedPermissions.length === ALL_STAFF_PERMISSIONS.length ? 'Desmarcar todos' : 'Liberar todos'}
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+          {STAFF_PERMISSIONS_CATALOG.map((perm) => {
+            const active = selectedPermissions.includes(perm.key);
+            return (
+              <label
+                key={perm.key}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  border: `1px solid ${active ? tones.activeTabBorder : 'var(--card-border)'}`,
+                  backgroundColor: active ? tones.activeTabBg : tones.subtleSurface,
+                  cursor: 'pointer',
+                  transition: 'border-color 0.15s ease, background-color 0.15s ease',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={active}
+                  onChange={() => togglePerm(perm.key)}
+                  style={{
+                    marginTop: '3px',
+                    width: '16px',
+                    height: '16px',
+                    accentColor: '#FFC400',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                  }}
+                />
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      color: active ? tones.activeTabText : 'var(--color-headline)',
+                    }}
+                  >
+                    {perm.label}
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--color-on-surface-variant)', lineHeight: 1.4, marginTop: '2px' }}>
+                    {perm.description}
+                  </div>
+                </div>
+              </label>
+            );
+          })}
+        </div>
       </div>
 
       <div
         style={{
-          padding: '10px 12px',
-          borderRadius: '10px',
-          backgroundColor: tones.warningBg,
-          border: `1px solid ${tones.warningBorder}`,
-          color: tones.warningText,
-          fontSize: '12px',
+          padding: '8px 10px',
+          borderRadius: '8px',
+          backgroundColor: tones.subtleSurface,
+          border: '1px dashed var(--card-border)',
+          fontSize: '11px',
+          color: 'var(--color-on-surface-variant)',
           lineHeight: 1.45,
-          marginBottom: '14px',
         }}
       >
-        Esta alteração será aplicada exclusivamente à conta ativa:{' '}
-        <strong>
-          {currentUser.nome} ({currentUser.email})
-        </strong>
-        .
+        Gestão de usuários, faturamento consolidado e exclusão definitiva de produtos permanecem exclusivos do Administrador.
       </div>
-
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-        <div>
-          <label htmlFor="pwd-current" style={labelStyle}>
-            Senha Atual *
-          </label>
-          <input
-            id="pwd-current"
-            type="password"
-            required
-            className="system-input"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            autoComplete="current-password"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="pwd-new" style={labelStyle}>
-            Nova Senha *
-          </label>
-          <input
-            id="pwd-new"
-            type="password"
-            required
-            minLength={8}
-            className="system-input"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="Mínimo de 8 caracteres"
-            autoComplete="new-password"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="pwd-confirm" style={labelStyle}>
-            Confirmar Nova Senha *
-          </label>
-          <input
-            id="pwd-confirm"
-            type="password"
-            required
-            minLength={8}
-            className="system-input"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Repita a nova senha"
-            autoComplete="new-password"
-          />
-        </div>
-
-        <div className="system-modal-actions">
-          <button type="button" onClick={onClose} className="btn-outline">
-            Cancelar
-          </button>
-          <button type="submit" disabled={isUpdating} className="btn-primary">
-            {isUpdating ? 'Atualizando...' : 'Salvar Nova Senha'}
-          </button>
-        </div>
-      </form>
-    </SystemModal>
+    </div>
   );
 };
 
@@ -4407,14 +4509,16 @@ interface CreateUserModalProps {
   onClose: () => void;
   onCreated: () => Promise<void>;
   showToast: (msg: string) => void;
+  tones: SemanticTones;
 }
 
-const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onCreated, showToast }) => {
+const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onCreated, showToast, tones }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>('funcionario');
   const [cargo, setCargo] = useState('Atendente de Loja');
+  const [permissoes, setPermissoes] = useState<StaffPermission[]>(['pedidos', 'estoque']);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -4446,10 +4550,12 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onCreated, s
         cleanPassword,
         role,
         '',
-        cargo.trim() || undefined
+        cargo.trim() || undefined,
+        false,
+        role === 'funcionario' ? permissoes : undefined
       );
       await onCreated();
-      showToast(`Novo ${role.toUpperCase()} cadastrado com sucesso!`);
+      showToast(`Novo ${role === 'admin' ? 'Administrador' : role === 'funcionario' ? 'Funcionário' : 'Cliente'} cadastrado com sucesso!`);
       onClose();
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : 'Erro ao cadastrar usuário.');
@@ -4459,7 +4565,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onCreated, s
   };
 
   return (
-    <SystemModal onClose={onClose} maxWidth="480px">
+    <SystemModal onClose={onClose} maxWidth="540px">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
         <div>
           <span className="badge badge-primary" style={{ marginBottom: '6px' }}>
@@ -4534,9 +4640,14 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onCreated, s
               value={role}
               onChange={(val) => {
                 setRole(val);
-                if (val === 'admin') setCargo('Administrador Geral');
-                else if (val === 'funcionario') setCargo('Atendente de Loja');
-                else setCargo('Cliente');
+                if (val === 'admin') {
+                  setCargo('Administrador Geral');
+                } else if (val === 'funcionario') {
+                  setCargo('Atendente de Loja');
+                  if (permissoes.length === 0) setPermissoes(['pedidos', 'estoque']);
+                } else {
+                  setCargo('Cliente');
+                }
               }}
               options={[
                 { value: 'funcionario', label: 'Funcionário' },
@@ -4561,6 +4672,18 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onCreated, s
           </div>
         </div>
 
+        {role === 'funcionario' && (
+          <StaffPermissionsEditor
+            selectedPermissions={permissoes}
+            onChangePermissions={setPermissoes}
+            onSelectPreset={(presetCargo, presetPerms) => {
+              setCargo(presetCargo);
+              setPermissoes(presetPerms);
+            }}
+            tones={tones}
+          />
+        )}
+
         <div className="system-modal-actions">
           <button type="button" onClick={onClose} className="btn-outline">
             Cancelar
@@ -4583,6 +4706,7 @@ interface EditUserModalProps {
   onClose: () => void;
   onSaved: () => Promise<void>;
   showToast: (msg: string) => void;
+  tones: SemanticTones;
 }
 
 const EditUserModal: React.FC<EditUserModalProps> = ({
@@ -4591,6 +4715,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   onClose,
   onSaved,
   showToast,
+  tones,
 }) => {
   const [role, setRole] = useState<UserRole>(user.role);
   const [cargo, setCargo] = useState(
@@ -4600,6 +4725,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       : user.role === 'funcionario'
         ? 'Atendente de Loja'
         : 'Cliente')
+  );
+  const [permissoes, setPermissoes] = useState<StaffPermission[]>(() =>
+    user.role === 'funcionario' ? resolveUserPermissions(user) : ['pedidos', 'estoque']
   );
   const [isSaving, setIsSaving] = useState(false);
 
@@ -4613,7 +4741,12 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
     setIsSaving(true);
     try {
-      await api.atualizarPerfilUsuario(user.id, role, cargo.trim() || undefined);
+      await api.atualizarPerfilUsuario(
+        user.id,
+        role,
+        cargo.trim() || undefined,
+        role === 'funcionario' ? permissoes : undefined
+      );
       await onSaved();
       showToast(`Permissões de "${user.nome}" atualizadas com sucesso!`);
       onClose();
@@ -4625,7 +4758,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   };
 
   return (
-    <SystemModal onClose={onClose} maxWidth="460px">
+    <SystemModal onClose={onClose} maxWidth="540px">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
         <div>
           <span className="badge badge-primary" style={{ marginBottom: '6px' }}>
@@ -4653,7 +4786,18 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             <SystemSelect<UserRole>
               value={role}
               disabled={isSelf}
-              onChange={setRole}
+              onChange={(nextRole) => {
+                setRole(nextRole);
+                if (nextRole === 'admin') {
+                  setCargo('Administrador Geral');
+                } else if (nextRole === 'funcionario') {
+                  if (!cargo || cargo === 'Cliente' || cargo === 'Administrador Geral') {
+                    setCargo('Atendente de Loja');
+                  }
+                } else {
+                  setCargo('Cliente');
+                }
+              }}
               options={[
                 { value: 'admin', label: 'Administrador' },
                 { value: 'funcionario', label: 'Funcionário' },
@@ -4680,6 +4824,50 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             />
           </div>
         </div>
+
+        {role === 'funcionario' && (
+          <StaffPermissionsEditor
+            selectedPermissions={permissoes}
+            onChangePermissions={setPermissoes}
+            onSelectPreset={(presetCargo, presetPerms) => {
+              setCargo(presetCargo);
+              setPermissoes(presetPerms);
+            }}
+            tones={tones}
+          />
+        )}
+
+        {role === 'admin' && (
+          <div
+            style={{
+              padding: '10px 12px',
+              borderRadius: '8px',
+              backgroundColor: tones.activeTabBg,
+              border: `1px solid ${tones.activeTabBorder}`,
+              color: tones.activeTabText,
+              fontSize: '12px',
+              lineHeight: 1.45,
+            }}
+          >
+            Administradores possuem acesso irrestrito a pedidos, estoque, produtos, catálogo oficial, gestão de equipe e exclusões definitivas.
+          </div>
+        )}
+
+        {role === 'cliente' && (
+          <div
+            style={{
+              padding: '10px 12px',
+              borderRadius: '8px',
+              backgroundColor: tones.subtleSurface,
+              border: '1px solid var(--card-border)',
+              color: 'var(--color-on-surface-variant)',
+              fontSize: '12px',
+              lineHeight: 1.45,
+            }}
+          >
+            Clientes têm acesso apenas à loja pública, carrinho, checkout e ao histórico dos próprios pedidos.
+          </div>
+        )}
 
         <div className="system-modal-actions">
           <button type="button" onClick={onClose} className="btn-outline">

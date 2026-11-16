@@ -4,6 +4,7 @@ import type {
   CartItem,
   UserProfile,
   UserRole,
+  StaffPermission,
   ExternalCard,
   StockMovement,
 } from '../types';
@@ -98,15 +99,28 @@ function mapBackendRole(tipoUsuario: unknown): UserRole {
   return 'cliente';
 }
 
+const VALID_STAFF_PERMISSIONS: StaffPermission[] = ['pedidos', 'estoque', 'produtos', 'catalogo_api'];
+
+function mapBackendPermissions(raw: unknown, role: UserRole): StaffPermission[] {
+  if (role === 'admin') return [...VALID_STAFF_PERMISSIONS];
+  if (role !== 'funcionario' || !Array.isArray(raw)) return [];
+  const validSet = new Set(VALID_STAFF_PERMISSIONS);
+  return raw.filter((item): item is StaffPermission => typeof item === 'string' && validSet.has(item as StaffPermission));
+}
+
 function adaptarUsuarioDoBackend(u: any): UserProfile {
-  const role = mapBackendRole(u?.tipo_usuario);
+  const role = mapBackendRole(u?.tipo_usuario ?? u?.tipoUsuario);
   return {
     id: u.id_usuario,
     nome: u.nome,
     email: u.email,
     role,
     cargo: u.cargo ?? undefined,
+    permissoes: mapBackendPermissions(u?.permissoes, role),
     telefone: u.telefone || undefined,
+    cpf: u.cpf || undefined,
+    cep: u.cep || undefined,
+    endereco: u.endereco || undefined,
     token: u.token || undefined,
   };
 }
@@ -250,8 +264,11 @@ export const api = {
     return dados.map(adaptarProdutoDoBackend);
   },
 
-  async cadastrarProduto(produto: Omit<Product, 'id'>): Promise<Product> {
-    const payload = adaptarProdutoParaBackend(produto);
+  async cadastrarProduto(
+    produto: Omit<Product, 'id'>,
+    origem: 'manual' | 'catalogo_api' = 'manual'
+  ): Promise<Product> {
+    const payload = { ...adaptarProdutoParaBackend(produto), origem };
     const res = await fetchWithAuth(`${API_BASE}/produtos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -499,6 +516,45 @@ export const api = {
     return adaptarUsuarioDoBackend(dados);
   },
 
+  async obterSessaoAtual(): Promise<UserProfile> {
+    const res = await fetchWithAuth(`${API_BASE}/auth/me`);
+    if (!res.ok) {
+      throw new Error(await extractErrorMessage(res, 'Sessão inválida ou expirada'));
+    }
+    const dados = await res.json();
+    return adaptarUsuarioDoBackend(dados);
+  },
+
+  async atualizarMeusDados(dados: {
+    nome: string;
+    email: string;
+    telefone?: string;
+    cpf?: string;
+    cep?: string;
+    endereco?: string;
+  }): Promise<UserProfile> {
+    const res = await fetchWithAuth(`${API_BASE}/auth/me`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nome: dados.nome,
+        email: dados.email,
+        telefone: dados.telefone ?? '',
+        cpf: dados.cpf ?? '',
+        cep: dados.cep ?? '',
+        endereco: dados.endereco ?? '',
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(await extractErrorMessage(res, 'Falha ao atualizar dados da conta'));
+    }
+    const resposta = await res.json();
+    if (resposta.token) {
+      setAuthToken(resposta.token);
+    }
+    return adaptarUsuarioDoBackend(resposta);
+  },
+
   async cadastrarUsuario(
     nome: string,
     email: string,
@@ -506,7 +562,8 @@ export const api = {
     tipoUsuario: UserRole = 'cliente',
     telefone: string = '',
     cargo?: string,
-    persistirSessao?: boolean
+    persistirSessao?: boolean,
+    permissoes?: StaffPermission[]
   ): Promise<UserProfile> {
     const backendTipo =
       tipoUsuario === 'admin'
@@ -521,17 +578,22 @@ export const api = {
       headers.Authorization = `Bearer ${existingToken}`;
     }
 
+    const bodyPayload: Record<string, unknown> = {
+      nome,
+      email,
+      senha,
+      tipo_usuario: backendTipo,
+      telefone,
+      cargo,
+    };
+    if (permissoes !== undefined) {
+      bodyPayload.permissoes = permissoes;
+    }
+
     const res = await fetch(`${API_BASE}/auth/cadastro`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        nome,
-        email,
-        senha,
-        tipo_usuario: backendTipo,
-        telefone,
-        cargo,
-      }),
+      body: JSON.stringify(bodyPayload),
     });
     if (!res.ok) {
       throw new Error(await extractErrorMessage(res, 'Erro no cadastro'));
@@ -576,7 +638,12 @@ export const api = {
     });
   },
 
-  async atualizarPerfilUsuario(idUsuario: number, tipoUsuario: UserRole, cargo?: string): Promise<UserProfile> {
+  async atualizarPerfilUsuario(
+    idUsuario: number,
+    tipoUsuario: UserRole,
+    cargo?: string,
+    permissoes?: StaffPermission[]
+  ): Promise<UserProfile> {
     const backendTipo =
       tipoUsuario === 'admin'
         ? 'administrador'
@@ -584,13 +651,18 @@ export const api = {
           ? 'funcionario'
           : 'cliente';
 
+    const payload: Record<string, unknown> = {
+      tipo_usuario: backendTipo,
+      cargo,
+    };
+    if (permissoes !== undefined) {
+      payload.permissoes = permissoes;
+    }
+
     const res = await fetchWithAuth(`${API_BASE}/auth/usuarios/${idUsuario}/perfil`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tipo_usuario: backendTipo,
-        cargo,
-      }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       throw new Error(await extractErrorMessage(res, 'Falha ao atualizar perfil'));

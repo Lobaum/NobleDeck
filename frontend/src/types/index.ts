@@ -111,13 +111,19 @@ export interface Order {
 
 export type UserRole = 'cliente' | 'funcionario' | 'admin';
 
+export type StaffPermission = 'pedidos' | 'estoque' | 'produtos' | 'catalogo_api';
+
 export interface UserProfile {
   id: number;
   nome: string;
   email: string;
   role: UserRole;
   cargo?: string;
+  permissoes?: StaffPermission[];
   telefone?: string;
+  cpf?: string;
+  cep?: string;
+  endereco?: string;
   avatarUrl?: string;
   token?: string;
 }

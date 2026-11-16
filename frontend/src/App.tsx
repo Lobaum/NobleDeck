@@ -12,6 +12,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { AboutPage } from './pages/AboutPage';
 import { AdminPage } from './pages/AdminPage';
 import { ProductControlPage } from './pages/ProductControlPage';
+import { StaffPortalPage } from './pages/StaffPortalPage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { ExternalRequestModal } from './components/ExternalRequestModal';
 import { ThemeProvider } from './context/ThemeContext';
@@ -28,6 +29,7 @@ const AppContent: React.FC = () => {
         {currentTab === 'products' && <ProductsPage />}
         {currentTab === 'about' && <AboutPage />}
         {currentTab === 'dashboard' && <DashboardPage />}
+        {currentTab === 'staff' && <StaffPortalPage />}
         {currentTab === 'admin' && <AdminPage />}
         {currentTab === 'product-control' && <ProductControlPage />}
         {currentTab === 'checkout' && <CheckoutPage />}

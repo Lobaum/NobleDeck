@@ -4,16 +4,18 @@ from app.banco import (
     obter_usuario_por_email,
     obter_usuario_por_id,
     listar_usuarios,
+    atualizar_dados_pessoais_usuario,
     atualizar_usuario_perfil,
     atualizar_senha_usuario,
     excluir_usuario,
 )
-from app.modelos.usuario import Cliente, Funcionario, Administrador
+from app.modelos.usuario import Cliente, Funcionario, Administrador, normalizar_permissoes
 from app.esquemas import (
     UsuarioCadastro,
     UsuarioLogin,
     UsuarioResposta,
     UsuarioAutenticadoResposta,
+    UsuarioAtualizacaoDados,
     UsuarioAtualizacaoPerfil,
     UsuarioAlterarSenha,
 )
@@ -47,14 +49,45 @@ def _validar_email(email: str) -> str:
     return email_limpo
 
 
-def _resposta_autenticada(usuario, token: str) -> UsuarioAutenticadoResposta:
-    return UsuarioAutenticadoResposta(
+def _formatar_cpf_opcional(raw: str | None) -> str:
+    valor = (raw or "").strip()
+    if not valor:
+        return ""
+    digitos = "".join(ch for ch in valor if ch.isdigit())
+    if len(digitos) != 11:
+        raise HTTPException(status_code=400, detail="CPF inválido. Informe 11 dígitos ou deixe em branco.")
+    return f"{digitos[:3]}.{digitos[3:6]}.{digitos[6:9]}-{digitos[9:]}"
+
+
+def _formatar_cep_opcional(raw: str | None) -> str:
+    valor = (raw or "").strip()
+    if not valor:
+        return ""
+    digitos = "".join(ch for ch in valor if ch.isdigit())
+    if len(digitos) != 8:
+        raise HTTPException(status_code=400, detail="CEP inválido. Informe 8 dígitos ou deixe em branco.")
+    return f"{digitos[:5]}-{digitos[5:]}"
+
+
+def _construir_usuario_resposta(usuario) -> UsuarioResposta:
+    return UsuarioResposta(
         id_usuario=usuario.id_usuario,
         nome=usuario.nome,
         email=usuario.email,
         tipoUsuario=usuario.tipoUsuario,
         telefone=getattr(usuario, "telefone", None),
+        cpf=getattr(usuario, "cpf", None),
+        cep=getattr(usuario, "cep", None),
+        endereco=getattr(usuario, "endereco", None),
         cargo=getattr(usuario, "cargo", None),
+        permissoes=getattr(usuario, "permissoes", []) or [],
+    )
+
+
+def _resposta_autenticada(usuario, token: str) -> UsuarioAutenticadoResposta:
+    base = _construir_usuario_resposta(usuario)
+    return UsuarioAutenticadoResposta(
+        **base.model_dump(),
         token=token,
     )
 
@@ -97,11 +130,21 @@ def cadastrar_usuario(
     cargo_limpo = (dados.cargo or "").strip()
 
     if tipo == "funcionario":
+        permissoes_iniciais = (
+            normalizar_permissoes(dados.permissoes)
+            if dados.permissoes is not None
+            else ["pedidos", "estoque"]
+        )
         novo_usuario = Funcionario(
             nome=nome_limpo,
             email=email_limpo,
             senha=senha_hash,
             cargo=cargo_limpo or "Atendente de Loja",
+            permissoes=permissoes_iniciais,
+            telefone=(dados.telefone or "").strip(),
+            cpf=_formatar_cpf_opcional(dados.cpf),
+            cep=_formatar_cep_opcional(dados.cep),
+            endereco=(dados.endereco or "").strip(),
         )
     elif tipo == "administrador":
         novo_usuario = Administrador(
@@ -109,6 +152,10 @@ def cadastrar_usuario(
             email=email_limpo,
             senha=senha_hash,
             cargo=cargo_limpo or "Administrador Geral",
+            telefone=(dados.telefone or "").strip(),
+            cpf=_formatar_cpf_opcional(dados.cpf),
+            cep=_formatar_cep_opcional(dados.cep),
+            endereco=(dados.endereco or "").strip(),
         )
     else:
         novo_usuario = Cliente(
@@ -116,6 +163,9 @@ def cadastrar_usuario(
             email=email_limpo,
             senha=senha_hash,
             telefone=(dados.telefone or "").strip(),
+            cpf=_formatar_cpf_opcional(dados.cpf),
+            cep=_formatar_cep_opcional(dados.cep),
+            endereco=(dados.endereco or "").strip(),
         )
 
     salvar_usuario(novo_usuario)
@@ -138,6 +188,44 @@ def login(dados: UsuarioLogin):
 
     token = criar_token_acesso(usuario)
     return _resposta_autenticada(usuario, token)
+
+
+@router.get("/me", response_model=UsuarioResposta)
+def obter_sessao_atual(usuario_atual=Depends(obter_usuario_atual)):
+    return _construir_usuario_resposta(usuario_atual)
+
+
+@router.put("/me", response_model=UsuarioAutenticadoResposta)
+def atualizar_meus_dados(
+    dados: UsuarioAtualizacaoDados,
+    usuario_atual=Depends(obter_usuario_atual),
+):
+    nome_limpo = (dados.nome or "").strip()
+    if not nome_limpo:
+        raise HTTPException(status_code=400, detail="Informe seu nome completo.")
+
+    email_limpo = _validar_email(dados.email)
+    existente = obter_usuario_por_email(email_limpo)
+    if existente and existente.id_usuario != usuario_atual.id_usuario:
+        raise HTTPException(status_code=400, detail="Este e-mail já está em uso por outra conta.")
+
+    cpf_formatado = _formatar_cpf_opcional(dados.cpf)
+    cep_formatado = _formatar_cep_opcional(dados.cep)
+
+    atualizado = atualizar_dados_pessoais_usuario(
+        id_usuario=usuario_atual.id_usuario,
+        nome=nome_limpo,
+        email=email_limpo,
+        telefone=(dados.telefone or "").strip(),
+        cpf=cpf_formatado,
+        cep=cep_formatado,
+        endereco=(dados.endereco or "").strip(),
+    )
+    if not atualizado:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+
+    novo_token = criar_token_acesso(atualizado)
+    return _resposta_autenticada(atualizado, novo_token)
 
 
 @router.get("/usuarios", response_model=list[UsuarioResposta], tags=["Usuários"])
@@ -164,7 +252,12 @@ def atualizar_perfil(
             detail="Você não pode rebaixar o próprio perfil de administrador.",
         )
 
-    atualizado = atualizar_usuario_perfil(id_usuario, tipo_norm, dados.cargo)
+    atualizado = atualizar_usuario_perfil(
+        id_usuario,
+        tipo_norm,
+        dados.cargo,
+        permissoes=dados.permissoes,
+    )
     if not atualizado:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
     return atualizado

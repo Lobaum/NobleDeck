@@ -11,7 +11,12 @@ from app.banco import (
 from app.modelos.produto import Produto
 from app.modelos.estoque import Estoque
 from app.esquemas import ProdutoRegistro, ProdutoAlteracao, ProdutoResposta
-from app.seguranca import exigir_equipe
+from app.seguranca import (
+    exigir_admin,
+    exigir_permissao,
+    obter_usuario_atual,
+    usuario_tem_permissao,
+)
 
 router = APIRouter(prefix="/api/produtos", tags=["Produtos"])
 
@@ -36,9 +41,22 @@ def buscarPorId(id_produto: int):
 @router.post("", response_model=ProdutoResposta, status_code=status.HTTP_201_CREATED)
 def cadastrar(
     dados: ProdutoRegistro,
-    usuario_atual=Depends(exigir_equipe),
+    usuario_atual=Depends(obter_usuario_atual),
 ):
-    novo_produto = Produto(**dados.model_dump())
+    origem = (dados.origem or "manual").strip().lower()
+    perm_necessaria = "catalogo_api" if origem == "catalogo_api" else "produtos"
+    if not usuario_tem_permissao(usuario_atual, perm_necessaria):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Seu nível de acesso não permite importar itens do catálogo oficial."
+                if perm_necessaria == "catalogo_api"
+                else "Seu nível de acesso não permite cadastrar novos produtos."
+            ),
+        )
+
+    dados_produto = dados.model_dump(exclude={"origem"})
+    novo_produto = Produto(**dados_produto)
     salvar_produto(novo_produto)
 
     estoque = Estoque(
@@ -56,7 +74,7 @@ def cadastrar(
             quantidade=novo_produto.quantidade,
             saldo_anterior=0,
             saldo_posterior=novo_produto.quantidade,
-            motivo="Estoque Inicial no Cadastro",
+            motivo="Importação do Catálogo Oficial (API)" if origem == "catalogo_api" else "Estoque Inicial no Cadastro",
             responsavel=usuario_atual.nome,
         )
 
@@ -67,14 +85,43 @@ def cadastrar(
 def alterar(
     id_produto: int,
     dados: ProdutoAlteracao,
-    usuario_atual=Depends(exigir_equipe),
+    usuario_atual=Depends(obter_usuario_atual),
 ):
+    if getattr(usuario_atual, "tipoUsuario", "") not in ("funcionario", "administrador"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso restrito à equipe autorizada da loja.",
+        )
+
     produto = obter_produto_por_id(id_produto)
     if not produto:
         raise HTTPException(status_code=404, detail="Produto não encontrado.")
 
     saldo_anterior = produto.quantidade
     dados_atualizacao = dados.model_dump(exclude_unset=True)
+
+    campos_estoque = {"quantidade", "estoque", "estoque_minimo"}
+    alterando_catalogo = any(campo not in campos_estoque for campo in dados_atualizacao.keys())
+    alterando_estoque = False
+    if "quantidade" in dados_atualizacao and dados_atualizacao["quantidade"] is not None:
+        alterando_estoque = int(dados_atualizacao["quantidade"]) != produto.quantidade
+    if "estoque" in dados_atualizacao and dados_atualizacao["estoque"] is not None:
+        alterando_estoque = alterando_estoque or int(dados_atualizacao["estoque"]) != produto.quantidade
+    if "estoque_minimo" in dados_atualizacao and dados_atualizacao["estoque_minimo"] is not None:
+        alterando_estoque = alterando_estoque or int(dados_atualizacao["estoque_minimo"]) != produto.estoque_minimo
+
+    if alterando_catalogo and not usuario_tem_permissao(usuario_atual, "produtos"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seu nível de acesso não permite editar informações ou preços de produtos.",
+        )
+
+    if alterando_estoque and not usuario_tem_permissao(usuario_atual, "estoque"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seu nível de acesso não permite ajustar quantidades ou estoque mínimo.",
+        )
+
     for campo, valor in dados_atualizacao.items():
         if valor is not None:
             if campo in ("quantidade", "estoque"):
@@ -115,7 +162,7 @@ def alterar(
 @router.patch("/{id_produto}/inativar", response_model=ProdutoResposta)
 def inativar(
     id_produto: int,
-    _usuario_atual=Depends(exigir_equipe),
+    _usuario_atual=Depends(exigir_permissao("produtos")),
 ):
     produto = obter_produto_por_id(id_produto)
     if not produto:
@@ -129,7 +176,7 @@ def inativar(
 @router.patch("/{id_produto}/ativar", response_model=ProdutoResposta)
 def ativar(
     id_produto: int,
-    _usuario_atual=Depends(exigir_equipe),
+    _usuario_atual=Depends(exigir_permissao("produtos")),
 ):
     produto = obter_produto_por_id(id_produto)
     if not produto:
@@ -143,7 +190,7 @@ def ativar(
 @router.delete("/{id_produto}", status_code=status.HTTP_204_NO_CONTENT)
 def excluir(
     id_produto: int,
-    _usuario_atual=Depends(exigir_equipe),
+    _usuario_atual=Depends(exigir_admin),
 ):
     produto = obter_produto_por_id(id_produto)
     if not produto:

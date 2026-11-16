@@ -147,7 +147,8 @@ interface HolographicTiltCardProps {
   onInspect: () => void;
   onEdit: () => void;
   onStockChange: (delta: number, e: React.MouseEvent) => void;
-  isStaffOrAdmin: boolean;
+  canManageStock: boolean;
+  canEditProducts: boolean;
   tones: ControlSemanticTones;
   isLight: boolean;
 }
@@ -159,7 +160,8 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
   onInspect,
   onEdit,
   onStockChange,
-  isStaffOrAdmin,
+  canManageStock,
+  canEditProducts,
   tones,
   isLight,
 }) => {
@@ -427,7 +429,7 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
 
         {/* Quick Stepper + Ações */}
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
-          {isStaffOrAdmin && (
+          {canManageStock && (
             <div
               style={{
                 display: 'inline-flex',
@@ -508,7 +510,7 @@ const HolographicTiltCard: React.FC<HolographicTiltCardProps> = ({
             <Eye size={12} /> Ficha
           </button>
 
-          {isStaffOrAdmin && (
+          {canEditProducts && (
             <button
               type="button"
               onClick={onEdit}
@@ -546,7 +548,8 @@ interface SideInspectorDrawerProps {
   onPriceChange: (product: Product, newPrice: number) => Promise<void>;
   onToggleActive: (product: Product) => Promise<void>;
   stockMovements: any[];
-  isStaffOrAdmin: boolean;
+  canManageStock: boolean;
+  canEditProducts: boolean;
   tones: ControlSemanticTones;
   isLight: boolean;
 }
@@ -560,7 +563,8 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
   onPriceChange,
   onToggleActive,
   stockMovements,
-  isStaffOrAdmin,
+  canManageStock,
+  canEditProducts,
   tones,
   isLight,
 }) => {
@@ -807,7 +811,7 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
           </div>
 
           {/* Controle Rápido de Estoque (Stepper -5, -1, +1, +5) */}
-          {isStaffOrAdmin && (
+          {canManageStock && (
             <div
               style={{
                 padding: '16px',
@@ -872,7 +876,7 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
           )}
 
           {/* Controle Rápido de Preço & Ajustes Percentuais */}
-          {isStaffOrAdmin && (
+          {canEditProducts && (
             <div
               style={{
                 padding: '16px',
@@ -1003,7 +1007,7 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
                         fontFamily: 'var(--font-mono)',
                       }}
                     >
-                      {percentDiff < 0 ? `🔥 PROMOÇÃO ${Math.abs(percentDiff)}% OFF` : `📈 REAJUSTE +${percentDiff}%`}
+                      {percentDiff < 0 ? `PROMOÇÃO ${Math.abs(percentDiff)}% OFF` : `REAJUSTE +${percentDiff}%`}
                     </span>
                     <span style={{ fontSize: '11px', color: 'var(--color-headline)', fontWeight: 600 }}>
                       (Aguardando Salvar)
@@ -1068,7 +1072,7 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
           )}
 
           {/* Ativação / Inativação Rápida */}
-          {isStaffOrAdmin && (
+          {canEditProducts && (
             <button
               type="button"
               onClick={() => onToggleActive(product)}
@@ -1155,7 +1159,7 @@ const SideInspectorDrawer: React.FC<SideInspectorDrawerProps> = ({
             <Eye size={14} /> Ficha Completa
           </button>
 
-          {isStaffOrAdmin && (
+          {canEditProducts && (
             <button
               type="button"
               onClick={() => {
@@ -1188,14 +1192,18 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
     showToast,
     showToastConfirm,
     currentUser,
+    hasPermission,
   } = useApp();
 
   const { theme } = useTheme();
   const isLight = theme === 'light';
   const tones = getControlTones(isLight);
 
-  // Permissões
-  const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+  // Permissões granulares
+  const isAdmin = currentUser.role === 'admin';
+  const canManageStock = hasPermission('estoque');
+  const canEditProducts = hasPermission('produtos');
+  const canImportCatalog = hasPermission('catalogo_api');
 
   // Filtros
   const [searchQuery, setSearchQuery] = useState('');
@@ -1511,23 +1519,25 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
 
           {/* Botões de Ação Primária */}
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={() => setIsLiveImportModalOpen(true)}
-              className="btn-outline"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '9px 16px',
-                fontSize: '12.5px',
-                fontWeight: 700,
-                borderRadius: '10px',
-              }}
-              title="Buscar e importar cards diretamente das bases mundiais oficiais"
-            >
-              <Globe size={15} color={tones.accentText} /> Catálogo Live
-            </button>
+            {canImportCatalog && (
+              <button
+                type="button"
+                onClick={() => setIsLiveImportModalOpen(true)}
+                className="btn-outline"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 16px',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  borderRadius: '10px',
+                }}
+                title="Buscar e importar cards diretamente das bases mundiais oficiais"
+              >
+                <Globe size={15} color={tones.accentText} /> Catálogo Live
+              </button>
+            )}
 
             <button
               type="button"
@@ -1547,7 +1557,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
               <Download size={15} /> Exportar CSV
             </button>
 
-            {isStaffOrAdmin && (
+            {canEditProducts && (
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(true)}
@@ -2126,7 +2136,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
 
                       {/* Preço de Venda (com Edição Inline Rápida) */}
                       <td style={{ padding: '12px 16px' }} onClick={(e) => e.stopPropagation()}>
-                        {editingPriceId === p.id ? (
+                        {canEditProducts && editingPriceId === p.id ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <input
                               type="text"
@@ -2175,7 +2185,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                               <X size={13} />
                             </button>
                           </div>
-                        ) : (
+                        ) : canEditProducts ? (
                           <div
                             onClick={(e) => handleStartEditPrice(p, e)}
                             style={{
@@ -2196,13 +2206,17 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                             </span>
                             <Edit size={11} color="var(--color-on-surface-variant)" opacity={0.7} />
                           </div>
+                        ) : (
+                          <span style={{ fontSize: '13px', fontWeight: 800, fontFamily: 'var(--font-mono)', color: tones.accentText }}>
+                            {p.preco > 0 ? `R$ ${formatBRL(p.preco)}` : 'Sob consulta'}
+                          </span>
                         )}
                       </td>
 
                       {/* Estoque Atual com Stepper Rápido [-] [5 un.] [+] */}
                       <td style={{ padding: '12px 16px' }} onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          {isStaffOrAdmin && (
+                          {canManageStock && (
                             <button
                               type="button"
                               onClick={(e) => handleQuickStock(p, -1, e)}
@@ -2241,7 +2255,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                             {p.estoque} un.
                           </span>
 
-                          {isStaffOrAdmin && (
+                          {canManageStock && (
                             <button
                               type="button"
                               onClick={(e) => handleQuickStock(p, 1, e)}
@@ -2305,7 +2319,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                             <Eye size={12} /> Ficha
                           </button>
 
-                          {isStaffOrAdmin && (
+                          {canEditProducts && (
                             <button
                               type="button"
                               onClick={() => setEditingProduct(p)}
@@ -2317,7 +2331,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                             </button>
                           )}
 
-                          {isStaffOrAdmin && (
+                          {canEditProducts && (
                             <button
                               type="button"
                               onClick={(e) => handleToggleActive(p, e)}
@@ -2372,7 +2386,8 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
                 onInspect={() => setInspectorProduct(p)}
                 onEdit={() => setEditingProduct(p)}
                 onStockChange={(delta, e) => handleQuickStock(p, delta, e)}
-                isStaffOrAdmin={isStaffOrAdmin}
+                canManageStock={canManageStock}
+                canEditProducts={canEditProducts}
                 tones={tones}
                 isLight={isLight}
               />
@@ -2390,32 +2405,36 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
             {selectedProductIds.length} selecionado(s)
           </span>
 
-          <button
-            type="button"
-            onClick={() => setIsBulkPriceModalOpen(true)}
-            className="btn-primary"
-            style={{ padding: '6px 12px', fontSize: '11.5px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '8px' }}
-          >
-            <Percent size={13} /> Reajustar Preços (%)
-          </button>
+          {canEditProducts && (
+            <>
+              <button
+                type="button"
+                onClick={() => setIsBulkPriceModalOpen(true)}
+                className="btn-primary"
+                style={{ padding: '6px 12px', fontSize: '11.5px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '8px' }}
+              >
+                <Percent size={13} /> Reajustar Preços (%)
+              </button>
 
-          <button
-            type="button"
-            onClick={handleBulkInactivate}
-            className="btn-outline"
-            style={{ padding: '6px 12px', fontSize: '11.5px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '8px', borderColor: tones.dangerBorder, color: tones.dangerText }}
-          >
-            <RotateCcw size={13} /> Inativar
-          </button>
+              <button
+                type="button"
+                onClick={handleBulkInactivate}
+                className="btn-outline"
+                style={{ padding: '6px 12px', fontSize: '11.5px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '8px', borderColor: tones.dangerBorder, color: tones.dangerText }}
+              >
+                <RotateCcw size={13} /> Inativar
+              </button>
 
-          <button
-            type="button"
-            onClick={handleBulkReactivate}
-            className="btn-outline"
-            style={{ padding: '6px 12px', fontSize: '11.5px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '8px', borderColor: tones.successBorder, color: tones.successText }}
-          >
-            <RotateCcw size={13} /> Reativar
-          </button>
+              <button
+                type="button"
+                onClick={handleBulkReactivate}
+                className="btn-outline"
+                style={{ padding: '6px 12px', fontSize: '11.5px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '8px', borderColor: tones.successBorder, color: tones.successText }}
+              >
+                <RotateCcw size={13} /> Reativar
+              </button>
+            </>
+          )}
 
           <button
             type="button"
@@ -2456,7 +2475,8 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
           await handleToggleActive(p);
         }}
         stockMovements={stockMovements}
-        isStaffOrAdmin={isStaffOrAdmin}
+        canManageStock={canManageStock}
+        canEditProducts={canEditProducts}
         tones={tones}
         isLight={isLight}
       />
@@ -2468,6 +2488,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
       {detailProduct && (
         <ProductDetailModal
           product={detailProduct}
+          canEditProducts={canEditProducts}
           onClose={() => setDetailProduct(null)}
           onEdit={() => {
             const p = detailProduct;
@@ -2481,9 +2502,11 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
       {/* =========================================================================
           MODAL 2: EDIÇÃO COMPLETA DE PRODUTO
          ========================================================================= */}
-      {editingProduct && (
+      {editingProduct && canEditProducts && (
         <EditProductModal2
           product={editingProduct}
+          canManageStock={canManageStock}
+          canPermanentDelete={isAdmin}
           onClose={() => setEditingProduct(null)}
           onSave={async (updated) => {
             await editProduct(editingProduct.id, updated);
@@ -2569,6 +2592,7 @@ export const ProductControlPage: React.FC<{ embedded?: boolean }> = ({ embedded 
 // ============================================================================
 interface ProductDetailModalProps {
   product: Product;
+  canEditProducts: boolean;
   onClose: () => void;
   onEdit: () => void;
   stockMovements: any[];
@@ -2576,6 +2600,7 @@ interface ProductDetailModalProps {
 
 const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   product,
+  canEditProducts,
   onClose,
   onEdit,
   stockMovements,
@@ -2728,9 +2753,11 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         <button type="button" onClick={onClose} className="btn-outline">
           Fechar
         </button>
-        <button type="button" onClick={onEdit} className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-          <Edit size={14} /> Editar Informações
-        </button>
+        {canEditProducts && (
+          <button type="button" onClick={onEdit} className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <Edit size={14} /> Editar Informações
+          </button>
+        )}
       </div>
     </SystemModal>
   );
@@ -2741,6 +2768,8 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 // ============================================================================
 interface EditProductModal2Props {
   product: Product;
+  canManageStock: boolean;
+  canPermanentDelete: boolean;
   onClose: () => void;
   onSave: (updated: Partial<Product>) => Promise<void> | void;
   onDelete: (id: number) => Promise<void> | void;
@@ -2750,6 +2779,8 @@ interface EditProductModal2Props {
 
 const EditProductModal2: React.FC<EditProductModal2Props> = ({
   product,
+  canManageStock,
+  canPermanentDelete,
   onClose,
   onSave,
   onDelete,
@@ -2806,19 +2837,23 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
       outros: 'Acessórios / Geral',
     };
 
-    await onSave({
+    const payload: Partial<Product> = {
       nome: trimmedName,
       subtitulo: subtitulo.trim(),
       preco: parsedPrice,
-      estoque: parsedEstoque,
-      estoqueMinimo: parsedMin,
       jogo,
       jogoNome: gameNames[jogo] || 'Geral',
       categoria,
       raridade: raridade.trim() || 'Comum',
       imagemUrl: imagemUrl.trim(),
       descricao: descricao.trim(),
-    });
+    };
+    if (canManageStock) {
+      payload.estoque = parsedEstoque;
+      payload.estoqueMinimo = parsedMin;
+    }
+
+    await onSave(payload);
   };
 
   return (
@@ -3033,9 +3068,12 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
               type="number"
               min="0"
               required
+              disabled={!canManageStock}
               className="system-input"
               value={estoque}
               onChange={(e) => setEstoque(e.target.value)}
+              style={!canManageStock ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+              title={!canManageStock ? 'Permissão de Estoque necessária para alterar saldo' : undefined}
             />
           </div>
 
@@ -3047,9 +3085,12 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
               type="number"
               min="0"
               required
+              disabled={!canManageStock}
               className="system-input"
               value={estoqueMinimo}
               onChange={(e) => setEstoqueMinimo(e.target.value)}
+              style={!canManageStock ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+              title={!canManageStock ? 'Permissão de Estoque necessária para alterar limite mínimo' : undefined}
             />
           </div>
         </div>
@@ -3081,7 +3122,7 @@ const EditProductModal2: React.FC<EditProductModal2Props> = ({
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
           <div>
-            {isInactive && (
+            {isInactive && canPermanentDelete && (
               <button
                 type="button"
                 onClick={() => {
@@ -3134,7 +3175,7 @@ interface CreateProductModal2Props {
   onCreate: (p: Omit<Product, 'id'>) => Promise<void> | void;
 }
 
-const CreateProductModal2: React.FC<CreateProductModal2Props> = ({ isOpen, onClose, onCreate }) => {
+export const CreateProductModal2: React.FC<CreateProductModal2Props> = ({ isOpen, onClose, onCreate }) => {
   const { showToast } = useApp();
   const [nome, setNome] = useState('');
   const [subtitulo, setSubtitulo] = useState('');
@@ -3754,7 +3795,7 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
             gap: '5px',
           }}
         >
-          📦 Booster Packs & Boxes ({sealedCardsCount})
+          Booster Packs & Boxes ({sealedCardsCount})
         </button>
 
         <button
@@ -3775,7 +3816,7 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
             gap: '5px',
           }}
         >
-          🎴 Cards Avulsos ({singleCardsCount})
+          Cards Avulsos ({singleCardsCount})
         </button>
 
         {totalCount > 0 && (
@@ -3862,7 +3903,7 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
                             fontFamily: 'var(--font-mono)',
                           }}
                         >
-                          📦 BOOSTER PACK
+                          BOOSTER PACK
                         </span>
                       )}
                       {isSealedBox && (
@@ -3878,7 +3919,7 @@ const LiveCardImportModal: React.FC<LiveCardImportModalProps> = ({
                             fontFamily: 'var(--font-mono)',
                           }}
                         >
-                          📦 BOOSTER BOX
+                          BOOSTER BOX
                         </span>
                       )}
                     </div>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp, type NavigationTab } from '../context/AppContext';
 import nobleLogo from '../assets/noble-logo.png';
-import { ShoppingBag, Menu, X, Shield, User, LogOut, Boxes } from 'lucide-react';
+import { ShoppingBag, Menu, X, User, LogOut } from 'lucide-react';
 import { CurtainThemeToggle } from './CurtainThemeToggle';
 
 export const Navbar: React.FC = () => {
@@ -11,12 +11,23 @@ export const Navbar: React.FC = () => {
     cartItemsCount,
     setIsCartOpen,
     currentUser,
+    canAccessProductControl,
     setIsAuthModalOpen,
     setAuthModalMode,
     logoutUser,
   } = useApp();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const userPortalTab: NavigationTab =
+    currentUser.role === 'admin' ? 'admin' : currentUser.role === 'funcionario' ? 'staff' : 'dashboard';
+
+  const userPortalLabel =
+    currentUser.role === 'admin'
+      ? 'Painel Admin'
+      : currentUser.role === 'funcionario'
+        ? 'Central da Equipe'
+        : 'Meus Pedidos';
 
   const handleNavClick = (tab: NavigationTab) => {
     setCurrentTab(tab);
@@ -82,7 +93,7 @@ export const Navbar: React.FC = () => {
         <nav
           style={{
             display: 'none',
-            gap: '32px',
+            gap: 'clamp(16px, 2vw, 28px)',
             alignItems: 'center',
           }}
           className="desktop-nav"
@@ -141,7 +152,7 @@ export const Navbar: React.FC = () => {
           >
             Sobre nós
           </button>
-          {(currentUser.role === 'admin' || currentUser.role === 'funcionario') && (
+          {canAccessProductControl && (
             <button
               onClick={() => handleNavClick('product-control')}
               style={{
@@ -159,36 +170,36 @@ export const Navbar: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
+                whiteSpace: 'nowrap',
               }}
               title="Controle de Produtos"
             >
-              <Boxes size={14} color="var(--color-primary)" />
               Controle de Produtos
             </button>
           )}
 
           {Boolean(currentUser.email) && (
             <button
-              onClick={() => handleNavClick(currentUser.role === 'admin' ? 'admin' : 'dashboard')}
+              onClick={() => handleNavClick(userPortalTab)}
               style={{
                 background: 'none',
                 border: 'none',
                 fontFamily: 'var(--font-nav)',
                 fontSize: '15px',
-                fontWeight: (currentUser.role === 'admin' ? currentTab === 'admin' : currentTab === 'dashboard') ? 600 : 500,
+                fontWeight: currentTab === userPortalTab ? 600 : 500,
                 letterSpacing: '0.01em',
                 cursor: 'pointer',
-                color: (currentUser.role === 'admin' ? currentTab === 'admin' : currentTab === 'dashboard') ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
-                borderBottom: (currentUser.role === 'admin' ? currentTab === 'admin' : currentTab === 'dashboard') ? '2px solid var(--color-primary)' : '2px solid transparent',
+                color: currentTab === userPortalTab ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+                borderBottom: currentTab === userPortalTab ? '2px solid var(--color-primary)' : '2px solid transparent',
                 paddingBottom: '4px',
                 transition: 'all 0.2s ease',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
+                whiteSpace: 'nowrap',
               }}
             >
-              <Shield size={14} color="var(--color-secondary)" />
-              Painel {currentUser.role !== 'cliente' && `(${currentUser.role})`}
+              {userPortalLabel}
             </button>
           )}
         </nav>
@@ -246,7 +257,7 @@ export const Navbar: React.FC = () => {
           {currentUser.email ? (
             <div style={{ display: 'none', alignItems: 'center', gap: '8px' }} className="desktop-nav">
               <button
-                onClick={() => handleNavClick(currentUser.role === 'admin' ? 'admin' : 'dashboard')}
+                onClick={() => handleNavClick(userPortalTab)}
                 className="btn-outline"
                 style={{
                   padding: '8px 16px',
@@ -393,7 +404,7 @@ export const Navbar: React.FC = () => {
           >
             Sobre nós
           </button>
-          {(currentUser.role === 'admin' || currentUser.role === 'funcionario') && (
+          {canAccessProductControl && (
             <button
               onClick={() => handleNavClick('product-control')}
               style={{
@@ -409,25 +420,27 @@ export const Navbar: React.FC = () => {
                 gap: '8px',
               }}
             >
-              <Boxes size={16} color="var(--color-primary)" />
               Controle de Produtos
             </button>
           )}
 
           {Boolean(currentUser.email) && (
             <button
-              onClick={() => handleNavClick(currentUser.role === 'admin' ? 'admin' : 'dashboard')}
+              onClick={() => handleNavClick(userPortalTab)}
               style={{
                 background: 'none',
                 border: 'none',
                 textAlign: 'left',
-                color: (currentUser.role === 'admin' ? currentTab === 'admin' : currentTab === 'dashboard') ? 'var(--color-primary)' : 'var(--color-on-surface)',
+                color: currentTab === userPortalTab ? 'var(--color-primary)' : 'var(--color-on-surface)',
                 fontFamily: 'var(--font-nav)',
                 fontSize: '18px',
                 fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
               }}
             >
-              Painel {currentUser.role !== 'cliente' ? `(${currentUser.role})` : ''}
+              {userPortalLabel}
             </button>
           )}
 
@@ -458,7 +471,7 @@ export const Navbar: React.FC = () => {
               <>
                 <button
                   type="button"
-                  onClick={() => handleNavClick(currentUser.role === 'admin' ? 'admin' : 'dashboard')}
+                  onClick={() => handleNavClick(userPortalTab)}
                   className="btn-outline"
                   style={{ flex: 1 }}
                 >

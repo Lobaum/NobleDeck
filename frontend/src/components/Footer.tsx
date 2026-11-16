@@ -79,9 +79,12 @@ export const Footer: React.FC = () => {
     scrollToTop();
   };
 
+  const accountPortalTab: NavigationTab =
+    currentUser.role === 'admin' ? 'admin' : currentUser.role === 'funcionario' ? 'staff' : 'dashboard';
+
   const handleAccountAction = () => {
     if (currentUser.id > 0) {
-      handleNavigateTab('dashboard');
+      handleNavigateTab(accountPortalTab);
       return;
     }
     setAuthModalMode('login');
@@ -189,7 +192,7 @@ export const Footer: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleAccountAction}
-                  className={`noble-footer-nav-btn${currentTab === 'dashboard' ? ' is-active' : ''}`}
+                  className={`noble-footer-nav-btn${currentTab === accountPortalTab && currentUser.id > 0 ? ' is-active' : ''}`}
                 >
                   <span className="noble-footer-nav-btn-left">
                     <User size={15} />

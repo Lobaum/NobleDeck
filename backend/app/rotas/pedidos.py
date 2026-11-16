@@ -9,7 +9,7 @@ from app.banco import (
 )
 from app.modelos.pedido import Pedido
 from app.esquemas import PedidoRegistro, PedidoResposta, PedidoStatusAlteracao, PedidoItemResposta
-from app.seguranca import exigir_equipe, obter_usuario_atual
+from app.seguranca import exigir_permissao, obter_usuario_atual, usuario_tem_permissao
 
 router = APIRouter(prefix="/api/pedidos", tags=["Pedidos"])
 
@@ -65,8 +65,8 @@ def listar_todos_pedidos(
     cliente_id: int | None = None,
     usuario_atual=Depends(obter_usuario_atual),
 ):
-    eh_equipe = getattr(usuario_atual, "tipoUsuario", "") in ("funcionario", "administrador")
-    if eh_equipe:
+    pode_gerir_pedidos = usuario_tem_permissao(usuario_atual, "pedidos")
+    if pode_gerir_pedidos:
         pedidos = listar_pedidos(cliente_id=cliente_id)
     else:
         if cliente_id is not None and cliente_id != usuario_atual.id_usuario:
@@ -251,7 +251,7 @@ def cancelar_proprio_pedido_rota(
 def atualizar_status_pedido_rota(
     id_pedido: int,
     dados: PedidoStatusAlteracao,
-    usuario_atual=Depends(exigir_equipe),
+    usuario_atual=Depends(exigir_permissao("pedidos")),
 ):
     if dados.status_pagamento is not None and dados.status_pagamento not in _STATUS_PAGAMENTO_VALIDOS:
         raise HTTPException(

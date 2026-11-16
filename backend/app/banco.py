@@ -1,9 +1,17 @@
+import json
 import secrets
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 from contextlib import contextmanager
-from app.modelos.usuario import Usuario, Cliente, Funcionario, Administrador
+from app.modelos.usuario import (
+    Usuario,
+    Cliente,
+    Funcionario,
+    Administrador,
+    PERMISSOES_EQUIPE_VALIDAS,
+    normalizar_permissoes,
+)
 from app.modelos.produto import Produto
 from app.modelos.estoque import Estoque
 from app.modelos.pedido import Pedido, ItemPedido
@@ -42,7 +50,11 @@ def inicializar_banco():
                 senha TEXT NOT NULL,
                 tipo_usuario TEXT NOT NULL DEFAULT 'cliente',
                 telefone TEXT DEFAULT '',
-                cargo TEXT DEFAULT ''
+                cpf TEXT DEFAULT '',
+                cep TEXT DEFAULT '',
+                endereco TEXT DEFAULT '',
+                cargo TEXT DEFAULT '',
+                permissoes TEXT DEFAULT NULL
             );
         """)
 
@@ -139,6 +151,10 @@ def inicializar_banco():
         """)
 
         migracoes = [
+            "ALTER TABLE usuarios ADD COLUMN permissoes TEXT DEFAULT NULL",
+            "ALTER TABLE usuarios ADD COLUMN cpf TEXT DEFAULT ''",
+            "ALTER TABLE usuarios ADD COLUMN cep TEXT DEFAULT ''",
+            "ALTER TABLE usuarios ADD COLUMN endereco TEXT DEFAULT ''",
             "ALTER TABLE pedidos ADD COLUMN cliente_telefone TEXT DEFAULT ''",
             "ALTER TABLE pedidos ADD COLUMN endereco_entrega TEXT DEFAULT ''",
             "ALTER TABLE pedidos ADD COLUMN tipo_entrega TEXT DEFAULT 'entrega'",
@@ -196,13 +212,92 @@ def obter_segredo_auth() -> str:
         return row["valor"]
 
 
-def atualizar_usuario_perfil(id_usuario, tipo_usuario, cargo=None):
+def _deserializar_permissoes(raw) -> list[str] | None:
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    if isinstance(raw, list):
+        return normalizar_permissoes(raw)
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            return normalizar_permissoes(parsed)
+    except (ValueError, TypeError):
+        pass
+    return None
+
+
+def _serializar_permissoes(permissoes: list[str] | None) -> str | None:
+    if permissoes is None:
+        return None
+    return json.dumps(normalizar_permissoes(permissoes))
+
+
+def atualizar_usuario_perfil(id_usuario, tipo_usuario, cargo=None, permissoes=None):
     cargo_atualizar = cargo.strip() if cargo is not None else ("" if tipo_usuario == "cliente" else None)
+    permissoes_json = None
+    if tipo_usuario == "cliente":
+        permissoes_json = json.dumps([])
+    elif tipo_usuario == "administrador":
+        permissoes_json = json.dumps(list(PERMISSOES_EQUIPE_VALIDAS))
+    elif tipo_usuario == "funcionario":
+        if permissoes is not None:
+            permissoes_json = json.dumps(normalizar_permissoes(permissoes))
+
+    with obter_conexao() as conn:
+        cursor = conn.cursor()
+        if tipo_usuario == "funcionario" and permissoes_json is None:
+            cursor.execute("SELECT tipo_usuario, permissoes FROM usuarios WHERE id_usuario = ?", (id_usuario,))
+            atual = cursor.fetchone()
+            if atual and atual["tipo_usuario"] == "cliente":
+                permissoes_json = json.dumps(["pedidos", "estoque"])
+        cursor.execute(
+            """
+            UPDATE usuarios
+            SET tipo_usuario = ?,
+                cargo = COALESCE(?, cargo),
+                permissoes = COALESCE(?, permissoes)
+            WHERE id_usuario = ?
+            """,
+            (tipo_usuario, cargo_atualizar, permissoes_json, id_usuario),
+        )
+        cursor.execute("SELECT * FROM usuarios WHERE id_usuario = ?", (id_usuario,))
+        row = cursor.fetchone()
+        if row:
+            return instanciar_usuario_da_linha(row)
+    return None
+
+
+def atualizar_dados_pessoais_usuario(
+    id_usuario,
+    nome,
+    email,
+    telefone="",
+    cpf="",
+    cep="",
+    endereco="",
+):
     with obter_conexao() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE usuarios SET tipo_usuario = ?, cargo = COALESCE(?, cargo) WHERE id_usuario = ?",
-            (tipo_usuario, cargo_atualizar, id_usuario),
+            """
+            UPDATE usuarios
+            SET nome = ?,
+                email = ?,
+                telefone = ?,
+                cpf = ?,
+                cep = ?,
+                endereco = ?
+            WHERE id_usuario = ?
+            """,
+            (
+                (nome or "").strip(),
+                (email or "").strip().lower(),
+                (telefone or "").strip(),
+                (cpf or "").strip(),
+                (cep or "").strip(),
+                (endereco or "").strip(),
+                id_usuario,
+            ),
         )
         cursor.execute("SELECT * FROM usuarios WHERE id_usuario = ?", (id_usuario,))
         row = cursor.fetchone()
@@ -227,6 +322,14 @@ def atualizar_senha_usuario(id_usuario, nova_senha):
 
 def instanciar_usuario_da_linha(row):
     tipo = row["tipo_usuario"]
+    chaves = row.keys()
+    raw_perms = row["permissoes"] if "permissoes" in chaves else None
+    permissoes_parsed = _deserializar_permissoes(raw_perms)
+    telefone = row["telefone"] or ""
+    cpf = row["cpf"] or "" if "cpf" in chaves else ""
+    cep = row["cep"] or "" if "cep" in chaves else ""
+    endereco = row["endereco"] or "" if "endereco" in chaves else ""
+
     if tipo == "administrador":
         return Administrador(
             id_usuario=row["id_usuario"],
@@ -234,6 +337,10 @@ def instanciar_usuario_da_linha(row):
             email=row["email"],
             senha=row["senha"],
             cargo=row["cargo"] or "Administrador Geral",
+            telefone=telefone,
+            cpf=cpf,
+            cep=cep,
+            endereco=endereco,
         )
     elif tipo == "funcionario":
         return Funcionario(
@@ -242,6 +349,11 @@ def instanciar_usuario_da_linha(row):
             email=row["email"],
             senha=row["senha"],
             cargo=row["cargo"] or "Atendente de Loja",
+            permissoes=permissoes_parsed,
+            telefone=telefone,
+            cpf=cpf,
+            cep=cep,
+            endereco=endereco,
         )
     else:
         return Cliente(
@@ -249,22 +361,40 @@ def instanciar_usuario_da_linha(row):
             nome=row["nome"],
             email=row["email"],
             senha=row["senha"],
-            telefone=row["telefone"] or "",
+            telefone=telefone,
+            cpf=cpf,
+            cep=cep,
+            endereco=endereco,
         )
 
 
 def salvar_usuario(usuario):
     usuario.email = (usuario.email or "").strip().lower()
     telefone = getattr(usuario, "telefone", "")
+    cpf = getattr(usuario, "cpf", "")
+    cep = getattr(usuario, "cep", "")
+    endereco = getattr(usuario, "endereco", "")
     cargo = getattr(usuario, "cargo", "")
+    permissoes_json = _serializar_permissoes(getattr(usuario, "permissoes", []))
     with obter_conexao() as conn:
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT INTO usuarios (nome, email, senha, tipo_usuario, telefone, cargo)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO usuarios (nome, email, senha, tipo_usuario, telefone, cpf, cep, endereco, cargo, permissoes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (usuario.nome, usuario.email, usuario.senha, usuario.tipoUsuario, telefone, cargo),
+            (
+                usuario.nome,
+                usuario.email,
+                usuario.senha,
+                usuario.tipoUsuario,
+                telefone,
+                cpf,
+                cep,
+                endereco,
+                cargo,
+                permissoes_json,
+            ),
         )
         usuario.id_usuario = cursor.lastrowid
     return usuario

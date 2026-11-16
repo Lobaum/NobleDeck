@@ -2892,3 +2892,899 @@ html.light .checkout-page-root {
     justify-content: center;
   }
 }
+
+/* ============================================================================
+   WORKSTATION DA EQUIPE & CONTA DO CLIENTE (NOBLEDECK 2.0)
+   ============================================================================ */
+
+.staff-portal-root,
+.customer-account-root,
+.account-panel-layout {
+  --staff-surface: var(--card-bg, #131317);
+  --staff-surface-elevated: #191920;
+  --staff-surface-subtle: var(--color-surface-container-low, #0e0e12);
+  --staff-border: var(--card-border, rgba(255, 255, 255, 0.1));
+  --staff-border-strong: rgba(255, 255, 255, 0.16);
+  --staff-accent: #ffc400;
+  --staff-accent-text: #ffc400;
+  --staff-accent-bg: rgba(255, 196, 0, 0.12);
+  --staff-accent-border: rgba(255, 196, 0, 0.34);
+  --staff-granted-bg: rgba(34, 197, 94, 0.12);
+  --staff-granted-border: rgba(74, 222, 128, 0.34);
+  --staff-granted-text: #4ade80;
+  --staff-locked-bg: rgba(255, 255, 255, 0.04);
+  --staff-locked-border: rgba(255, 255, 255, 0.12);
+  --staff-locked-text: #94a3b8;
+  --staff-danger-border: rgba(248, 113, 113, 0.42);
+  --staff-warning-border: rgba(251, 191, 36, 0.42);
+  --staff-shadow-card: 0 10px 28px rgba(0, 0, 0, 0.24);
+  --staff-focus-ring: #ffc400;
+}
+
+.staff-portal-root,
+.customer-account-root {
+  padding-top: 32px;
+  padding-bottom: 84px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+:root[data-theme="light"] .staff-portal-root,
+html.light .staff-portal-root,
+:root[data-theme="light"] .customer-account-root,
+html.light .customer-account-root,
+:root[data-theme="light"] .account-panel-layout,
+html.light .account-panel-layout {
+  --staff-surface: #ffffff;
+  --staff-surface-elevated: #f8fafc;
+  --staff-surface-subtle: #f1f5f9;
+  --staff-border: rgba(15, 23, 42, 0.12);
+  --staff-border-strong: rgba(15, 23, 42, 0.2);
+  --staff-accent: #d48000;
+  --staff-accent-text: #7a4b00;
+  --staff-accent-bg: rgba(255, 196, 0, 0.18);
+  --staff-accent-border: rgba(180, 105, 0, 0.4);
+  --staff-granted-bg: rgba(22, 163, 74, 0.1);
+  --staff-granted-border: rgba(22, 163, 74, 0.34);
+  --staff-granted-text: #166534;
+  --staff-locked-bg: rgba(15, 23, 42, 0.045);
+  --staff-locked-border: rgba(15, 23, 42, 0.14);
+  --staff-locked-text: #475569;
+  --staff-danger-border: rgba(220, 38, 38, 0.38);
+  --staff-warning-border: rgba(217, 119, 6, 0.42);
+  --staff-shadow-card: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --staff-focus-ring: #b45309;
+}
+
+.staff-portal-root button:focus-visible,
+.customer-account-root button:focus-visible,
+.account-panel-layout button:focus-visible {
+  outline: 2px solid var(--staff-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Header Arquitetural de Comando */
+.staff-command-header {
+  position: relative;
+  background-color: var(--staff-surface);
+  border: 1px solid var(--staff-border);
+  border-top: 2px solid var(--staff-accent);
+  border-radius: 14px;
+  padding: 22px 24px;
+  box-shadow: var(--staff-shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.staff-command-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.staff-identity-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.staff-role-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+
+.staff-role-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background-color: var(--staff-accent-bg);
+  border: 1px solid var(--staff-accent-border);
+  color: var(--staff-accent-text);
+}
+
+.staff-cargo-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  background-color: var(--staff-surface-subtle);
+  border: 1px solid var(--staff-border);
+  color: var(--color-on-surface);
+}
+
+.staff-level-counter {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+  border: 1px dashed var(--staff-border-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-page-title {
+  margin: 0;
+  font-family: var(--font-headline);
+  font-size: clamp(22px, 2.5vw, 30px);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--color-headline);
+}
+
+.staff-identity-meta {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+}
+
+.staff-actions-cluster {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.staff-action-btn,
+.staff-primary-btn,
+.staff-secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 8px 13px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.staff-action-btn {
+  border: 1px solid transparent;
+}
+
+.staff-action-btn:hover:not(:disabled),
+.staff-primary-btn:hover:not(:disabled),
+.staff-secondary-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+/* Faixa de Escopo de Acesso em Tempo Real */
+.staff-permissions-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 1px solid var(--staff-border);
+}
+
+.staff-permissions-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-on-surface-variant);
+  flex-shrink: 0;
+}
+
+.staff-permissions-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.staff-perm-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border: 1px solid var(--staff-border);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+button.staff-perm-pill {
+  cursor: pointer;
+}
+
+button.staff-perm-pill:hover {
+  transform: translateY(-1px);
+}
+
+.staff-perm-pill.is-granted {
+  background-color: var(--staff-granted-bg);
+  border-color: var(--staff-granted-border);
+  color: var(--staff-granted-text);
+}
+
+.staff-perm-pill.is-locked {
+  background-color: var(--staff-locked-bg);
+  border-color: var(--staff-locked-border);
+  color: var(--staff-locked-text);
+}
+
+.staff-perm-pill.is-admin-only {
+  background-color: var(--staff-surface-subtle);
+  border-style: dashed;
+  border-color: var(--staff-border-strong);
+  color: var(--color-on-surface-variant);
+  cursor: default;
+}
+
+/* Grade de Indicadores KPI */
+.staff-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.customer-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.staff-kpi-card {
+  width: 100%;
+  text-align: left;
+  background-color: var(--staff-surface);
+  border: 1px solid var(--staff-border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: var(--staff-shadow-card);
+  transition: transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.staff-kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--staff-accent-border);
+}
+
+.staff-kpi-card.is-attention {
+  border-color: var(--staff-warning-border);
+}
+
+.staff-kpi-card.is-danger {
+  border-color: var(--staff-danger-border);
+}
+
+.staff-kpi-card.is-restricted {
+  opacity: 0.72;
+  border-style: dashed;
+}
+
+.staff-kpi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.staff-kpi-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+}
+
+.staff-kpi-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.staff-kpi-value {
+  font-family: var(--font-headline);
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-headline);
+}
+
+.staff-kpi-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--color-on-surface-variant);
+}
+
+/* Barra de Navegação por Abas da Workstation */
+.staff-tablist {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 5px;
+  background-color: var(--staff-surface-subtle);
+  border: 1px solid var(--staff-border);
+  border-radius: 12px;
+  scrollbar-width: thin;
+}
+
+.staff-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 15px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background-color: transparent;
+  color: var(--color-on-surface-variant);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.staff-tab-btn:hover {
+  color: var(--color-headline);
+  background-color: var(--staff-surface);
+}
+
+.staff-tab-btn.is-active {
+  background-color: var(--staff-surface);
+  border-color: var(--staff-accent-border);
+  color: var(--staff-accent-text);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+
+.staff-tab-count {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 800;
+  background-color: var(--staff-accent-bg);
+  color: var(--staff-accent-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Containers, Seções e Toolbars */
+.staff-panel-box {
+  background-color: var(--staff-surface);
+  border: 1px solid var(--staff-border);
+  border-radius: 14px;
+  padding: 22px 24px;
+  box-shadow: var(--staff-shadow-card);
+}
+
+.staff-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.staff-section-header h2 {
+  margin: 0 0 4px 0;
+  font-family: var(--font-headline);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--color-headline);
+}
+
+.staff-section-header p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+}
+
+.staff-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.staff-filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.staff-chip {
+  min-height: 32px;
+  padding: 5px 12px;
+  border-radius: 7px;
+  border: 1px solid var(--staff-border);
+  background-color: var(--staff-surface-subtle);
+  color: var(--color-on-surface-variant);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.staff-chip:hover {
+  border-color: var(--staff-border-strong);
+  color: var(--color-headline);
+}
+
+.staff-chip.is-active {
+  background-color: var(--staff-accent-bg);
+  border-color: var(--staff-accent-border);
+  color: var(--staff-accent-text);
+}
+
+.staff-search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.staff-empty-state {
+  padding: 42px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-on-surface-variant);
+}
+
+.staff-empty-state h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--color-headline);
+}
+
+.staff-empty-state p {
+  margin: 0;
+  font-size: 13px;
+  max-width: 460px;
+  line-height: 1.5;
+}
+
+/* Cards de Pedidos & Expedição */
+.staff-orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.staff-order-card {
+  background-color: var(--staff-surface-subtle);
+  border: 1px solid var(--staff-border);
+  border-left-width: 4px;
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 0.15s ease;
+}
+
+.staff-order-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.staff-order-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  flex: 1 1 360px;
+}
+
+.staff-order-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.staff-order-id {
+  font-family: var(--font-headline);
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--color-headline);
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-order-subid {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+}
+
+.staff-status-pill,
+.staff-delivery-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.staff-order-customer {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--color-on-surface-variant);
+}
+
+.staff-order-customer strong {
+  color: var(--color-on-surface);
+}
+
+.staff-order-address {
+  font-size: 12.5px;
+  color: var(--color-on-surface-variant);
+  line-height: 1.45;
+}
+
+.staff-order-address strong {
+  color: var(--color-on-surface);
+}
+
+.staff-order-notes {
+  padding: 8px 11px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.staff-order-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.staff-order-total-block {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.staff-order-total-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-on-surface-variant);
+}
+
+.staff-order-total-value {
+  font-family: var(--font-headline);
+  font-size: 19px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-order-buttons-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.staff-order-items-box {
+  padding-top: 12px;
+  border-top: 1px dashed var(--staff-border-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.staff-order-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background-color: var(--staff-surface);
+  border: 1px solid var(--staff-border);
+  font-size: 12.5px;
+}
+
+.staff-order-item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.staff-order-qty {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-order-item-name {
+  font-weight: 600;
+  color: var(--color-headline);
+}
+
+.staff-order-item-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+
+.staff-order-item-right strong {
+  color: var(--color-headline);
+}
+
+/* Aba de Estoque & Reposição */
+.staff-stock-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.staff-alerts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.staff-alert-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+
+/* Aba Meu Acesso & Matriz */
+.staff-access-grid {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.staff-matrix-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.staff-matrix-card {
+  padding: 14px 15px;
+  border-radius: 10px;
+  border: 1px solid var(--staff-border);
+}
+
+/* Painel Unificado Minha Conta (Dados Pessoais, Senha & Compras) */
+.account-panel-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.account-panel-layout.has-orders-column {
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+}
+
+.account-forms-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.account-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
+.account-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.account-field-span2 {
+  grid-column: 1 / -1;
+}
+
+.account-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-on-surface-variant);
+}
+
+.account-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 6px;
+  border-top: 1px dashed var(--staff-border-strong);
+}
+
+.account-personal-order-card {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--staff-border);
+  background-color: var(--staff-surface-subtle);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+@media (max-width: 1024px) {
+  .staff-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .staff-access-grid,
+  .account-panel-layout.has-orders-column {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .staff-portal-root,
+  .customer-account-root {
+    padding-top: 20px;
+    padding-bottom: 68px;
+    gap: 14px;
+  }
+
+  .staff-command-header,
+  .staff-panel-box {
+    padding: 16px;
+  }
+
+  .staff-actions-cluster {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .staff-kpi-grid,
+  .customer-kpi-grid,
+  .account-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .account-field-span2 {
+    grid-column: auto;
+  }
+
+  .staff-order-controls {
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .staff-order-buttons-row {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .staff-order-item-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .staff-action-btn,
+  .staff-primary-btn,
+  .staff-secondary-btn,
+  .staff-perm-pill,
+  .staff-kpi-card,
+  .staff-tab-btn,
+  .staff-chip,
+  .staff-order-card {
+    transition: none;
+  }
+
+  .staff-action-btn:hover,
+  .staff-primary-btn:hover,
+  .staff-secondary-btn:hover,
+  button.staff-perm-pill:hover,
+  .staff-kpi-card:hover {
+    transform: none;
+  }
+}

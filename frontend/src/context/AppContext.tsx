@@ -5,6 +5,7 @@ import type {
   Order,
   UserProfile,
   UserRole,
+  StaffPermission,
   GameId,
   ExternalCard,
   StockMovement,
@@ -17,12 +18,17 @@ import {
   setAuthToken,
   setUnauthorizedHandler,
 } from '../services/api';
+import {
+  userHasAnyProductControlPermission,
+  userHasPermission,
+} from '../constants/accessControl';
 
 export type NavigationTab =
   | 'home'
   | 'products'
   | 'about'
   | 'dashboard'
+  | 'staff'
   | 'admin'
   | 'product-control'
   | 'checkout';
@@ -124,7 +130,11 @@ interface AppContextType {
   orders: Order[];
   refreshOrders: () => Promise<void>;
   createOrder: (checkoutDetails: CheckoutSubmissionPayload) => Promise<Order | null>;
-  updateOrderStatus: (orderId: number, status: Order['status']) => Promise<void> | void;
+  updateOrderStatus: (
+    orderId: number,
+    status: Order['status'],
+    options?: { codigoRastreio?: string; statusPagamento?: string }
+  ) => Promise<void> | void;
   cancelOwnOrder: (orderId: number) => Promise<Order | null>;
 
   externalRequestProduct: Product | null;
@@ -132,6 +142,17 @@ interface AppContextType {
   startCheckoutFlow: () => void;
 
   currentUser: UserProfile;
+  hasPermission: (permission: StaffPermission) => boolean;
+  canAccessProductControl: boolean;
+  refreshCurrentUser: () => Promise<void>;
+  updateOwnProfile: (dados: {
+    nome: string;
+    email: string;
+    telefone?: string;
+    cpf?: string;
+    cep?: string;
+    endereco?: string;
+  }) => Promise<UserProfile | null>;
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
   authModalMode: 'login' | 'register';
@@ -171,6 +192,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return clean === '/admin';
   };
 
+  const isStaffPath = (pathname: string) => {
+    const clean = pathname.toLowerCase().replace(/\/+$/, '');
+    return clean === '/equipe' || clean === '/painel';
+  };
+
+  const isDashboardPath = (pathname: string) => {
+    const clean = pathname.toLowerCase().replace(/\/+$/, '');
+    return clean === '/minha-conta';
+  };
+
   const isProductControlPath = (pathname: string) => {
     const clean = pathname.toLowerCase().replace(/\/+$/, '');
     return clean === '/gestao-produtos' || clean === '/controle-produtos' || clean === '/produtos-admin';
@@ -185,6 +216,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (typeof window !== 'undefined') {
       const p = window.location.pathname;
       if (isAdminPath(p)) return 'admin';
+      if (isStaffPath(p)) return 'staff';
+      if (isDashboardPath(p)) return 'dashboard';
       if (isProductControlPath(p)) return 'product-control';
       if (isCheckoutPath(p)) return 'checkout';
     }
@@ -201,6 +234,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!isAdminPath(window.location.pathname)) {
           window.history.pushState(null, '', '/admin');
         }
+      } else if (tab === 'staff') {
+        if (!isStaffPath(window.location.pathname)) {
+          window.history.pushState(null, '', '/equipe');
+        }
+      } else if (tab === 'dashboard') {
+        if (!isDashboardPath(window.location.pathname)) {
+          window.history.pushState(null, '', '/minha-conta');
+        }
       } else if (tab === 'product-control') {
         if (!isProductControlPath(window.location.pathname)) {
           window.history.pushState(null, '', '/gestao-produtos');
@@ -212,6 +253,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else {
         if (
           isAdminPath(window.location.pathname) ||
+          isStaffPath(window.location.pathname) ||
+          isDashboardPath(window.location.pathname) ||
           isProductControlPath(window.location.pathname) ||
           isCheckoutPath(window.location.pathname)
         ) {
@@ -226,6 +269,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const p = window.location.pathname;
       if (isAdminPath(p)) {
         setCurrentTabState('admin');
+      } else if (isStaffPath(p)) {
+        setCurrentTabState('staff');
+      } else if (isDashboardPath(p)) {
+        setCurrentTabState('dashboard');
       } else if (isProductControlPath(p)) {
         setCurrentTabState('product-control');
       } else if (isCheckoutPath(p)) {
@@ -368,6 +415,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUser]);
 
+  const hasPermission = useCallback(
+    (permission: StaffPermission) => userHasPermission(currentUser, permission),
+    [currentUser]
+  );
+
+  const canAccessProductControl = userHasAnyProductControlPermission(currentUser);
+
+  const refreshCurrentUser = useCallback(async () => {
+    const token = getAuthToken();
+    if (!token) return;
+    try {
+      const liveProfile = await api.obterSessaoAtual();
+      setCurrentUser(liveProfile);
+    } catch {
+      // Tratamento 401 já limpa a sessão via interceptor
+    }
+  }, []);
+
+  const updateOwnProfile = useCallback(
+    async (dados: {
+      nome: string;
+      email: string;
+      telefone?: string;
+      cpf?: string;
+      cep?: string;
+      endereco?: string;
+    }): Promise<UserProfile | null> => {
+      try {
+        const atualizado = await api.atualizarMeusDados(dados);
+        setCurrentUser(atualizado);
+        showToast('Dados pessoais da conta atualizados com sucesso!');
+        return atualizado;
+      } catch (err: any) {
+        showToast(err?.message || 'Erro ao atualizar dados da conta.');
+        return null;
+      }
+    },
+    [showToast]
+  );
+
+  useEffect(() => {
+    if (getAuthToken() && currentUser.id > 0) {
+      void refreshCurrentUser();
+    }
+  }, [refreshCurrentUser]);
+
   // Trata expiração/invalidez de token Bearer (401) em requisições protegidas
   useEffect(() => {
     setUnauthorizedHandler(() => {
@@ -407,7 +500,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Carrega pedidos e movimentações apenas quando autenticado (e movimentações apenas para equipe)
+  // Carrega pedidos e movimentações apenas quando autenticado (e movimentações apenas para quem tem permissão de estoque)
   useEffect(() => {
     if (!hasInitializedProducts) return;
 
@@ -418,7 +511,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     let active = true;
-    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
+    const canViewMovements = userHasPermission(currentUser, 'estoque');
 
     async function loadAuthenticatedData() {
       try {
@@ -430,7 +523,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn('Não foi possível carregar pedidos do backend:', err?.message);
       }
 
-      if (isStaffOrAdmin) {
+      if (canViewMovements) {
         try {
           const dadosMovimentacoes = await api.obterMovimentacoesEstoque(100);
           if (active && Array.isArray(dadosMovimentacoes)) {
@@ -448,7 +541,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       active = false;
     };
-  }, [hasInitializedProducts, currentUser.id, currentUser.email, currentUser.role]);
+  }, [hasInitializedProducts, currentUser.id, currentUser.email, currentUser.role, currentUser.permissoes]);
 
   const refreshProducts = useCallback(async (): Promise<Product[] | null> => {
     try {
@@ -481,8 +574,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [currentUser.email, currentUser.id, showToast]);
 
   const refreshStockMovements = useCallback(async () => {
-    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
-    if (!currentUser.email || currentUser.id <= 0 || !isStaffOrAdmin || !getAuthToken()) {
+    const canViewMovements = userHasPermission(currentUser, 'estoque');
+    if (!currentUser.email || currentUser.id <= 0 || !canViewMovements || !getAuthToken()) {
       setStockMovements([]);
       return;
     }
@@ -494,7 +587,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err: any) {
       console.warn('Erro ao atualizar movimentações de estoque:', err?.message);
     }
-  }, [currentUser.email, currentUser.id, currentUser.role]);
+  }, [currentUser]);
 
   const addToCart = (product: Product, quantity = 1) => {
     let targetProduct = product;
@@ -726,14 +819,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const updateOrderStatus = async (orderId: number, status: Order['status']) => {
+  const updateOrderStatus = async (
+    orderId: number,
+    status: Order['status'],
+    options?: { codigoRastreio?: string; statusPagamento?: string }
+  ) => {
+    if (!userHasPermission(currentUser, 'pedidos')) {
+      showToast('Seu nível de acesso não inclui permissão para atualizar pedidos.');
+      return;
+    }
     try {
-      const atualizado = await api.atualizarStatusPedido(orderId, status, productsRef.current);
+      const atualizado = await api.atualizarStatusPedido(
+        orderId,
+        status,
+        productsRef.current,
+        options?.codigoRastreio,
+        options?.statusPagamento
+      );
       setOrders((prev) => prev.map((o) => (o.id_pedido === orderId ? atualizado : o)));
       if (status === 'Cancelado') {
-        await Promise.all([refreshProducts(), refreshStockMovements()]);
+        await Promise.all([
+          refreshProducts(),
+          userHasPermission(currentUser, 'estoque') ? refreshStockMovements() : Promise.resolve(),
+        ]);
       }
-      showToast(`Status do pedido #${orderId} atualizado para ${status}`);
+      showToast(`Pedido #${atualizado.numero || orderId} atualizado para ${status}`);
     } catch (err: any) {
       showToast(err?.message || 'Erro ao atualizar status do pedido no servidor.');
     }
@@ -757,9 +867,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     quantity: number,
     motivo: string = 'Reposição de Estoque'
   ) => {
-    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
-    if (!isStaffOrAdmin) {
-      showToast('Apenas funcionários ou administradores podem registrar entradas!');
+    if (!userHasPermission(currentUser, 'estoque')) {
+      showToast('Seu nível de acesso não inclui permissão para registrar entradas de estoque.');
       return;
     }
     const prod = productsRef.current.find((p) => p.id === productId);
@@ -768,7 +877,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         productId,
         quantity,
         motivo,
-        currentUser.nome || 'Administrador'
+        currentUser.nome || 'Equipe'
       );
       const nextProducts = productsRef.current.map((p) =>
         p.id === productId
@@ -793,9 +902,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     quantity: number,
     motivo: string = 'Baixa Operacional'
   ) => {
-    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
-    if (!isStaffOrAdmin) {
-      showToast('Apenas funcionários ou administradores podem registrar saídas!');
+    if (!userHasPermission(currentUser, 'estoque')) {
+      showToast('Seu nível de acesso não inclui permissão para registrar baixas de estoque.');
       return;
     }
     const prod = productsRef.current.find((p) => p.id === productId);
@@ -804,7 +912,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         productId,
         quantity,
         motivo,
-        currentUser.nome || 'Administrador'
+        currentUser.nome || 'Equipe'
       );
       const nextProducts = productsRef.current.map((p) =>
         p.id === productId
@@ -825,9 +933,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateProductMinStock = async (productId: number, minStock: number) => {
-    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
-    if (!isStaffOrAdmin) {
-      showToast('Apenas funcionários ou administradores podem configurar o estoque mínimo!');
+    if (!userHasPermission(currentUser, 'estoque') && !userHasPermission(currentUser, 'catalogo_api')) {
+      showToast('Seu nível de acesso não permite configurar o estoque mínimo.');
       return;
     }
     const prod = productsRef.current.find((p) => p.id === productId);
@@ -846,9 +953,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addProduct = async (p: Omit<Product, 'id'>) => {
-    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
-    if (!isStaffOrAdmin) {
-      showToast('Apenas funcionários ou administradores podem cadastrar produtos!');
+    if (!userHasPermission(currentUser, 'produtos')) {
+      showToast('Seu nível de acesso não inclui permissão para cadastrar produtos!');
       return;
     }
     if (!Number.isFinite(p.preco) || p.preco <= 0) {
@@ -856,7 +962,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     try {
-      const criado = await api.cadastrarProduto(p);
+      const criado = await api.cadastrarProduto(p, 'manual');
       syncProductsAndCart([criado, ...productsRef.current.filter((item) => item.id !== criado.id)]);
       await Promise.all([refreshProducts(), refreshStockMovements()]);
       showToast(`Produto "${criado.nome}" cadastrado com sucesso!`);
@@ -870,9 +976,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     estoque = 5,
     preco?: number
   ): Promise<Product | null> => {
-    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
-    if (!isStaffOrAdmin) {
-      showToast('Apenas funcionários ou administradores podem importar cartas para o estoque!');
+    if (!userHasPermission(currentUser, 'catalogo_api')) {
+      showToast('Seu nível de acesso não inclui permissão para importar do catálogo oficial!');
       return null;
     }
 
@@ -899,7 +1004,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const mapped = externalCardToProduct(card, Math.floor(estoque));
       const { id: _ignoreId, externalCard: _ignoreExt, ...payload } = mapped;
       payload.preco = resolvedPrice;
-      const criado = await api.cadastrarProduto(payload);
+      const criado = await api.cadastrarProduto(payload, 'catalogo_api');
       syncProductsAndCart([criado, ...productsRef.current.filter((item) => item.id !== criado.id)]);
       await Promise.all([refreshProducts(), refreshStockMovements()]);
       showToast(`Carta "${criado.nome}" adicionada com sucesso ao estoque!`);
@@ -911,9 +1016,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateProductStock = async (productId: number, change: number) => {
-    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
-    if (!isStaffOrAdmin) {
-      showToast('Apenas funcionários ou administradores podem alterar o estoque!');
+    if (!userHasPermission(currentUser, 'estoque')) {
+      showToast('Seu nível de acesso não inclui permissão para alterar o estoque!');
       return;
     }
 
@@ -931,9 +1035,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const setProductStockExact = async (productId: number, newStock: number) => {
-    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
-    if (!isStaffOrAdmin) {
-      showToast('Apenas funcionários ou administradores podem alterar o estoque!');
+    if (!userHasPermission(currentUser, 'estoque')) {
+      showToast('Seu nível de acesso não inclui permissão para alterar o estoque!');
       return;
     }
 
@@ -953,9 +1056,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const editProduct = async (productId: number, updatedFields: Partial<Product>) => {
-    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
-    if (!isStaffOrAdmin) {
-      showToast('Apenas funcionários ou administradores podem editar produtos!');
+    const keys = Object.keys(updatedFields);
+    const stockOnly = keys.every((k) => k === 'estoque' || k === 'estoqueMinimo');
+    if (stockOnly) {
+      if (!userHasPermission(currentUser, 'estoque')) {
+        showToast('Seu nível de acesso não inclui permissão para alterar o estoque!');
+        return;
+      }
+    } else if (!userHasPermission(currentUser, 'produtos')) {
+      showToast('Seu nível de acesso não inclui permissão para editar produtos!');
       return;
     }
 
@@ -978,9 +1087,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteProduct = async (productId: number) => {
-    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
-    if (!isStaffOrAdmin) {
-      showToast('Apenas funcionários ou administradores podem inativar produtos!');
+    if (!userHasPermission(currentUser, 'produtos')) {
+      showToast('Seu nível de acesso não inclui permissão para inativar produtos!');
       return;
     }
 
@@ -996,9 +1104,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const reactivateProduct = async (productId: number) => {
-    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
-    if (!isStaffOrAdmin) {
-      showToast('Apenas funcionários ou administradores podem reativar produtos!');
+    if (!userHasPermission(currentUser, 'produtos')) {
+      showToast('Seu nível de acesso não inclui permissão para reativar produtos!');
       return;
     }
 
@@ -1014,9 +1121,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const removeProductPermanently = async (productId: number) => {
-    const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
-    if (!isStaffOrAdmin) {
-      showToast('Apenas funcionários ou administradores podem excluir produtos permanentemente!');
+    if (currentUser.role !== 'admin') {
+      showToast('Apenas administradores podem excluir produtos permanentemente!');
       return;
     }
 
@@ -1073,6 +1179,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setCurrentTab('checkout');
         } else if (cadastrado.role === 'admin') {
           setCurrentTab('admin');
+        } else if (cadastrado.role === 'funcionario') {
+          setCurrentTab('staff');
         }
         return true;
       } else {
@@ -1091,6 +1199,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setCurrentTab('checkout');
         } else if (logado.role === 'admin') {
           setCurrentTab('admin');
+        } else if (logado.role === 'funcionario') {
+          setCurrentTab('staff');
         }
         return true;
       }
@@ -1120,19 +1230,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (currentTab === 'dashboard' && (!currentUser.email || currentUser.id === 0)) {
       setCurrentTab('home');
-      showToast('Faça login para acessar o painel!');
+      showToast('Faça login para acessar sua conta!');
       setAuthModalMode('login');
       setIsAuthModalOpen(true);
-    } else if (currentTab === 'product-control') {
-      const isStaffOrAdmin = currentUser.role === 'admin' || currentUser.role === 'funcionario';
-      if (!isStaffOrAdmin) {
+    } else if (currentTab === 'staff') {
+      if (!currentUser.email || currentUser.id === 0) {
         setCurrentTab('home');
-        showToast('Acesso restrito a Administradores e Funcionários!');
+        showToast('Faça login com uma conta da equipe para acessar a Central Operacional.');
         setAuthModalMode('login');
         setIsAuthModalOpen(true);
+      } else if (currentUser.role === 'admin') {
+        setCurrentTab('admin');
+      } else if (currentUser.role !== 'funcionario') {
+        setCurrentTab('dashboard');
+        showToast('Área exclusiva para colaboradores da loja.');
+      }
+    } else if (currentTab === 'product-control') {
+      if (!currentUser.email || currentUser.id === 0) {
+        setCurrentTab('home');
+        showToast('Acesso restrito a colaboradores autorizados e administradores!');
+        setAuthModalMode('login');
+        setIsAuthModalOpen(true);
+      } else if (!userHasAnyProductControlPermission(currentUser)) {
+        setCurrentTab(currentUser.role === 'funcionario' ? 'staff' : 'home');
+        showToast('Seu nível de acesso atual não inclui o Controle de Produtos.');
       }
     }
-  }, [currentTab, currentUser.email, currentUser.id, currentUser.role]);
+  }, [currentTab, currentUser, setCurrentTab, showToast]);
 
   return (
     <AppContext.Provider
@@ -1175,6 +1299,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setExternalRequestProduct,
         startCheckoutFlow,
         currentUser,
+        hasPermission,
+        canAccessProductControl,
+        refreshCurrentUser,
+        updateOwnProfile,
         isAuthModalOpen,
         setIsAuthModalOpen,
         authModalMode,

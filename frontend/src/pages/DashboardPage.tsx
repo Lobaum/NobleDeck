@@ -1,14 +1,28 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  CheckCircle2,
+  Clock,
+  CreditCard,
+  Home,
+  Package,
+  RotateCcw,
+  ShoppingBag,
+  Store,
+  Truck,
+  User,
+  UserCheck,
+  XCircle,
+} from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
-import { AlertTriangle, ChevronDown, Check, Pencil, Trash2, Plus, Minus, X, Save, Shield, RotateCcw, Search, Boxes } from 'lucide-react';
-import type { ActiveGameApi, ExternalCard, GameId, ProductCategory, Order, Product } from '../types';
-import { SystemSelect } from '../components/SystemSelect';
-import { SystemModal } from '../components/SystemModal';
-import { searchLiveCards } from '../services/tcgApi';
+import { AccountProfilePanel } from '../components/AccountProfilePanel';
 import { formatBRL } from '../services/api';
+import type { Order } from '../types';
 
-interface DashboardSemanticTones {
+type CustomerTab = 'orders' | 'account';
+type CustomerOrderFilter = 'all' | 'active' | 'Finalizado' | 'Cancelado';
+
+interface CustomerTones {
   successText: string;
   successBg: string;
   successBorder: string;
@@ -24,12 +38,12 @@ interface DashboardSemanticTones {
   pendingText: string;
   pendingBg: string;
   pendingBorder: string;
-  activeTabBg: string;
-  activeTabText: string;
-  activeTabBorder: string;
+  accentText: string;
+  accentBg: string;
+  accentBorder: string;
 }
 
-const getSemanticTones = (isLight: boolean): DashboardSemanticTones =>
+const getCustomerTones = (isLight: boolean): CustomerTones =>
   isLight
     ? {
       successText: '#166534',
@@ -47,1758 +61,425 @@ const getSemanticTones = (isLight: boolean): DashboardSemanticTones =>
       pendingText: '#9a3412',
       pendingBg: 'rgba(234, 88, 12, 0.10)',
       pendingBorder: 'rgba(234, 88, 12, 0.32)',
-      activeTabBg: 'rgba(255, 196, 0, 0.22)',
-      activeTabText: '#7A4B00',
-      activeTabBorder: 'rgba(212, 128, 0, 0.45)',
+      accentText: '#7A4B00',
+      accentBg: 'rgba(255, 196, 0, 0.22)',
+      accentBorder: 'rgba(212, 128, 0, 0.45)',
     }
     : {
       successText: '#4ade80',
-      successBg: 'rgba(34, 197, 94, 0.13)',
-      successBorder: 'rgba(74, 222, 128, 0.35)',
+      successBg: 'rgba(34, 197, 94, 0.14)',
+      successBorder: 'rgba(74, 222, 128, 0.32)',
       dangerText: '#f87171',
       dangerBg: 'rgba(239, 68, 68, 0.14)',
-      dangerBorder: 'rgba(248, 113, 113, 0.38)',
+      dangerBorder: 'rgba(248, 113, 113, 0.32)',
       warningText: '#fbbf24',
       warningBg: 'rgba(245, 158, 11, 0.14)',
-      warningBorder: 'rgba(251, 191, 36, 0.38)',
+      warningBorder: 'rgba(251, 191, 36, 0.32)',
       infoText: '#38bdf8',
-      infoBg: 'rgba(56, 189, 248, 0.14)',
-      infoBorder: 'rgba(56, 189, 248, 0.35)',
-      pendingText: '#FF9D00',
-      pendingBg: 'rgba(255, 157, 0, 0.12)',
-      pendingBorder: 'rgba(255, 157, 0, 0.35)',
-      activeTabBg: 'rgba(255, 196, 0, 0.16)',
-      activeTabText: 'var(--color-primary)',
-      activeTabBorder: 'rgba(255, 210, 26, 0.4)',
+      infoBg: 'rgba(14, 165, 233, 0.14)',
+      infoBorder: 'rgba(56, 189, 248, 0.32)',
+      pendingText: '#fb923c',
+      pendingBg: 'rgba(249, 115, 22, 0.14)',
+      pendingBorder: 'rgba(251, 146, 60, 0.32)',
+      accentText: '#FFC400',
+      accentBg: 'rgba(255, 196, 0, 0.14)',
+      accentBorder: 'rgba(255, 196, 0, 0.36)',
     };
 
-const getOrderAllowedStatuses = (currentStatus: Order['status']): Order['status'][] => {
-  switch (currentStatus) {
-    case 'Pendente':
-      return ['Pendente', 'Processando', 'Enviado', 'Finalizado', 'Cancelado'];
-    case 'Processando':
-      return ['Processando', 'Enviado', 'Finalizado', 'Cancelado'];
-    case 'Enviado':
-      return ['Enviado', 'Finalizado', 'Cancelado'];
-    case 'Finalizado':
-      return ['Finalizado', 'Cancelado'];
-    case 'Cancelado':
-      return ['Cancelado'];
-    default:
-      return ['Pendente', 'Processando', 'Enviado', 'Finalizado', 'Cancelado'];
-  }
-};
-
-const getOrderStatusStyle = (status: Order['status'], tones: DashboardSemanticTones, isLight: boolean) => {
+const getOrderStatusStyle = (status: Order['status'], tones: CustomerTones, isLight: boolean) => {
   switch (status) {
     case 'Finalizado':
-      return { dot: isLight ? '#16a34a' : '#22c55e', text: tones.successText, bg: tones.successBg, border: tones.successBorder };
-    case 'Enviado':
-      return { dot: isLight ? '#0284c7' : '#38bdf8', text: tones.infoText, bg: tones.infoBg, border: tones.infoBorder };
+      return {
+        bg: tones.successBg,
+        border: tones.successBorder,
+        text: tones.successText,
+        dot: isLight ? '#16a34a' : '#22c55e',
+      };
     case 'Processando':
-      return { dot: isLight ? '#d97706' : '#eab308', text: tones.warningText, bg: tones.warningBg, border: tones.warningBorder };
+      return {
+        bg: tones.warningBg,
+        border: tones.warningBorder,
+        text: tones.warningText,
+        dot: isLight ? '#d97706' : '#f59e0b',
+      };
+    case 'Enviado':
+      return {
+        bg: tones.infoBg,
+        border: tones.infoBorder,
+        text: tones.infoText,
+        dot: isLight ? '#0284c7' : '#38bdf8',
+      };
     case 'Cancelado':
-      return { dot: isLight ? '#dc2626' : '#ef4444', text: tones.dangerText, bg: tones.dangerBg, border: tones.dangerBorder };
+      return {
+        bg: tones.dangerBg,
+        border: tones.dangerBorder,
+        text: tones.dangerText,
+        dot: isLight ? '#dc2626' : '#ef4444',
+      };
     default:
-      return { dot: isLight ? '#c2410c' : '#FF9D00', text: tones.pendingText, bg: tones.pendingBg, border: tones.pendingBorder };
+      return {
+        bg: tones.pendingBg,
+        border: tones.pendingBorder,
+        text: tones.pendingText,
+        dot: isLight ? '#ea580c' : '#fb923c',
+      };
   }
 };
 
-interface OrderStatusDropdownProps {
-  currentStatus: Order['status'];
-  onStatusChange: (newStatus: Order['status']) => void;
-  tones: DashboardSemanticTones;
-  isLight: boolean;
-}
-
-const OrderStatusDropdown: React.FC<OrderStatusDropdownProps> = ({ currentStatus, onStatusChange, tones, isLight }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const availableOptions = getOrderAllowedStatuses(currentStatus);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
-
-  const currentStyle = getOrderStatusStyle(currentStatus, tones, isLight);
-  const idleShadow = isLight ? '0 2px 6px rgba(0, 0, 0, 0.08)' : '0 2px 8px rgba(0, 0, 0, 0.15)';
-
-  return (
-    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        aria-label={`Alterar status do pedido (atual: ${currentStatus})`}
-        aria-expanded={isOpen}
-        aria-haspopup="listbox"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '6px 12px',
-          backgroundColor: currentStyle.bg,
-          color: currentStyle.text,
-          border: `1px solid ${currentStyle.border}`,
-          borderRadius: '8px',
-          fontFamily: 'var(--font-mono, monospace)',
-          fontSize: '11px',
-          fontWeight: 700,
-          textTransform: 'uppercase',
-          letterSpacing: '0.04em',
-          cursor: 'pointer',
-          boxShadow: idleShadow,
-          transition: 'all 0.2s ease',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.boxShadow = isLight ? `0 2px 10px ${currentStyle.border}` : `0 0 12px ${currentStyle.border}`;
-          e.currentTarget.style.transform = 'translateY(-1px)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.boxShadow = idleShadow;
-          e.currentTarget.style.transform = 'translateY(0)';
-        }}
-      >
-        <span
-          style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            backgroundColor: currentStyle.dot,
-            boxShadow: isLight ? 'none' : `0 0 8px ${currentStyle.dot}`,
-            flexShrink: 0,
-          }}
-        />
-        <span>{currentStatus}</span>
-        <ChevronDown
-          size={13}
-          style={{
-            color: currentStyle.text,
-            transition: 'transform 0.2s ease',
-            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-          }}
-        />
-      </button>
-
-      {isOpen && (
-        <div
-          role="listbox"
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 6px)',
-            right: 0,
-            zIndex: 100,
-            minWidth: '155px',
-            backgroundColor: 'var(--card-bg)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            border: isLight ? '1px solid rgba(180, 120, 0, 0.3)' : '1px solid rgba(255, 210, 26, 0.35)',
-            borderRadius: '10px',
-            padding: '4px',
-            boxShadow: isLight
-              ? '0 12px 28px rgba(0, 0, 0, 0.14)'
-              : '0 12px 30px rgba(0, 0, 0, 0.55), 0 0 20px rgba(255, 196, 0, 0.15)',
-          }}
-        >
-          {availableOptions.map((opt) => {
-            const isSelected = opt === currentStatus;
-            const optStyle = getOrderStatusStyle(opt, tones, isLight);
-            return (
-              <button
-                key={opt}
-                type="button"
-                role="option"
-                aria-selected={isSelected}
-                onClick={() => {
-                  if (opt !== currentStatus) {
-                    onStatusChange(opt);
-                  }
-                  setIsOpen(false);
-                }}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '8px 10px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  backgroundColor: isSelected ? tones.activeTabBg : 'transparent',
-                  color: isSelected ? tones.activeTabText : 'var(--color-on-surface)',
-                  fontFamily: 'var(--font-mono, monospace)',
-                  fontSize: '12px',
-                  fontWeight: isSelected ? 700 : 500,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'background-color 0.15s ease',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isSelected) {
-                    e.currentTarget.style.backgroundColor = isLight
-                      ? 'rgba(217, 119, 6, 0.08)'
-                      : 'rgba(255, 210, 26, 0.1)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isSelected) {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span
-                    style={{
-                      width: '7px',
-                      height: '7px',
-                      borderRadius: '50%',
-                      backgroundColor: optStyle.dot,
-                      boxShadow: isLight ? 'none' : `0 0 6px ${optStyle.dot}`,
-                    }}
-                  />
-                  <span>{opt}</span>
-                </div>
-                {isSelected && <Check size={14} style={{ color: tones.activeTabText }} />}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
-
-interface StockItemCardProps {
-  product: Product;
-  onEdit: (product: Product) => void;
-  onUpdateStockDelta: (productId: number, change: number) => void;
-  onSetStockExact: (productId: number, exact: number) => void;
-  isStaffOrAdmin: boolean;
-  onPermanentDelete?: (product: Product) => void;
-  tones: DashboardSemanticTones;
-  isLight: boolean;
-}
-
-const StockItemCard: React.FC<StockItemCardProps> = ({
-  product,
-  onEdit,
-  onUpdateStockDelta,
-  onSetStockExact,
-  isStaffOrAdmin,
-  onPermanentDelete,
-  tones,
-  isLight,
-}) => {
-  const [stockInput, setStockInput] = useState<string>(String(product.estoque));
-  const minStockLimit = product.estoqueMinimo ?? 3;
-  const isOutOfStock = product.estoque === 0;
-  const isLowStock = !isOutOfStock && product.estoque <= minStockLimit;
-  const isDirty = stockInput.trim() !== '' && Number(stockInput) !== product.estoque;
-
-  useEffect(() => {
-    setStockInput(String(product.estoque));
-  }, [product.estoque]);
-
-  const handleSaveExact = () => {
-    if (!isStaffOrAdmin) return;
-    const num = parseInt(stockInput, 10);
-    if (!isNaN(num) && num >= 0) {
-      onSetStockExact(product.id, num);
-    } else {
-      setStockInput(String(product.estoque));
-    }
-  };
-
-  return (
-    <div
-      className="glass-panel"
-      style={{
-        padding: '20px',
-        borderRadius: 'var(--radius-lg)',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        border:
-          product.ativo === false
-            ? `1px dashed ${tones.dangerBorder}`
-            : isOutOfStock
-              ? `1px solid ${tones.dangerBorder}`
-              : isLowStock
-                ? `1px solid ${tones.warningBorder}`
-                : undefined,
-        position: 'relative',
-        transition: 'all 0.2s ease',
-        opacity: product.ativo === false ? 0.72 : 1,
-      }}
-    >
-      <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className="badge badge-muted">{product.jogoNome}</span>
-            {product.ativo === false ? (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  backgroundColor: tones.dangerBg,
-                  border: `1px solid ${tones.dangerBorder}`,
-                  color: tones.dangerText,
-                  borderRadius: '4px',
-                  padding: '2px 7px',
-                  fontSize: '11px',
-                  fontFamily: 'var(--font-mono)',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                }}
-              >
-                Inativo
-              </span>
-            ) : isOutOfStock ? (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  backgroundColor: tones.dangerBg,
-                  border: `1px solid ${tones.dangerBorder}`,
-                  color: tones.dangerText,
-                  borderRadius: '4px',
-                  padding: '2px 7px',
-                  fontSize: '11px',
-                  fontFamily: 'var(--font-mono)',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                }}
-              >
-                Esgotado!
-              </span>
-            ) : isLowStock ? (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  color: tones.warningText,
-                  backgroundColor: tones.warningBg,
-                  border: `1px solid ${tones.warningBorder}`,
-                  borderRadius: '4px',
-                  padding: '2px 7px',
-                  fontSize: '11px',
-                  fontFamily: 'var(--font-mono)',
-                  fontWeight: 600,
-                }}
-              >
-                <AlertTriangle size={12} /> Estoque Baixo ({product.estoque} ≤ {minStockLimit})
-              </span>
-            ) : null}
-          </div>
-
-          {isStaffOrAdmin && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <button
-                type="button"
-                onClick={() => onEdit(product)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  padding: '4px 9px',
-                  backgroundColor: tones.activeTabBg,
-                  border: `1px solid ${tones.activeTabBorder}`,
-                  borderRadius: '6px',
-                  color: tones.activeTabText,
-                  fontSize: '11px',
-                  fontFamily: 'var(--font-mono)',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                }}
-                onMouseEnter={(e) =>
-                (e.currentTarget.style.backgroundColor = isLight
-                  ? 'rgba(255, 196, 0, 0.34)'
-                  : 'rgba(255, 210, 26, 0.22)')
-                }
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = tones.activeTabBg)}
-                title="Editar dados deste produto"
-              >
-                <Pencil size={12} />
-                Editar
-              </button>
-              {product.ativo === false && onPermanentDelete && (
-                <button
-                  type="button"
-                  onClick={() => onPermanentDelete(product)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    padding: '4px 9px',
-                    backgroundColor: tones.dangerBg,
-                    border: `1px solid ${tones.dangerBorder}`,
-                    borderRadius: '6px',
-                    color: tones.dangerText,
-                    fontSize: '11px',
-                    fontFamily: 'var(--font-mono)',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                  onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundColor = isLight
-                    ? 'rgba(220, 38, 38, 0.16)'
-                    : 'rgba(239, 68, 68, 0.22)')
-                  }
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = tones.dangerBg)}
-                  title="Excluir produto inativo definitivamente"
-                >
-                  <Trash2 size={12} />
-                  Excluir
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        <h4 style={{ fontSize: '17px', marginBottom: '4px', color: 'var(--color-headline)' }}>{product.nome}</h4>
-        <p style={{ fontFamily: 'var(--font-mono)', color: tones.activeTabText, fontWeight: 700 }}>
-          {product.preco > 0 ? `R$ ${formatBRL(product.preco)}` : 'Sob consulta'}
-        </p>
-      </div>
-
-      <div
-        style={{
-          marginTop: '16px',
-          paddingTop: '12px',
-          borderTop: '1px solid var(--card-border)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <span style={{ fontSize: '11px', color: 'var(--color-on-surface-variant)', display: 'block' }}>
-              Disponível em Estoque
-            </span>
-            <span style={{ fontSize: '10px', color: 'var(--color-on-surface-variant)', fontFamily: 'var(--font-mono)' }}>
-              Mínimo: {minStockLimit} un.
-            </span>
-          </div>
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '15px',
-              fontWeight: 700,
-              color: isOutOfStock ? tones.dangerText : isLowStock ? tones.warningText : 'var(--color-headline)',
-            }}
-          >
-            {product.estoque} unidades
-          </span>
-        </div>
-
-        {isStaffOrAdmin && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={() => onUpdateStockDelta(product.id, -1)}
-              disabled={product.estoque <= 0}
-              style={{
-                width: '32px',
-                height: '32px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'var(--color-surface-container-high)',
-                border: '1px solid var(--card-border)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--color-on-surface)',
-                cursor: product.estoque <= 0 ? 'not-allowed' : 'pointer',
-                opacity: product.estoque <= 0 ? 0.5 : 1,
-              }}
-              title="Reduzir 1 unidade"
-              aria-label={`Reduzir 1 unidade de ${product.nome}`}
-            >
-              <Minus size={13} />
-            </button>
-
-            <input
-              type="number"
-              min="0"
-              value={stockInput}
-              onChange={(e) => setStockInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSaveExact();
-              }}
-              style={{
-                width: '64px',
-                height: '32px',
-                textAlign: 'center',
-                backgroundColor: 'var(--input-bg)',
-                border: isDirty ? '1px solid var(--color-primary)' : '1px solid var(--input-border)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--color-headline)',
-                fontFamily: 'var(--font-mono)',
-                fontWeight: 700,
-                fontSize: '13px',
-                outline: 'none',
-              }}
-              title="Digite a quantidade exata de estoque"
-              aria-label={`Quantidade em estoque de ${product.nome}`}
-            />
-
-            <button
-              type="button"
-              onClick={() => onUpdateStockDelta(product.id, 1)}
-              style={{
-                width: '32px',
-                height: '32px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'var(--color-surface-container-high)',
-                border: '1px solid var(--card-border)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--color-on-surface)',
-                cursor: 'pointer',
-              }}
-              title="Adicionar 1 unidade"
-              aria-label={`Adicionar 1 unidade de ${product.nome}`}
-            >
-              <Plus size={13} />
-            </button>
-
-            {isDirty ? (
-              <button
-                type="button"
-                onClick={handleSaveExact}
-                style={{
-                  height: '32px',
-                  padding: '0 10px',
-                  backgroundColor: 'var(--color-primary)',
-                  color: 'var(--color-on-primary)',
-                  border: 'none',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  boxShadow: isLight ? 'none' : '0 0 10px rgba(255, 210, 26, 0.4)',
-                }}
-                title="Salvar quantidade digitada"
-              >
-                <Check size={12} /> Salvar
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onUpdateStockDelta(product.id, 5)}
-                style={{
-                  height: '32px',
-                  padding: '0 10px',
-                  backgroundColor: tones.activeTabBg,
-                  border: `1px solid ${tones.activeTabBorder}`,
-                  borderRadius: 'var(--radius-sm)',
-                  color: tones.activeTabText,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                }}
-                title="Entrada rápida (+5)"
-              >
-                +5
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const gameOptions: { value: GameId; label: string; badge?: string }[] = [
-  { value: 'pokemon', label: 'Pokémon TCG', badge: 'Pokémon' },
-  { value: 'magic', label: 'Magic: The Gathering', badge: 'MTG' },
-  { value: 'yugioh', label: 'Yu-Gi-Oh!', badge: 'YGO' },
-  { value: 'onepiece', label: 'One Piece Card Game', badge: 'OP' },
-  { value: 'outros', label: 'Acessórios / Geral' },
-];
-
-const categoryOptions: { value: ProductCategory; label: string }[] = [
-  { value: 'Booster Box', label: 'Booster Box' },
-  { value: 'Deck Commander', label: 'Deck Commander' },
-  { value: 'Booster Pack', label: 'Booster Pack' },
-  { value: 'Starter Deck', label: 'Starter Deck' },
-  { value: 'Carta Avulsa', label: 'Carta Avulsa' },
-  { value: 'Acessórios', label: 'Acessórios' },
-];
-
-interface EditProductModalProps {
-  product: Product;
-  onClose: () => void;
-  onSave: (updated: Partial<Product>) => void;
-  onDelete: (productId: number) => void;
-  onReactivate?: (productId: number) => void;
-  onPermanentDelete?: (productId: number) => void;
-}
-
-const formatMoneyInput = (value: string) => {
-  const digits = value.replace(/\D/g, '');
-  if (!digits) return '';
-  const number = Number(digits) / 100;
-  return number.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
-
-const parseMoneyToFloat = (value: string): number => {
-  if (!value) return 0;
-  const clean = value.replace(/\./g, '').replace(',', '.');
-  return parseFloat(clean) || 0;
-};
-
-const EditProductModal: React.FC<EditProductModalProps> = ({
-  product,
-  onClose,
-  onSave,
-  onDelete,
-  onReactivate,
-  onPermanentDelete,
-}) => {
-  const { showToast, showToastConfirm } = useApp();
-  const { theme } = useTheme();
-  const isLight = theme === 'light';
-  const tones = getSemanticTones(isLight);
-
-  const [nome, setNome] = useState(product.nome);
-  const [preco, setPreco] = useState(
-    product.preco ? Number(product.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''
-  );
-  const [estoque, setEstoque] = useState(String(product.estoque));
-  const [estoqueMinimo, setEstoqueMinimo] = useState(String(product.estoqueMinimo ?? 3));
-  const [jogo, setJogo] = useState<GameId>(product.jogo);
-  const [categoria, setCategoria] = useState<ProductCategory>(product.categoria);
-  const [subtitulo, setSubtitulo] = useState(product.subtitulo || '');
-  const [imagemUrl, setImagemUrl] = useState(product.imagemUrl || '');
-  const [descricao, setDescricao] = useState(product.descricao || '');
-
-  const isProductActive = product.ativo !== false;
-
-  const gameNames: Record<GameId, string> = {
-    pokemon: 'Pokémon TCG',
-    magic: 'Magic: The Gathering',
-    yugioh: 'Yu-Gi-Oh!',
-    onepiece: 'One Piece',
-    outros: 'Acessórios / Geral',
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmedName = nome.trim();
-    const parsedPrice = parseMoneyToFloat(preco);
-    const parsedEstoque = parseInt(estoque, 10);
-    const parsedMin = parseInt(estoqueMinimo, 10);
-
-    if (!trimmedName) {
-      showToast('Informe o nome do produto.');
-      return;
-    }
-    if (parsedPrice <= 0) {
-      showToast('O preço deve ser maior que R$ 0,00.');
-      return;
-    }
-    if (Number.isNaN(parsedEstoque) || parsedEstoque < 0) {
-      showToast('O estoque não pode ser negativo.');
-      return;
-    }
-    if (Number.isNaN(parsedMin) || parsedMin < 0) {
-      showToast('O estoque mínimo não pode ser negativo.');
-      return;
-    }
-
-    onSave({
-      nome: trimmedName,
-      preco: parsedPrice,
-      estoque: parsedEstoque,
-      estoqueMinimo: parsedMin,
-      jogo,
-      jogoNome: gameNames[jogo] || 'Geral',
-      categoria,
-      subtitulo: subtitulo.trim() || `${categoria} • ${gameNames[jogo]}`,
-      imagemUrl: imagemUrl.trim(),
-      descricao: descricao.trim(),
-    });
-    onClose();
-  };
-
-  const handleToggleStatus = () => {
-    if (isProductActive) {
-      showToastConfirm({
-        message: `Deseja realmente inativar o produto "${product.nome}" do catálogo?`,
-        confirmText: 'Inativar',
-        cancelText: 'Cancelar',
-        onConfirm: () => {
-          onDelete(product.id);
-          onClose();
-        },
-      });
-    } else {
-      showToastConfirm({
-        message: `Deseja realmente reativar o produto "${product.nome}" no catálogo?`,
-        confirmText: 'Reativar',
-        cancelText: 'Cancelar',
-        onConfirm: () => {
-          if (onReactivate) onReactivate(product.id);
-          onClose();
-        },
-      });
-    }
-  };
-
-  return (
-    <SystemModal onClose={onClose} maxWidth="640px">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <div>
-          <span className="badge badge-primary" style={{ marginBottom: '6px' }}>CRUD de Produtos</span>
-          <h3 style={{ fontSize: '20px', color: 'var(--color-headline)', margin: 0 }}>Editar Produto</h3>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Fechar modal de edição"
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'var(--color-on-surface-variant)',
-            cursor: 'pointer',
-            padding: '6px',
-            borderRadius: '6px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'background-color 0.15s ease',
-          }}
-          onMouseEnter={(e) =>
-          (e.currentTarget.style.backgroundColor = isLight
-            ? 'rgba(0, 0, 0, 0.06)'
-            : 'rgba(255, 255, 255, 0.08)')
-          }
-          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-        >
-          <X size={20} />
-        </button>
-      </div>
-
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-            Nome do Produto *
-          </label>
-          <input
-            type="text"
-            required
-            className="system-input"
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-          />
-        </div>
-
-        <div className="system-form-grid">
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-              Card Game
-            </label>
-            <SystemSelect<GameId>
-              value={jogo}
-              onChange={(val) => setJogo(val)}
-              options={gameOptions}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-              Categoria
-            </label>
-            <SystemSelect<ProductCategory>
-              value={categoria}
-              onChange={(val) => setCategoria(val)}
-              options={categoryOptions}
-            />
-          </div>
-        </div>
-
-        <div className="system-form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-              Preço (R$) *
-            </label>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <span
-                style={{
-                  position: 'absolute',
-                  left: '12px',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  fontFamily: 'var(--font-mono)',
-                  color: 'var(--color-on-surface-variant)',
-                  pointerEvents: 'none',
-                }}
-              >
-                R$
-              </span>
-              <input
-                type="text"
-                inputMode="numeric"
-                required
-                className="system-input"
-                value={preco}
-                onChange={(e) => setPreco(formatMoneyInput(e.target.value))}
-                placeholder="0,00"
-                style={{ paddingLeft: '38px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-              Qtd. em Estoque *
-            </label>
-            <input
-              type="number"
-              min="0"
-              required
-              className="system-input"
-              value={estoque}
-              onChange={(e) => setEstoque(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-              Estoque Mínimo *
-            </label>
-            <input
-              type="number"
-              min="0"
-              required
-              className="system-input"
-              value={estoqueMinimo}
-              onChange={(e) => setEstoqueMinimo(e.target.value)}
-              placeholder="3"
-              title="Limite para alerta de reposição"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-            Subtítulo / Tagline
-          </label>
-          <input
-            type="text"
-            className="system-input"
-            value={subtitulo}
-            onChange={(e) => setSubtitulo(e.target.value)}
-            placeholder="Ex: Booster Box • Edição Especial"
-          />
-        </div>
-
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-            URL da Imagem do Produto
-          </label>
-          <input
-            type="text"
-            className="system-input"
-            value={imagemUrl}
-            onChange={(e) => setImagemUrl(e.target.value)}
-          />
-        </div>
-
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-            Descrição
-          </label>
-          <textarea
-            rows={3}
-            className="system-input"
-            value={descricao}
-            onChange={(e) => setDescricao(e.target.value)}
-            style={{ resize: 'vertical' }}
-          />
-        </div>
-
-        <div className="system-modal-actions">
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={handleToggleStatus}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '11px 18px',
-                backgroundColor: isProductActive ? tones.dangerBg : tones.successBg,
-                border: isProductActive ? `1px solid ${tones.dangerBorder}` : `1px solid ${tones.successBorder}`,
-                borderRadius: 'var(--radius-sm)',
-                color: isProductActive ? tones.dangerText : tones.successText,
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = isProductActive
-                  ? isLight
-                    ? 'rgba(220, 38, 38, 0.16)'
-                    : 'rgba(239, 68, 68, 0.2)'
-                  : isLight
-                    ? 'rgba(22, 163, 74, 0.16)'
-                    : 'rgba(34, 197, 94, 0.2)';
-                e.currentTarget.style.transform = 'translateY(-1px)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = isProductActive ? tones.dangerBg : tones.successBg;
-                e.currentTarget.style.transform = 'translateY(0)';
-              }}
-            >
-              {isProductActive ? <Trash2 size={14} /> : <RotateCcw size={14} />}
-              {isProductActive ? 'Inativar Produto' : 'Reativar Produto'}
-            </button>
-
-            {!isProductActive && onPermanentDelete && (
-              <button
-                type="button"
-                onClick={() => {
-                  showToastConfirm({
-                    message: `Deseja realmente excluir permanentemente o produto "${product.nome}"? Esta ação removerá o produto do catálogo e não poderá ser desfeita.`,
-                    confirmText: 'Excluir definitivamente',
-                    cancelText: 'Cancelar',
-                    onConfirm: () => {
-                      onPermanentDelete(product.id);
-                      onClose();
-                    },
-                  });
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '11px 18px',
-                  backgroundColor: tones.dangerBg,
-                  border: `1px solid ${tones.dangerBorder}`,
-                  borderRadius: 'var(--radius-sm)',
-                  color: tones.dangerText,
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = isLight
-                    ? 'rgba(220, 38, 38, 0.18)'
-                    : 'rgba(239, 68, 68, 0.28)';
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = tones.dangerBg;
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }}
-                title="Excluir produto inativo definitivamente"
-              >
-                <Trash2 size={14} />
-                Excluir Definitivamente
-              </button>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: '11px 18px',
-                backgroundColor: 'transparent',
-                border: '1px solid var(--card-border)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--color-on-surface)',
-                fontSize: '13px',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--color-outline)';
-                e.currentTarget.style.backgroundColor = isLight
-                  ? 'rgba(0, 0, 0, 0.05)'
-                  : 'rgba(255, 255, 255, 0.05)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--card-border)';
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="btn-primary"
-              style={{
-                padding: '11px 22px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '13px',
-              }}
-            >
-              <Save size={14} /> Salvar Alterações
-            </button>
-          </div>
-        </div>
-      </form>
-    </SystemModal>
-  );
-};
-
-interface CreateProductModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onCreate: (product: Omit<Product, 'id'>) => void;
-}
-
-export const CreateProductModal: React.FC<CreateProductModalProps> = ({
-  isOpen,
-  onClose,
-  onCreate,
-}) => {
-  const { showToast } = useApp();
-  const { theme } = useTheme();
-  const isLight = theme === 'light';
-  const tones = getSemanticTones(isLight);
-
-  const [nome, setNome] = useState('');
-  const [subtitulo, setSubtitulo] = useState('');
-  const [preco, setPreco] = useState('');
-  const [estoque, setEstoque] = useState('');
-  const [estoqueMinimo, setEstoqueMinimo] = useState('3');
-  const [jogo, setJogo] = useState<GameId>('pokemon');
-  const [categoria, setCategoria] = useState<ProductCategory>('Booster Pack');
-  const [descricao, setDescricao] = useState('');
-  const [imagemUrl, setImagemUrl] = useState('');
-  const [raridade, setRaridade] = useState('');
-
-  const [apiSearchTerm, setApiSearchTerm] = useState('');
-  const [apiResults, setApiResults] = useState<ExternalCard[]>([]);
-  const [isSearchingApi, setIsSearchingApi] = useState(false);
-
-  if (!isOpen) return null;
-
-  const handleSearchApiCards = async () => {
-    if (!apiSearchTerm.trim()) return;
-    setIsSearchingApi(true);
-    try {
-      const targetGame: ActiveGameApi | 'all' =
-        jogo === 'outros' ? 'all' : (jogo as ActiveGameApi);
-      const { cards } = await searchLiveCards(targetGame, apiSearchTerm.trim(), 1);
-      setApiResults(cards.slice(0, 6));
-    } catch {
-      setApiResults([]);
-    } finally {
-      setIsSearchingApi(false);
-    }
-  };
-
-  const handleSelectApiCard = (card: ExternalCard) => {
-    setNome(card.nome);
-    setJogo(card.jogo);
-    setCategoria('Carta Avulsa');
-    setSubtitulo(`${card.colecao} • ${card.codigoCarta}`);
-    setPreco(card.precoMercadoBrl > 0 ? formatBRL(card.precoMercadoBrl) : '');
-    if (!estoque) setEstoque('5');
-    setImagemUrl(card.imagemUrl);
-    setDescricao(card.descricao);
-    setRaridade(card.raridade);
-    setApiResults([]);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmedName = nome.trim();
-    const parsedPrice = parseMoneyToFloat(preco);
-    const parsedEstoque = estoque.trim() === '' ? 0 : parseInt(estoque, 10);
-    const parsedMin = estoqueMinimo.trim() === '' ? 3 : parseInt(estoqueMinimo, 10);
-
-    if (!trimmedName) {
-      showToast('Informe o nome do produto.');
-      return;
-    }
-    if (parsedPrice <= 0) {
-      showToast('O preço unitário deve ser maior que R$ 0,00.');
-      return;
-    }
-    if (Number.isNaN(parsedEstoque) || parsedEstoque < 0) {
-      showToast('O estoque inicial não pode ser negativo.');
-      return;
-    }
-    if (Number.isNaN(parsedMin) || parsedMin < 0) {
-      showToast('O estoque mínimo não pode ser negativo.');
-      return;
-    }
-
-    const gameNames: Record<GameId, string> = {
-      pokemon: 'Pokémon TCG',
-      magic: 'Magic: The Gathering',
-      yugioh: 'Yu-Gi-Oh!',
-      onepiece: 'One Piece',
-      outros: 'Acessórios',
-    };
-
-    onCreate({
-      nome: trimmedName,
-      subtitulo: subtitulo.trim() || `${categoria} • ${gameNames[jogo]}`,
-      preco: parsedPrice,
-      estoque: parsedEstoque,
-      estoqueMinimo: parsedMin,
-      jogo,
-      jogoNome: gameNames[jogo] || 'Geral',
-      categoria,
-      descricao: descricao.trim() || 'Produto oficial licenciado da loja Noble Deck.',
-      imagemUrl: imagemUrl.trim(),
-      raridade: raridade || undefined,
-      isNovo: true,
-      isDestaque: false,
-    });
-
-    // Resetar formulário e fechar modal
-    setNome('');
-    setSubtitulo('');
-    setDescricao('');
-    setPreco('');
-    setEstoque('');
-    setEstoqueMinimo('3');
-    setJogo('pokemon');
-    setCategoria('Booster Pack');
-    setImagemUrl('');
-    setRaridade('');
-    setApiSearchTerm('');
-    setApiResults([]);
-    onClose();
-  };
-
-  return (
-    <SystemModal onClose={onClose} maxWidth="640px">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <div>
-          <span className="badge badge-primary" style={{ marginBottom: '6px' }}>Novo Item</span>
-          <h3 style={{ fontSize: '20px', color: 'var(--color-headline)', margin: 0 }}>Cadastrar Novo Produto</h3>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Fechar modal de cadastro"
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'var(--color-on-surface-variant)',
-            cursor: 'pointer',
-            padding: '6px',
-            borderRadius: '6px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'background-color 0.15s ease',
-          }}
-          onMouseEnter={(e) =>
-          (e.currentTarget.style.backgroundColor = isLight
-            ? 'rgba(0, 0, 0, 0.06)'
-            : 'rgba(255, 255, 255, 0.08)')
-          }
-          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-        >
-          <X size={20} />
-        </button>
-      </div>
-
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <div
-          style={{
-            padding: '12px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: 'var(--color-surface-container-low)',
-            border: '1px solid var(--card-border)',
-          }}
-        >
-          <label style={{ display: 'block', fontSize: '11px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: tones.activeTabText }}>
-            Preencher Automaticamente com Carta Oficial (Acervo Global)
-          </label>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input
-              type="text"
-              className="system-input"
-              value={apiSearchTerm}
-              onChange={(e) => setApiSearchTerm(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleSearchApiCards();
-                }
-              }}
-              placeholder="Digite o nome da carta (ex: Charizard, Sol Ring, Blue-Eyes)..."
-            />
-            <button
-              type="button"
-              onClick={handleSearchApiCards}
-              disabled={isSearchingApi}
-              className="btn-outline"
-              style={{ padding: '0 14px', whiteSpace: 'nowrap', fontSize: '12px' }}
-            >
-              <Search size={14} />
-              <span>{isSearchingApi ? 'Buscando...' : 'Buscar'}</span>
-            </button>
-          </div>
-          {apiResults.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px', maxHeight: '160px', overflowY: 'auto' }}>
-              {apiResults.map((c) => (
-                <button
-                  key={c.uid}
-                  type="button"
-                  onClick={() => handleSelectApiCard(c)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '10px',
-                    padding: '8px 10px',
-                    borderRadius: '6px',
-                    border: '1px solid var(--card-border)',
-                    backgroundColor: 'var(--card-bg)',
-                    color: 'var(--color-on-surface)',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontSize: '12px',
-                  }}
-                >
-                  <span style={{ fontWeight: 600 }}>
-                    {c.nome} <span style={{ color: 'var(--color-on-surface-variant)', fontWeight: 400 }}>({c.jogoNome} • {c.colecao})</span>
-                  </span>
-                  <span style={{ fontFamily: 'var(--font-mono)', color: tones.activeTabText, whiteSpace: 'nowrap', fontWeight: 700 }}>
-                    {c.precoMercadoBrl > 0 ? `R$ ${formatBRL(c.precoMercadoBrl)}` : 'Sob consulta'}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-            Nome do Produto *
-          </label>
-          <input
-            type="text"
-            required
-            className="system-input"
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            placeholder="Ex: Booster Box Pokémon Escarlate e Violeta"
-          />
-        </div>
-
-        <div className="system-form-grid">
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-              Card Game
-            </label>
-            <SystemSelect<GameId>
-              value={jogo}
-              onChange={(val) => setJogo(val)}
-              options={gameOptions}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-              Categoria
-            </label>
-            <SystemSelect<ProductCategory>
-              value={categoria}
-              onChange={(val) => setCategoria(val)}
-              options={categoryOptions}
-            />
-          </div>
-        </div>
-
-        <div className="system-form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-              Preço Unitário (R$) *
-            </label>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <span
-                style={{
-                  position: 'absolute',
-                  left: '12px',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  fontFamily: 'var(--font-mono)',
-                  color: 'var(--color-on-surface-variant)',
-                  pointerEvents: 'none',
-                }}
-              >
-                R$
-              </span>
-              <input
-                type="text"
-                inputMode="numeric"
-                required
-                className="system-input"
-                value={preco}
-                onChange={(e) => setPreco(formatMoneyInput(e.target.value))}
-                placeholder="0,00"
-                style={{ paddingLeft: '38px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-              Estoque Inicial *
-            </label>
-            <input
-              type="number"
-              min="0"
-              required
-              className="system-input"
-              value={estoque}
-              onChange={(e) => setEstoque(e.target.value)}
-              placeholder="10"
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-              Estoque Mínimo *
-            </label>
-            <input
-              type="number"
-              min="0"
-              required
-              className="system-input"
-              value={estoqueMinimo}
-              onChange={(e) => setEstoqueMinimo(e.target.value)}
-              placeholder="3"
-              title="Limite para alerta de estoque baixo"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-            Subtítulo / Tagline
-          </label>
-          <input
-            type="text"
-            className="system-input"
-            value={subtitulo}
-            onChange={(e) => setSubtitulo(e.target.value)}
-            placeholder="Ex: Booster Box • Edição Especial"
-          />
-        </div>
-
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-            URL da Imagem do Produto
-          </label>
-          <input
-            type="text"
-            className="system-input"
-            value={imagemUrl}
-            onChange={(e) => setImagemUrl(e.target.value)}
-            placeholder="https://exemplo.com/imagem.png (opcional)"
-          />
-        </div>
-
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', fontFamily: 'var(--font-mono)', marginBottom: '6px', color: 'var(--color-headline)' }}>
-            Descrição do Produto
-          </label>
-          <textarea
-            rows={3}
-            className="system-input"
-            value={descricao}
-            onChange={(e) => setDescricao(e.target.value)}
-            placeholder="Detalhes, conteúdo da embalagem e conservação..."
-            style={{ resize: 'vertical' }}
-          />
-        </div>
-
-        <div className="system-modal-actions" style={{ justifyContent: 'flex-end' }}>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: '11px 18px',
-                backgroundColor: 'transparent',
-                border: '1px solid var(--card-border)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--color-on-surface)',
-                fontSize: '13px',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--color-outline)';
-                e.currentTarget.style.backgroundColor = isLight
-                  ? 'rgba(0, 0, 0, 0.05)'
-                  : 'rgba(255, 255, 255, 0.05)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--card-border)';
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="btn-primary"
-              style={{
-                padding: '11px 22px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '13px',
-              }}
-            >
-              <Plus size={15} /> Cadastrar Produto
-            </button>
-          </div>
-        </div>
-      </form>
-    </SystemModal>
-  );
+const formatPaymentLabel = (method?: string) => {
+  if (!method) return 'Não informado';
+  const normalized = method.toLowerCase();
+  if (normalized === 'pix') return 'PIX';
+  if (normalized === 'cartao' || normalized === 'cartao_credito' || normalized === 'credito') return 'Cartão';
+  if (normalized === 'cartao_debito' || normalized === 'debito') return 'Cartão de Débito';
+  if (normalized === 'boleto') return 'Boleto';
+  if (normalized === 'retirada_loja' || normalized === 'na_retirada' || normalized === 'balcao') {
+    return 'Pagamento na Retirada';
+  }
+  return method;
 };
 
 export const DashboardPage: React.FC = () => {
   const {
     currentUser,
     orders,
-    products,
-    updateProductStock,
-    setProductStockExact,
-    editProduct,
-    deleteProduct,
-    reactivateProduct,
-    removeProductPermanently,
-    showToastConfirm,
-    addProduct,
-    updateOrderStatus,
-    cancelOwnOrder,
     setCurrentTab,
     setIsAuthModalOpen,
-    setAuthModalMode,
+    cancelOwnOrder,
+    showToastConfirm,
   } = useApp();
-
   const { theme } = useTheme();
   const isLight = theme === 'light';
-  const tones = getSemanticTones(isLight);
+  const tones = useMemo(() => getCustomerTones(isLight), [isLight]);
 
-  const [activeTab, setActiveTab] = useState<'orders' | 'inventory'>('orders');
-  const [productStatusFilter, setProductStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [isCreateProductModalOpen, setIsCreateProductModalOpen] = useState(false);
+  const [activeCustomerTab, setActiveCustomerTab] = useState<CustomerTab>('orders');
+  const [orderFilter, setOrderFilter] = useState<CustomerOrderFilter>('all');
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
 
-  const isStaffOrAdmin = currentUser.role === 'funcionario' || currentUser.role === 'admin';
-  const visibleOrders = isStaffOrAdmin
-    ? orders
-    : orders.filter(
-      (o) => o.cliente_email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()
-    );
-
-  // Redireciona diretamente para o Portal /admin quando o usuário for administrador
+  // Separação estrita de telas: Equipe vai para Central Operacional e Admin para Painel Admin
   useEffect(() => {
+    if (!currentUser) return;
     if (currentUser.role === 'admin') {
       setCurrentTab('admin');
+    } else if (currentUser.role === 'funcionario') {
+      setCurrentTab('staff');
     }
-  }, [currentUser.role, setCurrentTab]);
+  }, [currentUser, setCurrentTab]);
 
-  if (currentUser.role === 'admin') {
-    return null;
-  }
+  const myOrders = useMemo(() => {
+    if (!currentUser) return [];
+    return orders.filter((o) => o.cliente_id === currentUser.id);
+  }, [orders, currentUser]);
 
-  const handlePermanentDelete = (prod: Product) => {
-    showToastConfirm({
-      message: `Deseja realmente excluir permanentemente o produto "${prod.nome}"? Esta ação removerá o produto do catálogo e não poderá ser desfeita.`,
-      confirmText: 'Excluir definitivamente',
-      cancelText: 'Cancelar',
-      onConfirm: () => {
-        removeProductPermanently(prod.id);
-      },
-    });
-  };
+  const orderSummary = useMemo(() => {
+    const active = myOrders.filter((o) =>
+      o.status === 'Pendente' || o.status === 'Processando' || o.status === 'Enviado',
+    ).length;
+    const finished = myOrders.filter((o) => o.status === 'Finalizado').length;
+    const cancelled = myOrders.filter((o) => o.status === 'Cancelado').length;
+    return { total: myOrders.length, active, finished, cancelled };
+  }, [myOrders]);
 
-  if (!currentUser.email || currentUser.id === 0) {
+  const visibleOrders = useMemo(() => {
+    if (orderFilter === 'all') return myOrders;
+    if (orderFilter === 'active') {
+      return myOrders.filter(
+        (o) => o.status === 'Pendente' || o.status === 'Processando' || o.status === 'Enviado',
+      );
+    }
+    return myOrders.filter((o) => o.status === orderFilter);
+  }, [myOrders, orderFilter]);
+
+  if (!currentUser || !currentUser.email || currentUser.id <= 0) {
     return (
-      <div style={{ paddingTop: '80px', paddingBottom: '100px' }}>
-        <div className="app-container" style={{ maxWidth: '520px' }}>
-          <div
-            className="glass-panel"
-            style={{
-              padding: '48px 36px',
-              textAlign: 'center',
-              borderRadius: 'var(--radius-xl)',
-              boxShadow: isLight ? '0 12px 28px rgba(0, 0, 0, 0.08)' : '0 20px 40px var(--shadow-color)',
-            }}
-          >
-            <div
-              style={{
-                width: '64px',
-                height: '64px',
-                borderRadius: '50%',
-                backgroundColor: tones.activeTabBg,
-                border: `1px solid ${tones.activeTabBorder}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 20px',
-              }}
-            >
-              <Shield size={32} color={tones.activeTabText} />
-            </div>
-            <h2 style={{ fontSize: '24px', fontWeight: 800, marginBottom: '12px', color: 'var(--color-headline)' }}>
-              Acesso Restrito ao Painel
-            </h2>
-            <p style={{ color: 'var(--color-on-surface-variant)', fontSize: '14px', lineHeight: 1.6, marginBottom: '28px' }}>
-              Você precisa estar conectado à sua conta para acessar o painel e acompanhar seus pedidos ou administrar o estoque.
-            </p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthModalMode('login');
-                  setIsAuthModalOpen(true);
-                }}
-                className="btn-primary"
-                style={{ padding: '12px 28px' }}
-              >
-                Fazer Login
-              </button>
-              <button
-                type="button"
-                onClick={() => setCurrentTab('home')}
-                className="btn-outline"
-                style={{ padding: '12px 24px' }}
-              >
-                Voltar ao Início
-              </button>
-            </div>
+      <div className="container admin-animate-fade" style={{ paddingTop: '48px', paddingBottom: '88px' }}>
+        <div className="access-denied-card">
+          <div className="access-denied-glow-bg" />
+          <div className="access-denied-icon-box">
+            <User size={30} />
+          </div>
+          <span className="access-denied-pill">
+            <span className="access-denied-status-dot" />
+            Área da Conta
+          </span>
+          <h2>Entre na sua conta NobleDeck</h2>
+          <p>Faça login na sua conta para acompanhar seus pedidos e dados de entrega.</p>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button type="button" onClick={() => setIsAuthModalOpen(true)} className="btn-primary">
+              Entrar na Minha Conta
+            </button>
+            <button type="button" onClick={() => setCurrentTab('home')} className="btn-outline">
+              <Home size={16} /> Voltar ao Início
+            </button>
           </div>
         </div>
       </div>
     );
   }
 
+  if (currentUser.role === 'admin' || currentUser.role === 'funcionario') {
+    return null;
+  }
+
+  const firstName = currentUser.nome.split(' ')[0] || currentUser.nome;
 
   return (
-    <div style={{ paddingTop: '40px', paddingBottom: '80px' }}>
-      <div className="app-container">
-        {/* Cabeçalho */}
-        <div
-          className="glass-panel"
-          style={{
-            padding: '28px',
-            borderRadius: 'var(--radius-xl)',
-            marginBottom: '32px',
-            display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: '24px',
-          }}
-        >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-              <span
-                style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '50%',
-                  backgroundColor:
-                    currentUser.role === 'funcionario'
-                      ? isLight ? '#c2410c' : '#FF9D00'
-                      : isLight ? '#8F5A00' : '#FFC400',
-                }}
-              />
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '12px',
-                  color: tones.activeTabText,
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                }}
-              >
-                Perfil Ativo: {currentUser.role}
+    <div className="container workstation-canvas customer-account-root admin-animate-fade">
+      {/* Cabeçalho da Conta do Cliente */}
+      <section className="staff-command-header">
+        <div className="staff-command-top">
+          <div className="staff-identity-col">
+            <div className="staff-role-strip">
+              <span className="staff-role-pill">
+                <UserCheck size={13} />
+                Conta do Cliente
               </span>
+              <span className="staff-cargo-tag">Histórico & Pedidos</span>
             </div>
 
-            <h1 style={{ fontSize: '28px', fontFamily: 'var(--font-headline)' }}>
-              Olá, {currentUser.nome}
-            </h1>
-            <p style={{ color: 'var(--color-on-surface-variant)', fontSize: '14px', marginTop: '4px' }}>
-              {currentUser.email} • {currentUser.cargo || 'Membro Colecionador'}
+            <h1 className="staff-page-title">Minha Conta, {firstName}</h1>
+
+            <p className="staff-identity-meta">
+              <span>{currentUser.nome}</span>
+              <span aria-hidden="true">•</span>
+              <span>{currentUser.email}</span>
             </p>
+          </div>
+
+          <div className="staff-actions-cluster">
+            <button
+              type="button"
+              onClick={() => setCurrentTab('products')}
+              className="btn-primary staff-primary-btn"
+            >
+              <ShoppingBag size={15} />
+              <span>Explorar Catálogo</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveCustomerTab('account')}
+              className="btn-outline staff-secondary-btn"
+            >
+              <User size={14} />
+              <span>Meus Dados & Senha</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Indicadores do Cliente */}
+      <section className="customer-kpi-grid" aria-label="Resumo dos meus pedidos">
+        <div className="staff-kpi-card" style={{ cursor: 'default' }}>
+          <div className="staff-kpi-head">
+            <span className="staff-kpi-label">Total de Pedidos</span>
+            <span className="staff-kpi-icon" style={{ backgroundColor: tones.accentBg, color: tones.accentText }}>
+              <Package size={16} />
+            </span>
+          </div>
+          <div className="staff-kpi-value">{orderSummary.total}</div>
+          <div className="staff-kpi-foot">
+            <span>Pedidos registrados na sua conta</span>
           </div>
         </div>
 
-        {/* Abas */}
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '10px',
-            marginBottom: '32px',
-            borderBottom: '1px solid var(--nav-border)',
-            paddingBottom: '12px',
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setActiveTab('orders')}
-            style={{
-              padding: '10px 18px',
-              borderRadius: 'var(--radius-md)',
-              border: activeTab === 'orders' ? `1px solid ${tones.activeTabBorder}` : '1px solid transparent',
-              backgroundColor: activeTab === 'orders' ? tones.activeTabBg : 'transparent',
-              color: activeTab === 'orders' ? tones.activeTabText : 'var(--color-on-surface-variant)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '13px',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-            }}
-          >
-            {isStaffOrAdmin ? 'Todos os Pedidos' : 'Meus Pedidos'} ({visibleOrders.length})
-          </button>
-
-          {isStaffOrAdmin && (
-            <>
-              <button
-                type="button"
-                onClick={() => setActiveTab('inventory')}
-                style={{
-                  padding: '10px 18px',
-                  borderRadius: 'var(--radius-md)',
-                  border: activeTab === 'inventory' ? `1px solid ${tones.activeTabBorder}` : '1px solid transparent',
-                  backgroundColor: activeTab === 'inventory' ? tones.activeTabBg : 'transparent',
-                  color: activeTab === 'inventory' ? tones.activeTabText : 'var(--color-on-surface-variant)',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                }}
-              >
-                Gerenciar Estoque ({products.length})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setCurrentTab('product-control')}
-                className="btn-primary"
-                style={{
-                  marginLeft: 'auto',
-                  padding: '8px 16px',
-                  borderRadius: '10px',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
-              >
-                <Boxes size={14} /> Abrir Controle 2.0
-              </button>
-            </>
-          )}
+        <div className={`staff-kpi-card ${orderSummary.active > 0 ? 'is-attention' : ''}`} style={{ cursor: 'default' }}>
+          <div className="staff-kpi-head">
+            <span className="staff-kpi-label">Em Andamento</span>
+            <span className="staff-kpi-icon" style={{ backgroundColor: tones.infoBg, color: tones.infoText }}>
+              <Clock size={16} />
+            </span>
+          </div>
+          <div className="staff-kpi-value">{orderSummary.active}</div>
+          <div className="staff-kpi-foot">
+            <span>Aguardando preparo ou entrega</span>
+          </div>
         </div>
 
-        {/* Pedidos */}
-        {activeTab === 'orders' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {visibleOrders.length === 0 ? (
-              <div
-                style={{
-                  padding: '40px',
-                  textAlign: 'center',
-                  backgroundColor: 'var(--color-surface-container)',
-                  borderRadius: 'var(--radius-lg)',
-                }}
+        <div className="staff-kpi-card" style={{ cursor: 'default' }}>
+          <div className="staff-kpi-head">
+            <span className="staff-kpi-label">Finalizados</span>
+            <span className="staff-kpi-icon" style={{ backgroundColor: tones.successBg, color: tones.successText }}>
+              <CheckCircle2 size={16} />
+            </span>
+          </div>
+          <div className="staff-kpi-value">{orderSummary.finished}</div>
+          <div className="staff-kpi-foot">
+            <span>Entregas e retiradas concluídas</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Abas da Conta do Cliente */}
+      <div role="tablist" aria-label="Seções da conta" className="staff-tablist">
+        <button
+          id="customer-tab-orders"
+          type="button"
+          role="tab"
+          aria-selected={activeCustomerTab === 'orders'}
+          aria-controls="customer-panel-orders"
+          onClick={() => setActiveCustomerTab('orders')}
+          className={`staff-tab-btn ${activeCustomerTab === 'orders' ? 'is-active' : ''}`}
+        >
+          <ShoppingBag size={15} />
+          <span>Meus Pedidos</span>
+          {myOrders.length > 0 && (
+            <span className="staff-tab-count">{myOrders.length}</span>
+          )}
+        </button>
+
+        <button
+          id="customer-tab-account"
+          type="button"
+          role="tab"
+          aria-selected={activeCustomerTab === 'account'}
+          aria-controls="customer-panel-account"
+          onClick={() => setActiveCustomerTab('account')}
+          className={`staff-tab-btn ${activeCustomerTab === 'account' ? 'is-active' : ''}`}
+        >
+          <User size={15} />
+          <span>Minha Conta</span>
+        </button>
+      </div>
+
+      {/* Lista de Pedidos do Cliente */}
+      {activeCustomerTab === 'orders' && (
+      <section
+        id="customer-panel-orders"
+        role="tabpanel"
+        aria-labelledby="customer-tab-orders"
+        className="staff-panel-box"
+      >
+        <div className="staff-section-header">
+          <div>
+            <h2>Meus Pedidos ({visibleOrders.length})</h2>
+            <p>Acompanhe o status de preparo, código de rastreio e detalhes de cada compra.</p>
+          </div>
+
+          <div className="staff-filter-pills">
+            {(
+              [
+                { id: 'all' as CustomerOrderFilter, label: `Todos (${orderSummary.total})` },
+                { id: 'active' as CustomerOrderFilter, label: `Em Andamento (${orderSummary.active})` },
+                { id: 'Finalizado' as CustomerOrderFilter, label: `Finalizados (${orderSummary.finished})` },
+                { id: 'Cancelado' as CustomerOrderFilter, label: `Cancelados (${orderSummary.cancelled})` },
+              ] as const
+            ).map((chip) => (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={() => setOrderFilter(chip.id)}
+                className={`staff-chip ${orderFilter === chip.id ? 'is-active' : ''}`}
               >
-                <p style={{ color: 'var(--color-on-surface-variant)' }}>
-                  Nenhum pedido realizado ainda.
-                </p>
-              </div>
-            ) : (
-              visibleOrders.map((order) => {
-                const customerBadgeStyle = getOrderStatusStyle(order.status, tones, isLight);
-                const orderLabel = order.numero || order.id_pedido;
-                return (
-                  <div
-                    key={order.id_pedido}
-                    className="glass-panel"
-                    style={{
-                      padding: '24px',
-                      borderRadius: 'var(--radius-lg)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '16px',
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '12px',
-                        borderBottom: '1px solid var(--card-border)',
-                        paddingBottom: '12px',
-                      }}
-                    >
-                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {visibleOrders.length === 0 ? (
+          <div className="staff-empty-state">
+            <ShoppingBag size={36} style={{ opacity: 0.5 }} />
+            <h3>Nenhum pedido encontrado neste filtro</h3>
+            <p>
+              {myOrders.length === 0
+                ? 'Você ainda não realizou compras na loja. Explore o catálogo para montar seu próximo deck.'
+                : 'Altere o filtro acima para visualizar outros pedidos da sua conta.'}
+            </p>
+            {myOrders.length === 0 && (
+              <button type="button" onClick={() => setCurrentTab('products')} className="btn-primary">
+                Ir para Produtos
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="staff-orders-list">
+            {visibleOrders.map((order) => {
+              const statusStyle = getOrderStatusStyle(order.status, tones, isLight);
+              const isPickup = order.tipo_entrega === 'retirada';
+              const orderNum = order.numero ?? order.id_pedido;
+              const isCancelling = cancellingId === order.id_pedido;
+
+              return (
+                <article
+                  key={order.id_pedido}
+                  className="staff-order-card"
+                  style={{ borderLeftColor: statusStyle.dot }}
+                >
+                  <div className="staff-order-head">
+                    <div className="staff-order-meta">
+                      <div className="staff-order-title-row">
+                        <span className="staff-order-id">Pedido #{orderNum}</span>
                         <span
+                          className="staff-status-pill"
                           style={{
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: '16px',
-                            fontWeight: 700,
-                            color: 'var(--color-headline)',
-                            marginRight: '4px',
+                            backgroundColor: statusStyle.bg,
+                            borderColor: statusStyle.border,
+                            color: statusStyle.text,
                           }}
                         >
-                          Pedido #{orderLabel}
-                        </span>
-                        <span style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)' }}>
-                          {order.data} • Cliente: {order.cliente_nome}
-                        </span>
-                        {order.codigo_rastreio && (
                           <span
                             style={{
-                              fontFamily: 'var(--font-mono)',
-                              fontSize: '11px',
-                              padding: '2px 8px',
-                              borderRadius: '4px',
+                              width: '7px',
+                              height: '7px',
+                              borderRadius: '50%',
+                              backgroundColor: statusStyle.dot,
+                            }}
+                          />
+                          {order.status}
+                        </span>
+
+                        <span
+                          className="staff-delivery-pill"
+                          style={{
+                            backgroundColor: isPickup ? tones.accentBg : tones.infoBg,
+                            borderColor: isPickup ? tones.accentBorder : tones.infoBorder,
+                            color: isPickup ? tones.accentText : tones.infoText,
+                          }}
+                        >
+                          {isPickup ? <Store size={12} /> : <Truck size={12} />}
+                          <span>{isPickup ? 'Retirada na Loja' : 'Entrega'}</span>
+                        </span>
+
+                        {order.metodo_pagamento && (
+                          <span
+                            className="staff-delivery-pill"
+                            style={{
+                              backgroundColor:
+                                order.status_pagamento === 'Aprovado'
+                                  ? tones.successBg
+                                  : order.status_pagamento === 'Estornado' || order.status_pagamento === 'Cancelado'
+                                    ? tones.dangerBg
+                                    : tones.warningBg,
+                              borderColor:
+                                order.status_pagamento === 'Aprovado'
+                                  ? tones.successBorder
+                                  : order.status_pagamento === 'Estornado' || order.status_pagamento === 'Cancelado'
+                                    ? tones.dangerBorder
+                                    : tones.warningBorder,
+                              color:
+                                order.status_pagamento === 'Aprovado'
+                                  ? tones.successText
+                                  : order.status_pagamento === 'Estornado' || order.status_pagamento === 'Cancelado'
+                                    ? tones.dangerText
+                                    : tones.warningText,
+                            }}
+                          >
+                            <CreditCard size={12} />
+                            <span>
+                              {formatPaymentLabel(order.metodo_pagamento)}
+                              {order.status_pagamento ? ` • ${order.status_pagamento}` : ''}
+                            </span>
+                          </span>
+                        )}
+
+                        {order.codigo_rastreio && (
+                          <span
+                            className="staff-delivery-pill"
+                            style={{
                               backgroundColor: tones.infoBg,
-                              border: `1px solid ${tones.infoBorder}`,
+                              borderColor: tones.infoBorder,
                               color: tones.infoText,
-                              fontWeight: 600,
                             }}
                           >
                             Rastreio: {order.codigo_rastreio}
@@ -1806,296 +487,116 @@ export const DashboardPage: React.FC = () => {
                         )}
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        {isStaffOrAdmin ? (
-                          <OrderStatusDropdown
-                            currentStatus={order.status}
-                            tones={tones}
-                            isLight={isLight}
-                            onStatusChange={(newStatus) => {
-                              if (newStatus === 'Cancelado') {
-                                showToastConfirm({
-                                  message: `Deseja realmente cancelar o pedido #${orderLabel}?`,
-                                  confirmText: 'Cancelar Pedido',
-                                  cancelText: 'Manter',
-                                  onConfirm: () => updateOrderStatus(order.id_pedido, 'Cancelado'),
-                                });
-                                return;
-                              }
-                              updateOrderStatus(order.id_pedido, newStatus);
-                            }}
-                          />
-                        ) : (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            <span
-                              style={{
-                                fontFamily: 'var(--font-mono)',
-                                fontSize: '11px',
-                                fontWeight: 700,
-                                padding: '4px 10px',
-                                borderRadius: 'var(--radius-sm)',
-                                backgroundColor: customerBadgeStyle.bg,
-                                color: customerBadgeStyle.text,
-                                border: `1px solid ${customerBadgeStyle.border}`,
-                                textTransform: 'uppercase',
-                              }}
-                            >
-                              {order.status}
-                            </span>
-
-                            {order.status === 'Pendente' && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  showToastConfirm({
-                                    message: `Cancelar o Pedido #${orderLabel}? Os itens serão devolvidos ao estoque.`,
-                                    confirmText: 'Cancelar Pedido',
-                                    cancelText: 'Voltar',
-                                    onConfirm: () => {
-                                      void cancelOwnOrder(order.id_pedido);
-                                    },
-                                  });
-                                }}
-                                style={{
-                                  fontFamily: 'var(--font-mono)',
-                                  fontSize: '11px',
-                                  fontWeight: 700,
-                                  padding: '4px 10px',
-                                  borderRadius: 'var(--radius-sm)',
-                                  backgroundColor: tones.dangerBg,
-                                  color: tones.dangerText,
-                                  border: `1px solid ${tones.dangerBorder}`,
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                Cancelar Pedido
-                              </button>
-                            )}
-                          </div>
-                        )}
+                      <div className="staff-order-customer">
+                        <span className="font-mono">{order.data}</span>
+                        <span>•</span>
+                        <span>{order.itens.length} item(ns)</span>
                       </div>
-                    </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {order.itens.map((item, idx) => (
+                      {order.endereco_entrega && (
+                        <div className="staff-order-address">
+                          <strong>{isPickup ? 'Local de retirada:' : 'Endereço de entrega:'}</strong>{' '}
+                          {order.endereco_entrega}
+                          {order.cep && !isPickup ? ` (CEP ${order.cep})` : ''}
+                        </div>
+                      )}
+
+                      {order.observacoes && (
                         <div
-                          key={idx}
+                          className="staff-order-notes"
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            fontSize: '14px',
+                            backgroundColor: tones.warningBg,
+                            borderColor: tones.warningBorder,
+                            color: tones.warningText,
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span style={{ color: tones.activeTabText, fontWeight: 700 }}>
-                              {item.quantidade}x
-                            </span>
-                            <span>{item.produto.nome}</span>
-                            <span
-                              style={{
-                                fontSize: '11px',
-                                color: 'var(--color-on-surface-variant)',
-                                fontFamily: 'var(--font-mono)',
-                              }}
-                            >
-                              ({item.produto.jogoNome})
-                            </span>
-                          </div>
-                          <span style={{ fontFamily: 'var(--font-mono)', color: tones.activeTabText, fontWeight: 600 }}>
-                            R$ {formatBRL(item.subtotal)}
+                          <strong>Observações:</strong> {order.observacoes}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="staff-order-controls">
+                      <div className="staff-order-total-block">
+                        <span className="staff-order-total-label">Total</span>
+                        <span className="staff-order-total-value" style={{ color: tones.accentText }}>
+                          R$ {formatBRL(order.valor_total)}
+                        </span>
+                      </div>
+
+                      {order.status === 'Pendente' && (
+                        <button
+                          type="button"
+                          disabled={isCancelling}
+                          onClick={() => {
+                            showToastConfirm({
+                              message: `Deseja cancelar o Pedido #${orderNum}? Os itens retornarão ao estoque automaticamente.`,
+                              confirmText: 'Sim, Cancelar Pedido',
+                              cancelText: 'Manter Pedido',
+                              onConfirm: () => {
+                                setCancellingId(order.id_pedido);
+                                void cancelOwnOrder(order.id_pedido).finally(() => {
+                                  setCancellingId(null);
+                                });
+                              },
+                            });
+                          }}
+                          className="btn-outline"
+                          style={{
+                            padding: '7px 12px',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            borderColor: tones.dangerBorder,
+                            color: tones.dangerText,
+                          }}
+                        >
+                          {isCancelling ? <RotateCcw size={13} /> : <XCircle size={13} />}
+                          <span>{isCancelling ? 'Cancelando...' : 'Cancelar Pedido'}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Itens do Pedido */}
+                  <div className="staff-order-items-box">
+                    {order.itens.map((item, idx) => (
+                      <div key={`${order.id_pedido}-${item.produto.id}-${idx}`} className="staff-order-item-row">
+                        <div className="staff-order-item-left">
+                          <span className="staff-order-qty" style={{ color: tones.accentText }}>
+                            {item.quantidade}x
+                          </span>
+                          <span className="staff-order-item-name">{item.produto.nome}</span>
+                          <span className="badge badge-muted" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                            {item.produto.jogoNome || 'Geral'}
                           </span>
                         </div>
-                      ))}
-                    </div>
-
-                    {(order.endereco_entrega || order.metodo_pagamento) && (
-                      <div
-                        style={{
-                          padding: '10px 12px',
-                          borderRadius: '8px',
-                          backgroundColor: 'var(--color-surface-container-low)',
-                          border: '1px solid var(--card-border)',
-                          display: 'flex',
-                          flexWrap: 'wrap',
-                          justifyContent: 'space-between',
-                          gap: '8px 16px',
-                          fontSize: '12.5px',
-                          color: 'var(--color-on-surface-variant)',
-                        }}
-                      >
-                        {order.endereco_entrega && (
-                          <span>
-                            <strong style={{ color: 'var(--color-headline)' }}>Destino:</strong>{' '}
-                            {order.endereco_entrega}
-                          </span>
-                        )}
-                        {order.metodo_pagamento && (
-                          <span style={{ fontFamily: 'var(--font-mono)' }}>
-                            <strong style={{ color: 'var(--color-headline)' }}>Pagamento:</strong>{' '}
-                            {order.metodo_pagamento.toUpperCase()}
-                            {order.status_pagamento ? ` (${order.status_pagamento})` : ''}
-                          </span>
-                        )}
+                        <div className="staff-order-item-right">
+                          <strong>R$ {formatBRL(item.subtotal)}</strong>
+                        </div>
                       </div>
-                    )}
-
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'flex-end',
-                        alignItems: 'baseline',
-                        gap: '12px',
-                        borderTop: '1px dashed var(--card-border)',
-                        paddingTop: '12px',
-                      }}
-                    >
-                      <span style={{ color: 'var(--color-on-surface-variant)', fontSize: '13px' }}>
-                        Valor Total:
-                      </span>
-                      <span
-                        style={{
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: '20px',
-                          fontWeight: 700,
-                          color: tones.activeTabText,
-                        }}
-                      >
-                        R$ {formatBRL(order.valor_total)}
-                      </span>
-                    </div>
+                    ))}
                   </div>
-                );
-              })
-            )}
-          </div>
-        )}
-
-        {/* Estoque */}
-        {isStaffOrAdmin && activeTab === 'inventory' && (
-          <div>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '16px',
-                marginBottom: '24px',
-              }}
-            >
-              <div>
-                <h3 style={{ fontSize: '20px', color: 'var(--color-headline)', marginBottom: '4px' }}>
-                  Gerenciamento de Estoque & Produtos
-                </h3>
-                <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', margin: 0 }}>
-                  Ajuste quantidades livremente, controle níveis de estoque e edite produtos do catálogo.
-                </p>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <div style={{ minWidth: '190px' }}>
-                  <SystemSelect<'all' | 'active' | 'inactive'>
-                    value={productStatusFilter}
-                    onChange={(val) => setProductStatusFilter(val)}
-                    options={[
-                      { value: 'all', label: `Todos (${products.length})` },
-                      { value: 'active', label: `Ativos (${products.filter((p) => p.ativo !== false).length})` },
-                      { value: 'inactive', label: `Inativos (${products.filter((p) => p.ativo === false).length})` },
-                    ]}
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={() => setIsCreateProductModalOpen(true)}
-                  style={{
-                    padding: '8px 16px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '13px',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <Plus size={15} /> Cadastrar Novo Produto
-                </button>
-              </div>
-            </div>
-
-            {(() => {
-              const displayedProducts = products.filter((p) => {
-                if (productStatusFilter === 'active') return p.ativo !== false;
-                if (productStatusFilter === 'inactive') return p.ativo === false;
-                return true;
-              });
-
-              if (displayedProducts.length === 0) {
-                return (
-                  <div
-                    className="glass-panel"
-                    style={{
-                      padding: '48px 24px',
-                      textAlign: 'center',
-                      borderRadius: 'var(--radius-lg)',
-                      color: 'var(--color-on-surface-variant)',
-                    }}
-                  >
-                    <p style={{ fontSize: '15px', margin: 0 }}>
-                      Nenhum produto encontrado para o filtro "{productStatusFilter === 'inactive' ? 'Inativos' : productStatusFilter === 'active' ? 'Ativos' : 'Todos'}".
-                    </p>
-                  </div>
-                );
-              }
-
-              return (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                    gap: '20px',
-                  }}
-                >
-                  {displayedProducts.map((p) => (
-                    <StockItemCard
-                      key={p.id}
-                      product={p}
-                      isStaffOrAdmin={isStaffOrAdmin}
-                      onEdit={(prod) => setEditingProduct(prod)}
-                      onUpdateStockDelta={(id, delta) => updateProductStock(id, delta)}
-                      onSetStockExact={(id, exact) => setProductStockExact(id, exact)}
-                      onPermanentDelete={handlePermanentDelete}
-                      tones={tones}
-                      isLight={isLight}
-                    />
-                  ))}
-                </div>
+                </article>
               );
-            })()}
+            })}
           </div>
         )}
+      </section>
+      )}
 
-
-        {/* Modal de Cadastro de Produto */}
-        <CreateProductModal
-          isOpen={isCreateProductModalOpen}
-          onClose={() => setIsCreateProductModalOpen(false)}
-          onCreate={addProduct}
-        />
-
-        {/* Modal de Edição de Produto (CRUD) */}
-        {editingProduct && (
-          <EditProductModal
-            product={editingProduct}
-            onClose={() => setEditingProduct(null)}
-            onSave={(updated) => editProduct(editingProduct.id, updated)}
-            onDelete={(id) => deleteProduct(id)}
-            onReactivate={(id) => reactivateProduct(id)}
-            onPermanentDelete={(id) => removeProductPermanently(id)}
+      {/* Aba Minha Conta (Dados Pessoais & Senha) */}
+      {activeCustomerTab === 'account' && (
+        <section
+          id="customer-panel-account"
+          role="tabpanel"
+          aria-labelledby="customer-tab-account"
+          className="admin-animate-fade"
+        >
+          <AccountProfilePanel
+            showPersonalOrders={false}
+            onBrowseCatalog={() => setCurrentTab('products')}
           />
-        )}
-      </div>
+        </section>
+      )}
     </div>
   );
 };
