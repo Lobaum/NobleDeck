@@ -21,6 +21,34 @@ from app.modelos.pedido import Pedido, ItemPedido
 SEED_DB_PATH = Path(__file__).resolve().parent.parent / "nobledeck.db"
 
 
+def _carregar_dotenv_local():
+    candidatos = (
+        Path(__file__).resolve().parent.parent.parent / ".env",
+        Path(__file__).resolve().parent.parent / ".env",
+    )
+    for env_path in candidatos:
+        if not env_path.is_file():
+            continue
+        try:
+            for linha in env_path.read_text(encoding="utf-8").splitlines():
+                conteudo = linha.strip()
+                if not conteudo or conteudo.startswith("#") or "=" not in conteudo:
+                    continue
+                chave, valor = conteudo.split("=", 1)
+                chave = chave.strip()
+                if not chave:
+                    continue
+                valor = valor.strip()
+                if len(valor) >= 2 and valor[0] == valor[-1] and valor[0] in ("'", '"'):
+                    valor = valor[1:-1]
+                os.environ.setdefault(chave, valor)
+        except OSError:
+            pass
+
+
+_carregar_dotenv_local()
+
+
 def _resolver_db_path() -> Path:
     custom = (os.environ.get("NOBLEDECK_DB_PATH") or "").strip()
     if custom:
@@ -212,6 +240,54 @@ def inicializar_banco():
             INSERT OR IGNORE INTO estoques (produto_id, quantidade, estoque_minimo)
             SELECT id_produto, quantidade, 3 FROM produtos;
         """)
+
+        _garantir_admin_inicial(cursor)
+
+
+def _garantir_admin_inicial(cursor):
+    admin_email = (os.environ.get("NOBLEDECK_ADMIN_EMAIL") or "").strip().lower()
+    admin_senha = (os.environ.get("NOBLEDECK_ADMIN_PASSWORD") or "").strip()
+    admin_nome = (
+        os.environ.get("NOBLEDECK_ADMIN_NOME") or "Administrador Geral"
+    ).strip() or "Administrador Geral"
+
+    if not admin_email or not admin_senha or "@" not in admin_email:
+        return
+
+    cursor.execute(
+        "SELECT id_usuario FROM usuarios WHERE tipo_usuario = 'administrador' LIMIT 1"
+    )
+    if cursor.fetchone() is not None:
+        return
+
+    permissoes_admin = json.dumps(list(PERMISSOES_EQUIPE_VALIDAS))
+    cursor.execute(
+        "SELECT id_usuario FROM usuarios WHERE email = ?",
+        (admin_email,),
+    )
+    existente = cursor.fetchone()
+    if existente:
+        cursor.execute(
+            """
+            UPDATE usuarios
+            SET tipo_usuario = 'administrador',
+                cargo = COALESCE(NULLIF(cargo, ''), 'Administrador Geral'),
+                permissoes = ?
+            WHERE id_usuario = ?
+            """,
+            (permissoes_admin, existente["id_usuario"]),
+        )
+        return
+
+    from app.seguranca import gerar_hash_senha
+
+    cursor.execute(
+        """
+        INSERT INTO usuarios (nome, email, senha, tipo_usuario, cargo, permissoes)
+        VALUES (?, ?, ?, 'administrador', 'Administrador Geral', ?)
+        """,
+        (admin_nome, admin_email, gerar_hash_senha(admin_senha), permissoes_admin),
+    )
 
 
 def obter_segredo_auth() -> str:
