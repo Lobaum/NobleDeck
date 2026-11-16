@@ -1,5 +1,7 @@
 import json
+import os
 import secrets
+import shutil
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -16,10 +18,32 @@ from app.modelos.produto import Produto
 from app.modelos.estoque import Estoque
 from app.modelos.pedido import Pedido, ItemPedido
 
-DB_PATH = Path(__file__).resolve().parent.parent / "nobledeck.db"
+SEED_DB_PATH = Path(__file__).resolve().parent.parent / "nobledeck.db"
+
+
+def _resolver_db_path() -> Path:
+    custom = (os.environ.get("NOBLEDECK_DB_PATH") or "").strip()
+    if custom:
+        return Path(custom)
+    is_deployed_vercel = os.environ.get("VERCEL_ENV") in ("production", "preview")
+    if is_deployed_vercel or (os.environ.get("VERCEL") and not os.access(SEED_DB_PATH.parent, os.W_OK)):
+        return Path("/tmp/nobledeck.db")
+    return SEED_DB_PATH
+
+
+DB_PATH = _resolver_db_path()
+
+
+def _garantir_banco_gravavel():
+    alvo = Path(DB_PATH)
+    if alvo != SEED_DB_PATH and not alvo.exists():
+        alvo.parent.mkdir(parents=True, exist_ok=True)
+        if SEED_DB_PATH.exists():
+            shutil.copy2(SEED_DB_PATH, alvo)
 
 
 def obter_conexao_direta():
+    _garantir_banco_gravavel()
     conn = sqlite3.connect(str(DB_PATH), timeout=10.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
@@ -39,6 +63,7 @@ def obter_conexao():
 
 
 def inicializar_banco():
+    _garantir_banco_gravavel()
     with obter_conexao() as conn:
         cursor = conn.cursor()
 
@@ -190,6 +215,12 @@ def inicializar_banco():
 
 
 def obter_segredo_auth() -> str:
+    segredo_env = (
+        os.environ.get("NOBLEDECK_AUTH_SECRET") or os.environ.get("AUTH_SECRET") or ""
+    ).strip()
+    if segredo_env:
+        return segredo_env
+
     with obter_conexao() as conn:
         cursor = conn.cursor()
         cursor.execute("""
